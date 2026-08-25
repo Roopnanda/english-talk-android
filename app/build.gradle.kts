@@ -65,7 +65,8 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     // WebRTC
-    implementation("io.getstream:webrtc-android:1.1.2")
+    implementation("io.getstream:stream-webrtc-android:1.1.2")
+
 
     // In-App Billing
     implementation("com.android.billingclient:billing-ktx:6.1.0")

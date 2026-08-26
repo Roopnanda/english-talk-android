@@ -1,6 +1,7 @@
 package com.englishtalk.app.webrtc
 
 import android.content.Context
+import android.util.Log
 import org.webrtc.*
 
 class WebRtcAudioClient(
@@ -8,7 +9,8 @@ class WebRtcAudioClient(
     private val onIceCandidateGenerated: (IceCandidate) -> Unit,
     private val onRemoteStreamActive: () -> Unit
 ) {
-    private var peerConnectionFactory: PeerConnectionFactory
+
+    private val peerConnectionFactory: PeerConnectionFactory
     private var peerConnection: PeerConnection? = null
     private var localAudioTrack: AudioTrack? = null
     private var localAudioSource: AudioSource? = null
@@ -19,23 +21,13 @@ class WebRtcAudioClient(
             .createInitializationOptions()
         PeerConnectionFactory.initialize(initOptions)
 
+        val options = PeerConnectionFactory.Options()
         peerConnectionFactory = PeerConnectionFactory.builder()
+            .setOptions(options)
             .createPeerConnectionFactory()
-
-        createLocalAudioTrack()
     }
 
-    private fun createLocalAudioTrack() {
-        val audioConstraints = MediaConstraints().apply {
-            mandatory.add(MediaConstraints.KeyValuePair("googEchoCancellation", "true"))
-            mandatory.add(MediaConstraints.KeyValuePair("googAutoGainControl", "true"))
-            mandatory.add(MediaConstraints.KeyValuePair("googNoiseSuppression", "true"))
-        }
-        localAudioSource = peerConnectionFactory.createAudioSource(audioConstraints)
-        localAudioTrack = peerConnectionFactory.createAudioTrack("local_audio_track", localAudioSource)
-    }
-
-    fun initPeerConnection(isInitiator: Boolean, onOfferReady: ((SessionDescription) -> Unit)? = null) {
+    fun initPeerConnection(isInitiator: Boolean, onOfferCreated: (SessionDescription) -> Unit) {
         val iceServers = listOf(
             PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer(),
             PeerConnection.IceServer.builder("stun:stun1.l.google.com:19302").createIceServer()
@@ -50,62 +42,68 @@ class WebRtcAudioClient(
             override fun onIceCandidate(candidate: IceCandidate?) {
                 candidate?.let { onIceCandidateGenerated(it) }
             }
-            override fun onAddTrack(receiver: RtpReceiver?, mediaStreams: Array<out MediaStream>?) {
-                onRemoteStreamActive()
+
+            override fun onTrack(transceiver: RtpTransceiver?) {
+                if (transceiver?.receiver?.track() is AudioTrack) {
+                    onRemoteStreamActive()
+                }
             }
-            override fun onIceGatheringChange(state: PeerConnection.IceGatheringState?) {}
+
             override fun onSignalingChange(state: PeerConnection.SignalingState?) {}
             override fun onIceConnectionChange(state: PeerConnection.IceConnectionState?) {}
             override fun onIceConnectionReceivingChange(receiving: Boolean) {}
+            override fun onIceGatheringChange(state: PeerConnection.IceGatheringState?) {}
             override fun onIceCandidatesRemoved(candidates: Array<out IceCandidate>?) {}
+            override fun onAddStream(stream: MediaStream?) {}
             override fun onRemoveStream(stream: MediaStream?) {}
             override fun onDataChannel(channel: DataChannel?) {}
             override fun onRenegotiationNeeded() {}
-            override fun onAddStream(stream: MediaStream?) {}
         })
 
-        localAudioTrack?.let { track ->
-            peerConnection?.addTrack(track, listOf("media_stream"))
-        }
+        // Setup Local Audio Track
+        val audioConstraints = MediaConstraints()
+        localAudioSource = peerConnectionFactory.createAudioSource(audioConstraints)
+        localAudioTrack = peerConnectionFactory.createAudioTrack("local_audio_track", localAudioSource)
+        localAudioTrack?.setEnabled(true)
+
+        val mediaStreamLabels = listOf("ARDAMS")
+        peerConnection?.addTrack(localAudioTrack, mediaStreamLabels)
 
         if (isInitiator) {
-            val sdpConstraints = MediaConstraints().apply {
+            val constraints = MediaConstraints().apply {
                 mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
-                mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "false"))
             }
-
             peerConnection?.createOffer(object : SdpObserverAdapter() {
-                override fun onCreateSuccess(desc: SessionDescription?) {
-                    desc?.let { offer ->
-                        peerConnection?.setLocalDescription(SdpObserverAdapter(), offer)
-                        onOfferReady?.invoke(offer)
+                override fun onCreateSuccess(sdp: SessionDescription?) {
+                    sdp?.let {
+                        peerConnection?.setLocalDescription(SdpObserverAdapter(), it)
+                        onOfferCreated(it)
                     }
                 }
-            }, sdpConstraints)
+            }, constraints)
         }
     }
 
-    fun onRemoteOfferReceived(offer: SessionDescription, onAnswerReady: (SessionDescription) -> Unit) {
+    fun onRemoteOfferReceived(sdp: SessionDescription, onAnswerCreated: (SessionDescription) -> Unit) {
         peerConnection?.setRemoteDescription(object : SdpObserverAdapter() {
             override fun onSetSuccess() {
-                val sdpConstraints = MediaConstraints().apply {
+                val constraints = MediaConstraints().apply {
                     mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
-                    mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "false"))
                 }
                 peerConnection?.createAnswer(object : SdpObserverAdapter() {
-                    override fun onCreateSuccess(desc: SessionDescription?) {
-                        desc?.let { answer ->
-                            peerConnection?.setLocalDescription(SdpObserverAdapter(), answer)
-                            onAnswerReady(answer)
+                    override fun onCreateSuccess(answerSdp: SessionDescription?) {
+                        answerSdp?.let {
+                            peerConnection?.setLocalDescription(SdpObserverAdapter(), it)
+                            onAnswerCreated(it)
                         }
                     }
-                }, sdpConstraints)
+                }, constraints)
             }
-        }, offer)
+        }, sdp)
     }
 
-    fun onRemoteAnswerReceived(answer: SessionDescription) {
-        peerConnection?.setRemoteDescription(SdpObserverAdapter(), answer)
+    fun onRemoteAnswerReceived(sdp: SessionDescription) {
+        peerConnection?.setRemoteDescription(SdpObserverAdapter(), sdp)
     }
 
     fun addRemoteIceCandidate(candidate: IceCandidate) {
@@ -114,15 +112,18 @@ class WebRtcAudioClient(
 
     fun disconnect() {
         try {
-            peerConnection?.close()
-            peerConnection = null
-            localAudioSource?.dispose()
+            localAudioTrack?.setEnabled(false)
             localAudioTrack?.dispose()
-        } catch (_: Exception) {}
+            localAudioSource?.dispose()
+            peerConnection?.close()
+            peerConnection?.dispose()
+        } catch (e: Exception) {
+            Log.e("WebRtcAudioClient", "Error during disconnect: ${e.message}")
+        }
     }
 
     open class SdpObserverAdapter : SdpObserver {
-        override fun onCreateSuccess(desc: SessionDescription?) {}
+        override fun onCreateSuccess(sdp: SessionDescription?) {}
         override fun onSetSuccess() {}
         override fun onCreateFailure(error: String?) {}
         override fun onSetFailure(error: String?) {}

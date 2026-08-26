@@ -16,6 +16,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,7 +44,7 @@ import org.webrtc.IceCandidate
 import org.webrtc.SessionDescription
 
 enum class AppCallState {
-    IDLE, SEARCHING, CONNECTED
+    ONBOARDING_GENDER, IDLE, SEARCHING, CONNECTED
 }
 
 class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
@@ -55,8 +56,8 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
 
     private val callState = mutableStateOf(AppCallState.IDLE)
     private val selectedLevel = mutableStateOf("Intermediate")
-    private val userGender = mutableStateOf("Male")
-    private val preferredPartnerGender = mutableStateOf("Any")
+    private val userGender = mutableStateOf("")
+    private val talkToFemaleOnly = mutableStateOf(false)
     private val callDurationSeconds = mutableLongStateOf(0L)
     private val showExtendCallDialog = mutableStateOf(false)
     private val showVipDialog = mutableStateOf(false)
@@ -76,7 +77,14 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
         powerManager = getSystemService(POWER_SERVICE) as PowerManager
 
         val prefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-        userGender.value = prefs.getString("user_gender", "Male") ?: "Male"
+        val savedGender = prefs.getString("user_gender", "") ?: ""
+
+        if (savedGender.isEmpty()) {
+            callState.value = AppCallState.ONBOARDING_GENDER
+        } else {
+            userGender.value = savedGender
+            callState.value = AppCallState.IDLE
+        }
 
         signalingClient = SignalingClient(serverUrl, this)
         signalingClient.connect()
@@ -116,7 +124,7 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
                 }
             }
 
-            BackHandler(enabled = callState.value != AppCallState.IDLE) {
+            BackHandler(enabled = callState.value != AppCallState.IDLE && callState.value != AppCallState.ONBOARDING_GENDER) {
                 if (callState.value == AppCallState.SEARCHING) {
                     signalingClient.leaveQueue()
                     callState.value = AppCallState.IDLE
@@ -136,61 +144,66 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
                 modifier = Modifier.fillMaxSize(),
                 color = Color(0xFF0F172A)
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 20.dp, vertical = 16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.SpaceBetween
-                ) {
-                    TopHeaderBar(
-                        isVip = isSubscribed,
-                        onVipClick = { showVipDialog.value = true }
-                    )
-
-                    when (callState.value) {
-                        AppCallState.IDLE -> IdleDashboard(
-                            selectedLevel = selectedLevel.value,
-                            userGender = userGender.value,
-                            preferredGender = preferredPartnerGender.value,
-                            isVip = isSubscribed,
-                            onLevelSelected = { selectedLevel.value = it },
-                            onGenderSelected = {
-                                userGender.value = it
-                                prefs.edit().putString("user_gender", it).apply()
-                            },
-                            onPreferredGenderSelected = {
-                                if (isSubscribed) {
-                                    preferredPartnerGender.value = it
-                                } else {
-                                    showVipDialog.value = true
-                                }
-                            },
-                            onStartClick = {
-                                if (hasAudioPermission) startSearching()
-                                else permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                            }
-                        )
-
-                        AppCallState.SEARCHING -> SearchingDashboard(
-                            onCancelClick = {
-                                signalingClient.leaveQueue()
-                                callState.value = AppCallState.IDLE
-                            }
-                        )
-
-                        AppCallState.CONNECTED -> ActiveCallDashboard(
-                            durationSeconds = callDurationSeconds.longValue,
-                            peerLevel = matchedPeerLevel.value,
-                            isMuted = isMuted.value,
-                            isSpeakerOn = isSpeakerOn.value,
-                            onToggleMute = { toggleMute() },
-                            onToggleSpeaker = { toggleSpeaker() },
-                            onEndCall = { hangUpCall() }
-                        )
+                if (callState.value == AppCallState.ONBOARDING_GENDER) {
+                    GenderSelectionOnboardingScreen { chosenGender ->
+                        userGender.value = chosenGender
+                        prefs.edit().putString("user_gender", chosenGender).apply()
+                        callState.value = AppCallState.IDLE
                     }
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 20.dp, vertical = 16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        TopHeaderBar(
+                            isVip = isSubscribed,
+                            onVipClick = { showVipDialog.value = true }
+                        )
 
-                    AdManager.BannerAdView(modifier = Modifier.padding(top = 8.dp))
+                        when (callState.value) {
+                            AppCallState.IDLE -> IdleDashboard(
+                                selectedLevel = selectedLevel.value,
+                                talkToFemaleOnly = talkToFemaleOnly.value,
+                                isVip = isSubscribed,
+                                onLevelSelected = { selectedLevel.value = it },
+                                onToggleTalkToFemale = {
+                                    if (isSubscribed) {
+                                        talkToFemaleOnly.value = !talkToFemaleOnly.value
+                                    } else {
+                                        showVipDialog.value = true
+                                    }
+                                },
+                                onStartClick = {
+                                    if (hasAudioPermission) startSearching()
+                                    else permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                }
+                            )
+
+                            AppCallState.SEARCHING -> SearchingDashboard(
+                                onCancelClick = {
+                                    signalingClient.leaveQueue()
+                                    callState.value = AppCallState.IDLE
+                                }
+                            )
+
+                            AppCallState.CONNECTED -> ActiveCallDashboard(
+                                durationSeconds = callDurationSeconds.longValue,
+                                peerLevel = matchedPeerLevel.value,
+                                isMuted = isMuted.value,
+                                isSpeakerOn = isSpeakerOn.value,
+                                onToggleMute = { toggleMute() },
+                                onToggleSpeaker = { toggleSpeaker() },
+                                onEndCall = { hangUpCall() }
+                            )
+
+                            else -> {}
+                        }
+
+                        AdManager.BannerAdView(modifier = Modifier.padding(top = 8.dp))
+                    }
                 }
 
                 if (showExtendCallDialog.value) {
@@ -239,7 +252,7 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
                         },
                         text = {
                             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Text("👫 Talk to Opposite Gender (Male/Female Filter)", color = Color(0xFF38BDF8), fontWeight = FontWeight.SemiBold)
+                                Text("👩 Talk to Female Gender (Exclusive Match)", color = Color(0xFF38BDF8), fontWeight = FontWeight.SemiBold)
                                 Text("⏱ Unlimited Call Duration (No 15-Min Cutoff)", color = Color.White)
                                 Text("🚫 100% Ad-Free Experience", color = Color.White)
                                 Text("⚡ Priority Fast-Track Matchmaking", color = Color.White)
@@ -296,6 +309,8 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
         callState.value = AppCallState.SEARCHING
         signalingClient.joinQueue(
             level = selectedLevel.value,
+            userGender = userGender.value,
+            talkToFemaleOnly = talkToFemaleOnly.value,
             isVip = BillingManager.isSubscribed.value
         )
     }
@@ -318,9 +333,7 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
     }
 
     private fun cleanupCall() {
-        // Allow the screen to turn off / sleep normally when not on a call
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-
         backgroundMicJob?.cancel()
         isBackgroundAutoMuted = false
 
@@ -339,9 +352,7 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
 
     override fun onMatchFound(roomId: String, isInitiator: Boolean, peerLevel: String) {
         runOnUiThread {
-            // Keep screen on during active call
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-
             matchedPeerLevel.value = peerLevel
             callState.value = AppCallState.CONNECTED
 
@@ -401,6 +412,91 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
 }
 
 @Composable
+fun GenderSelectionOnboardingScreen(onGenderSelected: (String) -> Unit) {
+    var selected by remember { mutableStateOf("Male") }
+    val options = listOf("Male", "Female", "Other")
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(28.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = "Welcome to English Talk!",
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Please select your gender to personalize your profile. You will only be asked this once.",
+            fontSize = 14.sp,
+            color = Color(0xFF94A3B8),
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(36.dp))
+
+        options.forEach { option ->
+            val isOptionSelected = option == selected
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isOptionSelected) Color(0xFF2563EB) else Color(0xFF1E293B)
+                ),
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 6.dp)
+                    .clickable { selected = option }
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = option,
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    RadioButton(
+                        selected = isOptionSelected,
+                        onClick = { selected = option },
+                        colors = RadioButtonDefaults.colors(
+                            selectedColor = Color.White,
+                            unselectedColor = Color(0xFF64748B)
+                        )
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(40.dp))
+
+        Button(
+            onClick = { onGenderSelected(selected) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp),
+            shape = RoundedCornerShape(26.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981))
+        ) {
+            Text(
+                text = "Continue to App",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+        }
+    }
+}
+
+@Composable
 fun TopHeaderBar(isVip: Boolean, onVipClick: () -> Unit) {
     Row(
         modifier = Modifier
@@ -437,12 +533,10 @@ fun TopHeaderBar(isVip: Boolean, onVipClick: () -> Unit) {
 @Composable
 fun IdleDashboard(
     selectedLevel: String,
-    userGender: String,
-    preferredGender: String,
+    talkToFemaleOnly: Boolean,
     isVip: Boolean,
     onLevelSelected: (String) -> Unit,
-    onGenderSelected: (String) -> Unit,
-    onPreferredGenderSelected: (String) -> Unit,
+    onToggleTalkToFemale: () -> Unit,
     onStartClick: () -> Unit
 ) {
     val levels = listOf("Beginner", "Intermediate", "Advanced")
@@ -463,7 +557,7 @@ fun IdleDashboard(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 20.dp),
+                .padding(bottom = 24.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             levels.forEach { level ->
@@ -490,69 +584,51 @@ fun IdleDashboard(
             }
         }
 
+        // Talk to Female VIP Feature Card
         Card(
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
-            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = if (talkToFemaleOnly && isVip) Color(0xFF1E3A5F) else Color(0xFF1E293B)
+            ),
+            shape = RoundedCornerShape(14.dp),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 28.dp)
+                .padding(bottom = 36.dp)
+                .clickable { onToggleTalkToFemale() }
         ) {
-            Column(
-                modifier = Modifier.padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("I am:", color = Color(0xFF94A3B8), fontSize = 13.sp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("Male", "Female").forEach { g ->
-                            FilterChip(
-                                selected = g == userGender,
-                                onClick = { onGenderSelected(g) },
-                                label = { Text(g, fontSize = 12.sp) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = Color(0xFF38BDF8),
-                                    selectedLabelColor = Color.Black,
-                                    containerColor = Color(0xFF0F172A),
-                                    labelColor = Color(0xFF94A3B8)
-                                )
-                            )
-                        }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "👩 Talk to Female Gender",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    if (!isVip) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "👑 VIP",
+                            color = Color(0xFFF59E0B),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
-
-                Divider(color = Color(0xFF334155), thickness = 0.5.dp)
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Talk with:", color = Color(0xFF94A3B8), fontSize = 13.sp)
-                        if (!isVip) {
-                            Text(" (VIP)", color = Color(0xFFF59E0B), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("Any", "Female", "Male").forEach { p ->
-                            FilterChip(
-                                selected = p == preferredGender,
-                                onClick = { onPreferredGenderSelected(p) },
-                                label = { Text(p, fontSize = 12.sp) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = if (isVip) Color(0xFFF59E0B) else Color(0xFF334155),
-                                    selectedLabelColor = if (isVip) Color.Black else Color.White,
-                                    containerColor = Color(0xFF0F172A),
-                                    labelColor = Color(0xFF94A3B8)
-                                )
-                            )
-                        }
-                    }
-                }
+                Switch(
+                    checked = talkToFemaleOnly && isVip,
+                    onCheckedChange = { onToggleTalkToFemale() },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = Color(0xFFF59E0B),
+                        uncheckedThumbColor = Color(0xFF94A3B8),
+                        uncheckedTrackColor = Color(0xFF0F172A)
+                    )
+                )
             }
         }
 

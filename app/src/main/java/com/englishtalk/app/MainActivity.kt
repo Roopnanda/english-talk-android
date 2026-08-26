@@ -7,6 +7,8 @@ import android.content.pm.PackageManager
 import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -14,7 +16,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -50,6 +51,7 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
     private lateinit var signalingClient: SignalingClient
     private var webRtcClient: WebRtcAudioClient? = null
     private lateinit var audioManager: AudioManager
+    private lateinit var powerManager: PowerManager
 
     private val callState = mutableStateOf(AppCallState.IDLE)
     private val selectedLevel = mutableStateOf("Intermediate")
@@ -71,6 +73,7 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+        powerManager = getSystemService(POWER_SERVICE) as PowerManager
 
         val prefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
         userGender.value = prefs.getString("user_gender", "Male") ?: "Male"
@@ -123,8 +126,8 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
             LaunchedEffect(callState.value) {
                 if (callState.value == AppCallState.CONNECTED) {
                     while (callState.value == AppCallState.CONNECTED) {
-                        delay(1000L)
-                        callDurationSeconds.longValue = CallService.currentDurationSeconds
+                        delay(500L)
+                        callDurationSeconds.longValue = CallService.getElapsedSeconds()
                     }
                 }
             }
@@ -267,7 +270,8 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
 
     override fun onPause() {
         super.onPause()
-        if (callState.value == AppCallState.CONNECTED) {
+        val isScreenOn = powerManager.isInteractive
+        if (callState.value == AppCallState.CONNECTED && isScreenOn) {
             backgroundMicJob?.cancel()
             backgroundMicJob = backgroundScope.launch {
                 delay(30_000L)
@@ -307,13 +311,16 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
     }
 
     private fun hangUpCall() {
-        val duration = CallService.currentDurationSeconds
+        val duration = CallService.getElapsedSeconds()
         signalingClient.endCall()
         cleanupCall()
         AdManager.showPostCallInterstitial(this, duration) {}
     }
 
     private fun cleanupCall() {
+        // Allow the screen to turn off / sleep normally when not on a call
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
         backgroundMicJob?.cancel()
         isBackgroundAutoMuted = false
 
@@ -332,6 +339,9 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
 
     override fun onMatchFound(roomId: String, isInitiator: Boolean, peerLevel: String) {
         runOnUiThread {
+            // Keep screen on during active call
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
             matchedPeerLevel.value = peerLevel
             callState.value = AppCallState.CONNECTED
 
@@ -384,6 +394,7 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
 
     override fun onDestroy() {
         super.onDestroy()
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         backgroundScope.cancel()
         cleanupCall()
     }
@@ -411,7 +422,7 @@ fun TopHeaderBar(isVip: Boolean, onVipClick: () -> Unit) {
             colors = ButtonDefaults.buttonColors(
                 containerColor = if (isVip) Color(0xFF10B981) else Color(0xFFF59E0B)
             ),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
         ) {
             Text(
                 text = if (isVip) "VIP ACTIVE" else "👑 GO VIP",
@@ -435,20 +446,17 @@ fun IdleDashboard(
     onStartClick: () -> Unit
 ) {
     val levels = listOf("Beginner", "Intermediate", "Advanced")
-    val genderList = listOf("Male", "Female")
-    val preferredOptions = listOf("Any", "Female", "Male")
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
         modifier = Modifier.fillMaxWidth()
     ) {
-        // Proficiency Level Selector
         Text(
             text = "Choose Your English Level",
             color = Color(0xFF94A3B8),
             fontSize = 14.sp,
-            modifier = Modifier.padding(bottom = 10.dp)
+            modifier = Modifier.padding(bottom = 8.dp)
         )
 
         Row(
@@ -482,78 +490,72 @@ fun IdleDashboard(
             }
         }
 
-        // Gender & Partner Preference Row
-        Row(
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+            shape = RoundedCornerShape(12.dp),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 32.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(bottom = 28.dp)
         ) {
-            // Your Gender
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "I am:",
-                    color = Color(0xFF94A3B8),
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(bottom = 6.dp)
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    genderList.forEach { g ->
-                        FilterChip(
-                            modifier = Modifier.weight(1f),
-                            selected = g == userGender,
-                            onClick = { onGenderSelected(g) },
-                            label = { Text(g, fontSize = 11.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = Color(0xFF334155),
-                                selectedLabelColor = Color.White,
-                                containerColor = Color(0xFF1E293B),
-                                labelColor = Color(0xFF94A3B8)
+            Column(
+                modifier = Modifier.padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("I am:", color = Color(0xFF94A3B8), fontSize = 13.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("Male", "Female").forEach { g ->
+                            FilterChip(
+                                selected = g == userGender,
+                                onClick = { onGenderSelected(g) },
+                                label = { Text(g, fontSize = 12.sp) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = Color(0xFF38BDF8),
+                                    selectedLabelColor = Color.Black,
+                                    containerColor = Color(0xFF0F172A),
+                                    labelColor = Color(0xFF94A3B8)
+                                )
                             )
-                        )
+                        }
                     }
                 }
-            }
 
-            // Target Partner Gender (VIP Protected)
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "Talk with:",
-                        color = Color(0xFF94A3B8),
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(bottom = 6.dp)
-                    )
-                    if (!isVip) {
-                        Text(
-                            text = " (VIP)",
-                            color = Color(0xFFF59E0B),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(bottom = 6.dp)
-                        )
+                Divider(color = Color(0xFF334155), thickness = 0.5.dp)
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Talk with:", color = Color(0xFF94A3B8), fontSize = 13.sp)
+                        if (!isVip) {
+                            Text(" (VIP)", color = Color(0xFFF59E0B), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    preferredOptions.forEach { p ->
-                        FilterChip(
-                            modifier = Modifier.weight(1f),
-                            selected = p == preferredGender,
-                            onClick = { onPreferredGenderSelected(p) },
-                            label = { Text(p, fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = if (isVip) Color(0xFFF59E0B) else Color(0xFF334155),
-                                selectedLabelColor = if (isVip) Color.Black else Color.White,
-                                containerColor = Color(0xFF1E293B),
-                                labelColor = Color(0xFF94A3B8)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("Any", "Female", "Male").forEach { p ->
+                            FilterChip(
+                                selected = p == preferredGender,
+                                onClick = { onPreferredGenderSelected(p) },
+                                label = { Text(p, fontSize = 12.sp) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = if (isVip) Color(0xFFF59E0B) else Color(0xFF334155),
+                                    selectedLabelColor = if (isVip) Color.Black else Color.White,
+                                    containerColor = Color(0xFF0F172A),
+                                    labelColor = Color(0xFF94A3B8)
+                                )
                             )
-                        )
+                        }
                     }
                 }
             }
         }
 
-        // Call Button
         Button(
             onClick = onStartClick,
             modifier = Modifier

@@ -1,5 +1,7 @@
 package com.englishtalk.app.network
 
+import android.os.Handler
+import android.os.Looper
 import okhttp3.*
 import org.json.JSONObject
 import org.webrtc.IceCandidate
@@ -20,30 +22,38 @@ class SignalingClient(
     }
 
     private var webSocket: WebSocket? = null
+    private var isConnected = false
+    private val mainHandler = Handler(Looper.getMainLooper())
+
     private val client = OkHttpClient.Builder()
         .readTimeout(0, TimeUnit.MILLISECONDS)
-        .pingInterval(15, TimeUnit.SECONDS)
+        .pingInterval(10, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
         .build()
 
     fun connect() {
+        if (isConnected && webSocket != null) return
+
         val request = Request.Builder().url(serverUrl).build()
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
-            override fun onOpen(ws: WebSocket, response: Response) {}
+            override fun onOpen(ws: WebSocket, response: Response) {
+                isConnected = true
+            }
 
             override fun onMessage(ws: WebSocket, text: String) {
                 handleIncomingMessage(text)
             }
 
             override fun onClosing(ws: WebSocket, code: Int, reason: String) {
+                isConnected = false
                 ws.close(1000, null)
             }
 
             override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
-                try {
-                    Thread.sleep(2000)
-                    connect()
-                } catch (_: Exception) {}
+                isConnected = false
+                webSocket = null
+                // Reconnect after 3 seconds
+                mainHandler.postDelayed({ connect() }, 3000L)
             }
         })
     }
@@ -55,41 +65,59 @@ class SignalingClient(
                 "match_found" -> {
                     val roomId = json.optString("roomId")
                     val isInitiator = json.optBoolean("isInitiator", false)
-                    val peerLevel = json.optString("peerLevel", "General")
-                    listener.onMatchFound(roomId, isInitiator, peerLevel)
+                    val peerLevel = json.optString("peerLevel", "Intermediate")
+                    mainHandler.post {
+                        listener.onMatchFound(roomId, isInitiator, peerLevel)
+                    }
                 }
                 "offer" -> {
                     val sdp = json.optString("sdp")
-                    listener.onOfferReceived(SessionDescription(SessionDescription.Type.OFFER, sdp))
+                    mainHandler.post {
+                        listener.onOfferReceived(SessionDescription(SessionDescription.Type.OFFER, sdp))
+                    }
                 }
                 "answer" -> {
                     val sdp = json.optString("sdp")
-                    listener.onAnswerReceived(SessionDescription(SessionDescription.Type.ANSWER, sdp))
+                    mainHandler.post {
+                        listener.onAnswerReceived(SessionDescription(SessionDescription.Type.ANSWER, sdp))
+                    }
                 }
                 "ice_candidate" -> {
                     val candidate = json.optJSONObject("candidate")
                     if (candidate != null) {
-                        listener.onIceCandidateReceived(
-                            IceCandidate(
-                                candidate.optString("sdpMid"),
-                                candidate.optInt("sdpMLineIndex"),
-                                candidate.optString("candidate")
-                            )
+                        val ice = IceCandidate(
+                            candidate.optString("sdpMid"),
+                            candidate.optInt("sdpMLineIndex"),
+                            candidate.optString("candidate")
                         )
+                        mainHandler.post {
+                            listener.onIceCandidateReceived(ice)
+                        }
                     }
                 }
                 "call_ended" -> {
-                    listener.onCallEnded()
+                    mainHandler.post {
+                        listener.onCallEnded()
+                    }
                 }
             }
         } catch (_: Exception) {}
     }
 
     fun joinQueue(level: String, userGender: String, talkToFemaleOnly: Boolean, isVip: Boolean) {
+        // Ensure connected before sending
+        if (!isConnected || webSocket == null) {
+            connect()
+            mainHandler.postDelayed({
+                joinQueue(level, userGender, talkToFemaleOnly, isVip)
+            }, 1000L)
+            return
+        }
+
         val json = JSONObject().apply {
             put("action", "join_queue")
             put("level", level)
-            put("userGender", userGender)
+            put("userGender", if (userGender.isNotEmpty()) userGender else "Male")
             put("preferredGender", if (talkToFemaleOnly && isVip) "Female" else "Any")
             put("isVip", isVip)
         }

@@ -2,6 +2,7 @@ package com.englishtalk.app.network
 
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import okhttp3.*
 import org.json.JSONObject
 import org.webrtc.IceCandidate
@@ -22,8 +23,9 @@ class SignalingClient(
     }
 
     private var webSocket: WebSocket? = null
-    private var isConnected = false
+    @Volatile private var isConnected = false
     private val mainHandler = Handler(Looper.getMainLooper())
+    private var pendingQueuePayload: JSONObject? = null
 
     private val client = OkHttpClient.Builder()
         .readTimeout(0, TimeUnit.MILLISECONDS)
@@ -32,30 +34,41 @@ class SignalingClient(
         .build()
 
     fun connect() {
-        if (isConnected && webSocket != null) return
+        if (isConnected) return
 
-        val request = Request.Builder().url(serverUrl).build()
-        webSocket = client.newWebSocket(request, object : WebSocketListener() {
-            override fun onOpen(ws: WebSocket, response: Response) {
-                isConnected = true
-            }
+        try {
+            val request = Request.Builder().url(serverUrl).build()
+            webSocket = client.newWebSocket(request, object : WebSocketListener() {
+                override fun onOpen(ws: WebSocket, response: Response) {
+                    Log.d("SignalingClient", "WebSocket Connected Successfully")
+                    isConnected = true
+                    // Send queued join request if user tapped Talk Now before socket opened
+                    pendingQueuePayload?.let { payload ->
+                        ws.send(payload.toString())
+                        pendingQueuePayload = null
+                    }
+                }
 
-            override fun onMessage(ws: WebSocket, text: String) {
-                handleIncomingMessage(text)
-            }
+                override fun onMessage(ws: WebSocket, text: String) {
+                    Log.d("SignalingClient", "Received message: $text")
+                    handleIncomingMessage(text)
+                }
 
-            override fun onClosing(ws: WebSocket, code: Int, reason: String) {
-                isConnected = false
-                ws.close(1000, null)
-            }
+                override fun onClosing(ws: WebSocket, code: Int, reason: String) {
+                    isConnected = false
+                    ws.close(1000, null)
+                }
 
-            override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
-                isConnected = false
-                webSocket = null
-                // Reconnect after 3 seconds
-                mainHandler.postDelayed({ connect() }, 3000L)
-            }
-        })
+                override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
+                    Log.e("SignalingClient", "WebSocket Error: ${t.message}")
+                    isConnected = false
+                    webSocket = null
+                    mainHandler.postDelayed({ connect() }, 2500L)
+                }
+            })
+        } catch (e: Exception) {
+            Log.e("SignalingClient", "Connection setup failed: ${e.message}")
+        }
     }
 
     private fun handleIncomingMessage(message: String) {
@@ -101,19 +114,12 @@ class SignalingClient(
                     }
                 }
             }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            Log.e("SignalingClient", "Error parsing message: ${e.message}")
+        }
     }
 
     fun joinQueue(level: String, userGender: String, talkToFemaleOnly: Boolean, isVip: Boolean) {
-        // Ensure connected before sending
-        if (!isConnected || webSocket == null) {
-            connect()
-            mainHandler.postDelayed({
-                joinQueue(level, userGender, talkToFemaleOnly, isVip)
-            }, 1000L)
-            return
-        }
-
         val json = JSONObject().apply {
             put("action", "join_queue")
             put("level", level)
@@ -121,12 +127,19 @@ class SignalingClient(
             put("preferredGender", if (talkToFemaleOnly && isVip) "Female" else "Any")
             put("isVip", isVip)
         }
-        webSocket?.send(json.toString())
+
+        if (isConnected && webSocket != null) {
+            webSocket?.send(json.toString())
+        } else {
+            pendingQueuePayload = json
+            connect()
+        }
     }
 
     fun leaveQueue() {
+        pendingQueuePayload = null
         val json = JSONObject().apply { put("action", "leave_queue") }
-        webSocket?.send(json.toString())
+        if (isConnected) webSocket?.send(json.toString())
     }
 
     fun sendOffer(sdp: SessionDescription) {
@@ -159,6 +172,7 @@ class SignalingClient(
     }
 
     fun endCall() {
+        pendingQueuePayload = null
         val json = JSONObject().apply { put("action", "end_call") }
         webSocket?.send(json.toString())
     }

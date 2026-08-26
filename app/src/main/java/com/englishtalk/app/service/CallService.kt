@@ -24,11 +24,16 @@ class CallService : Service() {
         const val ACTION_STOP = "ACTION_STOP_CALL_SESSION"
         const val ACTION_EXTEND = "ACTION_EXTEND_TIME"
 
-        var maxDurationSeconds: Long = 900L
-        var currentDurationSeconds: Long = 0L
+        var maxDurationSeconds: Long = 900L // 15 minutes default
+        var startTimestamp: Long = 0L
 
         var onWarningChime: (() -> Unit)? = null
         var onCallExpired: (() -> Unit)? = null
+
+        fun getElapsedSeconds(): Long {
+            if (startTimestamp == 0L) return 0L
+            return (System.currentTimeMillis() - startTimestamp) / 1000L
+        }
     }
 
     override fun onCreate() {
@@ -40,12 +45,12 @@ class CallService : Service() {
         when (intent?.action) {
             ACTION_START -> {
                 maxDurationSeconds = 900L
-                currentDurationSeconds = 0L
+                startTimestamp = System.currentTimeMillis()
                 startForeground(NOTIFICATION_ID, buildNotification("Call in progress..."))
                 startTimer()
             }
             ACTION_EXTEND -> {
-                maxDurationSeconds += 300L
+                maxDurationSeconds += 300L // Add +5 minutes reward
             }
             ACTION_STOP -> {
                 stopTimerAndService()
@@ -56,22 +61,27 @@ class CallService : Service() {
 
     private fun startTimer() {
         timerJob?.cancel()
+        var hasPlayedChime = false
+
         timerJob = serviceScope.launch {
             while (isActive) {
                 delay(1000L)
-                currentDurationSeconds++
+                val elapsed = getElapsedSeconds()
 
-                val minutes = currentDurationSeconds / 60
-                val seconds = currentDurationSeconds % 60
+                val minutes = elapsed / 60
+                val seconds = elapsed % 60
                 val timeStr = String.format("%02d:%02d", minutes, seconds)
                 updateNotification("Call in progress ($timeStr)")
 
-                if (currentDurationSeconds == 840L && !BillingManager.isSubscribed.value) {
+                // 14-Minute Warning Chime (840s)
+                if (elapsed >= 840L && !hasPlayedChime && !BillingManager.isSubscribed.value) {
+                    hasPlayedChime = true
                     SoundHelper.playWarningChime(this@CallService)
                     onWarningChime?.invoke()
                 }
 
-                if (currentDurationSeconds >= maxDurationSeconds && !BillingManager.isSubscribed.value) {
+                // Automatic Disconnect on limit expiry (15m or 20m)
+                if (elapsed >= maxDurationSeconds && !BillingManager.isSubscribed.value) {
                     onCallExpired?.invoke()
                     stopTimerAndService()
                     break
@@ -82,6 +92,7 @@ class CallService : Service() {
 
     private fun stopTimerAndService() {
         timerJob?.cancel()
+        startTimestamp = 0L
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -93,7 +104,7 @@ class CallService : Service() {
                 "Active Voice Call",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Shows ongoing voice call"
+                description = "Shows ongoing voice call status"
             }
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.createNotificationChannel(channel)

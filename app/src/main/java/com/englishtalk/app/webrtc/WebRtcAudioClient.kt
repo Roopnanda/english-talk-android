@@ -7,7 +7,6 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import org.webrtc.*
-import org.webrtc.audio.AudioDeviceModule
 import org.webrtc.audio.JavaAudioDeviceModule
 import java.util.concurrent.Executors
 
@@ -24,37 +23,31 @@ class WebRtcAudioClient(
     private var peerConnection: PeerConnection? = null
     private var localAudioTrack: AudioTrack? = null
     private var localAudioSource: AudioSource? = null
-    private var audioDeviceModule: AudioDeviceModule? = null
+    private var audioDeviceModule: JavaAudioDeviceModule? = null
 
     init {
-        executor.execute {
-            try {
-                val initOptions = PeerConnectionFactory.InitializationOptions.builder(context)
-                    .setEnableInternalTracer(false)
-                    .createInitializationOptions()
-                PeerConnectionFactory.initialize(initOptions)
+        val initOptions = PeerConnectionFactory.InitializationOptions.builder(context)
+            .setEnableInternalTracer(false)
+            .createInitializationOptions()
+        PeerConnectionFactory.initialize(initOptions)
 
-                val audioAttributes = AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                    .build()
+        val audioAttributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+            .build()
 
-                audioDeviceModule = JavaAudioDeviceModule.builder(context)
-                    .setAudioAttributes(audioAttributes)
-                    .setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
-                    .setUseHardwareAcousticEchoCanceler(JavaAudioDeviceModule.isBuiltInAcousticEchoCancelerSupported())
-                    .setUseHardwareNoiseSuppressor(JavaAudioDeviceModule.isBuiltInNoiseSuppressorSupported())
-                    .createAudioDeviceModule()
+        audioDeviceModule = JavaAudioDeviceModule.builder(context)
+            .setAudioAttributes(audioAttributes)
+            .setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
+            .setUseHardwareAcousticEchoCanceler(false)
+            .setUseHardwareNoiseSuppressor(false)
+            .createAudioDeviceModule()
 
-                val options = PeerConnectionFactory.Options()
-                peerConnectionFactory = PeerConnectionFactory.builder()
-                    .setOptions(options)
-                    .setAudioDeviceModule(audioDeviceModule)
-                    .createPeerConnectionFactory()
-            } catch (e: Exception) {
-                Log.e("WebRtcAudioClient", "Factory initialization error: ${e.message}")
-            }
-        }
+        val options = PeerConnectionFactory.Options()
+        peerConnectionFactory = PeerConnectionFactory.builder()
+            .setOptions(options)
+            .setAudioDeviceModule(audioDeviceModule)
+            .createPeerConnectionFactory()
     }
 
     fun initPeerConnection(isInitiator: Boolean, onOfferCreated: (SessionDescription) -> Unit) {
@@ -103,14 +96,13 @@ class WebRtcAudioClient(
             }
 
             localAudioSource = factory.createAudioSource(audioConstraints)
-            localAudioTrack = factory.createAudioTrack("local_audio_track", localAudioSource)
+            localAudioTrack = factory.createAudioTrack("ARDAMSa0", localAudioSource)
             localAudioTrack?.setEnabled(true)
 
-            val mediaStreamLabels = listOf("ARDAMS")
-            peerConnection?.addTrack(localAudioTrack, mediaStreamLabels)
+            peerConnection?.addTrack(localAudioTrack, listOf("ARDAMS"))
 
             if (isInitiator) {
-                val constraints = MediaConstraints().apply {
+                val sdpConstraints = MediaConstraints().apply {
                     mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
                 }
                 peerConnection?.createOffer(object : SdpObserverAdapter() {
@@ -120,7 +112,7 @@ class WebRtcAudioClient(
                             mainHandler.post { onOfferCreated(it) }
                         }
                     }
-                }, constraints)
+                }, sdpConstraints)
             }
         }
     }
@@ -128,7 +120,7 @@ class WebRtcAudioClient(
     fun setMicrophoneEnabled(enabled: Boolean) {
         executor.execute {
             localAudioTrack?.setEnabled(enabled)
-            Log.d("WebRtcAudioClient", "Microphone enabled state: $enabled")
+            Log.d("WebRtcAudioClient", "Mic track enabled: $enabled")
         }
     }
 

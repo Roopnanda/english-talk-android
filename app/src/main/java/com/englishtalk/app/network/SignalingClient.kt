@@ -7,10 +7,7 @@ import org.webrtc.IceCandidate
 import org.webrtc.SessionDescription
 import java.util.concurrent.TimeUnit
 
-class SignalingClient(
-    private val serverUrl: String,
-    private val listener: SignalingListener
-) {
+object SignalingClient {
 
     interface SignalingListener {
         fun onMatchFound(roomId: String, isInitiator: Boolean, peerLevel: String)
@@ -20,16 +17,22 @@ class SignalingClient(
         fun onCallEnded()
     }
 
+    private var activeListener: SignalingListener? = null
     private var webSocket: WebSocket? = null
     private val client = OkHttpClient.Builder()
         .readTimeout(0, TimeUnit.MILLISECONDS)
         .build()
 
-    private var currentRoomId: String? = null
+    private const val SERVER_URL = "wss://english-talk-server-5pm7.onrender.com"
+    var currentRoomId: String? = null
+
+    fun setListener(listener: SignalingListener?) {
+        this.activeListener = listener
+    }
 
     fun connect() {
         if (webSocket != null) return
-        val request = Request.Builder().url(serverUrl).build()
+        val request = Request.Builder().url(SERVER_URL).build()
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 AppLogger.log("Signaling", "WebSocket connected successfully")
@@ -45,17 +48,17 @@ class SignalingClient(
                             val peerLevel = json.optString("peerLevel", "Intermediate")
                             currentRoomId = roomId
                             AppLogger.log("Signaling", "Match confirmed: room=$roomId initiator=$isInitiator")
-                            listener.onMatchFound(roomId, isInitiator, peerLevel)
+                            activeListener?.onMatchFound(roomId, isInitiator, peerLevel)
                         }
                         "offer" -> {
                             val sdpObj = json.getJSONObject("sdp")
                             val sdp = SessionDescription(SessionDescription.Type.OFFER, sdpObj.getString("sdp"))
-                            listener.onOfferReceived(sdp)
+                            activeListener?.onOfferReceived(sdp)
                         }
                         "answer" -> {
                             val sdpObj = json.getJSONObject("sdp")
                             val sdp = SessionDescription(SessionDescription.Type.ANSWER, sdpObj.getString("sdp"))
-                            listener.onAnswerReceived(sdp)
+                            activeListener?.onAnswerReceived(sdp)
                         }
                         "ice_candidate" -> {
                             val candidateObj = json.getJSONObject("candidate")
@@ -64,12 +67,12 @@ class SignalingClient(
                                 candidateObj.getInt("sdpMLineIndex"),
                                 candidateObj.getString("sdp")
                             )
-                            listener.onIceCandidateReceived(candidate)
+                            activeListener?.onIceCandidateReceived(candidate)
                         }
                         "call_ended", "peer_disconnected" -> {
                             AppLogger.log("Signaling", "Remote end-call received")
                             currentRoomId = null
-                            listener.onCallEnded()
+                            activeListener?.onCallEnded()
                         }
                     }
                 } catch (e: Exception) {
@@ -79,10 +82,13 @@ class SignalingClient(
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 AppLogger.log("Signaling-ERR", "WebSocket failure: ${t.message}")
+                webSocket.close(1000, "Failure")
+                this@SignalingClient.webSocket = null
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                 AppLogger.log("Signaling", "WebSocket closed: $reason")
+                this@SignalingClient.webSocket = null
             }
         })
     }
@@ -152,9 +158,5 @@ class SignalingClient(
         }
         webSocket?.send(payload.toString())
         currentRoomId = null
-    }
-
-    fun setRoomId(roomId: String) {
-        this.currentRoomId = roomId
     }
 }

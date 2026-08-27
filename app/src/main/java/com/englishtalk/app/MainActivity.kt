@@ -3,7 +3,6 @@ package com.englishtalk.app
 import android.Manifest
 import android.app.Activity
 import android.app.AlertDialog
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -139,7 +138,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
         topBar.addView(btnGoVip)
         rootLayout.addView(topBar)
 
-        // --- BOTTOM CONTAINER (DIAGNOSTICS & AD) ---
+        // --- BOTTOM CONTAINER ---
         val bottomContainer = LinearLayout(this).apply {
             id = View.generateViewId()
             orientation = LinearLayout.VERTICAL

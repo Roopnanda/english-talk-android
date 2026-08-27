@@ -1,6 +1,8 @@
 package com.englishtalk.app
 
 import android.Manifest
+import android.app.Activity
+import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -15,10 +17,6 @@ import android.os.Looper
 import android.view.Gravity
 import android.view.View
 import android.widget.*
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
 import com.englishtalk.app.network.SignalingClient
 import com.englishtalk.app.service.CallService
 import com.englishtalk.app.utils.AppLogger
@@ -29,7 +27,11 @@ import com.google.android.gms.ads.MobileAds
 import org.webrtc.IceCandidate
 import org.webrtc.SessionDescription
 
-class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener {
+class MainActivity : Activity(), SignalingClient.SignalingListener {
+
+    companion object {
+        private const val PERMISSION_REQ_CODE = 2001
+    }
 
     private lateinit var rootLayout: RelativeLayout
     private lateinit var layoutDashboard: LinearLayout
@@ -42,7 +44,7 @@ class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener {
     private lateinit var btnMute: ImageView
     private lateinit var btnSpeaker: ImageView
     private lateinit var btnGoVip: Button
-    private lateinit var switchFemaleOnly: androidx.appcompat.widget.SwitchCompat
+    private lateinit var switchFemaleOnly: Switch
     private lateinit var tvTimer: TextView
     private lateinit var tvPartnerLevel: TextView
     private lateinit var tvDiagnostics: TextView
@@ -58,17 +60,6 @@ class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener {
     private var warningPlayer: MediaPlayer? = null
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    private val permissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val recordAudioGranted = permissions[Manifest.permission.RECORD_AUDIO] == true
-        if (recordAudioGranted) {
-            startSearchFlow()
-        } else {
-            Toast.makeText(this, "Microphone permission is required to talk", Toast.LENGTH_LONG).show()
-        }
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -76,7 +67,11 @@ class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener {
             AppLogger.log("FATAL", "${throwable.javaClass.simpleName}: ${throwable.message}")
         }
 
-        MobileAds.initialize(this) {}
+        try {
+            MobileAds.initialize(this) {}
+        } catch (e: Exception) {
+            AppLogger.log("AdMob", "Init error: ${e.message}")
+        }
 
         buildProgrammaticUI()
         setupListeners()
@@ -189,7 +184,7 @@ class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener {
             AppLogger.log("AdView", "Ad load error: ${e.message}")
         }
 
-        // --- 1. DASHBOARD VIEW ---
+        // --- DASHBOARD VIEW ---
         layoutDashboard = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
@@ -259,7 +254,7 @@ class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener {
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
 
-        switchFemaleOnly = androidx.appcompat.widget.SwitchCompat(this)
+        switchFemaleOnly = Switch(this)
         vipRow.addView(tvFemaleVip)
         vipRow.addView(switchFemaleOnly)
 
@@ -281,7 +276,7 @@ class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener {
         layoutDashboard.addView(btnTalkNow)
         rootLayout.addView(layoutDashboard)
 
-        // --- 2. SEARCHING VIEW ---
+        // --- SEARCHING VIEW ---
         layoutSearching = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
@@ -330,7 +325,7 @@ class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener {
         layoutSearching.addView(btnCancelSearch)
         rootLayout.addView(layoutSearching)
 
-        // --- 3. CONNECTED VIEW ---
+        // --- CONNECTED VIEW ---
         layoutConnected = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
@@ -503,13 +498,24 @@ class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener {
         }
 
         val missingPermissions = permissionsToRequest.filter {
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+            checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED
         }
 
         if (missingPermissions.isEmpty()) {
             startSearchFlow()
         } else {
-            permissionLauncher.launch(missingPermissions.toTypedArray())
+            requestPermissions(missingPermissions.toTypedArray(), PERMISSION_REQ_CODE)
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == PERMISSION_REQ_CODE) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                startSearchFlow()
+            } else {
+                Toast.makeText(this, "Microphone permission is required to talk", Toast.LENGTH_LONG).show()
+            }
         }
     }
 
@@ -540,7 +546,11 @@ class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener {
                 putExtra(CallService.EXTRA_IS_INITIATOR, isInitiator)
                 putExtra(CallService.EXTRA_PEER_LEVEL, peerLevel)
             }
-            ContextCompat.startForegroundService(this, intent)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(intent)
+            } else {
+                startService(intent)
+            }
         }
     }
 

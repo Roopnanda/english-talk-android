@@ -102,6 +102,7 @@ class CallService : Service() {
                 updateNotification()
             }
             ACTION_APP_PAUSED -> {
+                // Only start 30s timer when minimized with screen ON
                 if (isCallActive && powerManager.isInteractive) {
                     cancelAutoMuteTimer()
                     autoMuteRunnable = Runnable {
@@ -123,16 +124,7 @@ class CallService : Service() {
                 }
             }
             ACTION_STOP -> {
-                isCallActive = false
-                cancelAutoMuteTimer()
-                stopTimer()
-                releaseWakeLock()
-                try {
-                    ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
-                } catch (e: Exception) {
-                    Log.e("CallService", "Stop error: ${e.message}")
-                }
-                stopSelf()
+                terminateService()
             }
             else -> {
                 safeStartForeground("English Talk Call Active")
@@ -249,13 +241,27 @@ class CallService : Service() {
         }
     }
 
-    override fun onBind(intent: Intent?): IBinder? = null
-
-    override fun onDestroy() {
-        super.onDestroy()
+    private fun terminateService() {
         isCallActive = false
         cancelAutoMuteTimer()
         stopTimer()
         releaseWakeLock()
+
+        try {
+            // Dismiss notification from status bar immediately
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.cancel(NOTIFICATION_ID)
+        } catch (e: Exception) {
+            Log.e("CallService", "Stop notification error: ${e.message}")
+        }
+        stopSelf()
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onDestroy() {
+        super.onDestroy()
+        terminateService()
     }
 }

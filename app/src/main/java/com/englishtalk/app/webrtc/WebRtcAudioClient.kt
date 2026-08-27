@@ -5,6 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import org.webrtc.*
+import org.webrtc.audio.JavaAudioDeviceModule
 import java.util.concurrent.Executors
 
 class WebRtcAudioClient(
@@ -20,6 +21,7 @@ class WebRtcAudioClient(
     private var peerConnection: PeerConnection? = null
     private var localAudioTrack: AudioTrack? = null
     private var localAudioSource: AudioSource? = null
+    private var audioDeviceModule: JavaAudioDeviceModule? = null
 
     init {
         executor.execute {
@@ -29,9 +31,16 @@ class WebRtcAudioClient(
                     .createInitializationOptions()
                 PeerConnectionFactory.initialize(initOptions)
 
+                // Configure low-latency, uninterrupted background audio device module
+                audioDeviceModule = JavaAudioDeviceModule.builder(context)
+                    .setUseHardwareAcousticEchoCanceler(true)
+                    .setUseHardwareNoiseSuppressor(true)
+                    .createAudioDeviceModule()
+
                 val options = PeerConnectionFactory.Options()
                 peerConnectionFactory = PeerConnectionFactory.builder()
                     .setOptions(options)
+                    .setAudioDeviceModule(audioDeviceModule)
                     .createPeerConnectionFactory()
             } catch (e: Exception) {
                 Log.e("WebRtcAudioClient", "Factory initialization error: ${e.message}")
@@ -77,7 +86,13 @@ class WebRtcAudioClient(
                 override fun onRenegotiationNeeded() {}
             })
 
-            val audioConstraints = MediaConstraints()
+            val audioConstraints = MediaConstraints().apply {
+                mandatory.add(MediaConstraints.KeyValuePair("googEchoCancellation", "true"))
+                mandatory.add(MediaConstraints.KeyValuePair("googAutoGainControl", "true"))
+                mandatory.add(MediaConstraints.KeyValuePair("googHighpassFilter", "true"))
+                mandatory.add(MediaConstraints.KeyValuePair("googNoiseSuppression", "true"))
+            }
+
             localAudioSource = factory.createAudioSource(audioConstraints)
             localAudioTrack = factory.createAudioTrack("local_audio_track", localAudioSource)
             localAudioTrack?.setEnabled(true)
@@ -148,6 +163,7 @@ class WebRtcAudioClient(
                 localAudioSource?.dispose()
                 peerConnection?.close()
                 peerConnection?.dispose()
+                audioDeviceModule?.release()
             } catch (e: Exception) {
                 Log.e("WebRtcAudioClient", "Disconnect cleanup error: ${e.message}")
             }

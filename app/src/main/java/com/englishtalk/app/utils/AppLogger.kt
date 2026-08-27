@@ -1,25 +1,31 @@
 package com.englishtalk.app.utils
 
-import androidx.compose.runtime.mutableStateListOf
+import android.util.Log
 import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.util.*
 
 object AppLogger {
-    val logs = mutableStateListOf<String>()
-    private val timeFormat = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault())
+
+    private const val TAG = "EnglishTalk"
+    private val timeFormat = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
+    private val logBuffer = LinkedList<String>()
+    private const val MAX_LOGS = 25
+
+    var onLogUpdated: ((String) -> Unit)? = null
 
     fun log(tag: String, message: String) {
         val timestamp = timeFormat.format(Date())
         val entry = "[$timestamp] [$tag] $message"
-        android.util.Log.d(tag, message)
-        if (logs.size > 200) {
-            logs.removeAt(0)
-        }
-        logs.add(entry)
-    }
+        
+        Log.d(TAG, entry)
 
-    fun clear() {
-        logs.clear()
+        synchronized(logBuffer) {
+            logBuffer.addFirst(entry)
+            if (logBuffer.size > MAX_LOGS) {
+                logBuffer.removeLast()
+            }
+            val aggregated = logBuffer.joinToString("\n")
+            onLogUpdated?.invoke(aggregated)
+        }
     }
 }

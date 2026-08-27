@@ -1,816 +1,355 @@
 package com.englishtalk.app
 
 import android.Manifest
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.MediaPlayer
 import android.os.Build
 import android.os.Bundle
-import android.view.WindowManager
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.compose.setContent
+import android.os.Handler
+import android.os.Looper
+import android.view.View
+import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.*
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
-import com.englishtalk.app.ads.AdManager
-import com.englishtalk.app.billing.BillingManager
 import com.englishtalk.app.network.SignalingClient
 import com.englishtalk.app.service.CallService
 import com.englishtalk.app.utils.AppLogger
-import kotlinx.coroutines.*
+import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.AdView
+import com.google.android.gms.ads.MobileAds
 import org.webrtc.IceCandidate
 import org.webrtc.SessionDescription
 
-enum class AppCallState {
-    ONBOARDING_GENDER, IDLE, SEARCHING, CONNECTED
-}
+class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener {
 
-class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
+    private lateinit var layoutDashboard: View
+    private lateinit var layoutSearching: View
+    private lateinit var layoutConnected: View
 
-    private val callState = mutableStateOf(AppCallState.IDLE)
-    private val selectedLevel = mutableStateOf("Intermediate")
-    private val userGender = mutableStateOf("")
-    private val talkToFemaleOnly = mutableStateOf(false)
-    private val callDurationSeconds = mutableLongStateOf(0L)
-    private val showExtendCallDialog = mutableStateOf(false)
-    private val showVipDialog = mutableStateOf(false)
-    private val isMuted = mutableStateOf(false)
-    private val isSpeakerOn = mutableStateOf(false)
-    private val matchedPeerLevel = mutableStateOf("Intermediate")
+    private lateinit var btnTalkNow: View
+    private lateinit var btnCancelSearch: Button
+    private lateinit var btnEndCall: View
+    private lateinit var btnMute: ImageView
+    private lateinit var btnSpeaker: ImageView
+    private lateinit var btnGoVip: View
+    private lateinit var switchFemaleOnly: androidx.appcompat.widget.SwitchCompat
+    private lateinit var tvTimer: TextView
+    private lateinit var tvPartnerLevel: TextView
+    private lateinit var tvDiagnostics: TextView
+    private lateinit var adView: AdView
+
+    private lateinit var btnBeginner: Button
+    private lateinit var btnIntermediate: Button
+    private lateinit var btnAdvanced: Button
+
+    private var selectedLevel = "Intermediate"
+    private var isVip = false
+    private var userGender = "Male"
+
+    private var warningPlayer: MediaPlayer? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    private val permissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val recordAudioGranted = permissions[Manifest.permission.RECORD_AUDIO] == true
+        if (recordAudioGranted) {
+            startSearchFlow()
+        } else {
+            Toast.makeText(this, "Microphone permission is required to talk", Toast.LENGTH_LONG).show()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
 
-        val prefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-        val savedGender = prefs.getString("user_gender", "") ?: ""
-
-        if (savedGender.isEmpty()) {
-            callState.value = AppCallState.ONBOARDING_GENDER
-        } else {
-            userGender.value = savedGender
-            if (CallService.isCallActive) {
-                callState.value = AppCallState.CONNECTED
-                isMuted.value = CallService.isMuted
-                isSpeakerOn.value = CallService.isSpeakerOn
-            } else {
-                callState.value = AppCallState.IDLE
-            }
+        Thread.setDefaultUncaughtExceptionHandler { _, throwable ->
+            AppLogger.log("FATAL-CRASH", "${throwable.javaClass.simpleName}: ${throwable.message}")
         }
+
+        MobileAds.initialize(this) {}
+
+        bindViews()
+        setupListeners()
+        setupDiagnosticsLogger()
+        setupCallServiceCallbacks()
 
         SignalingClient.setListener(this)
         SignalingClient.connect()
+    }
 
-        CallService.onWarningChime = {
-            runOnUiThread { showExtendCallDialog.value = true }
+    private fun bindViews() {
+        layoutDashboard = findViewById(R.id.layout_dashboard)
+        layoutSearching = findViewById(R.id.layout_searching)
+        layoutConnected = findViewById(R.id.layout_connected)
+
+        btnTalkNow = findViewById(R.id.btn_talk_now)
+        btnCancelSearch = findViewById(R.id.btn_cancel_search)
+        btnEndCall = findViewById(R.id.btn_end_call)
+        btnMute = findViewById(R.id.btn_mute)
+        btnSpeaker = findViewById(R.id.btn_speaker)
+        btnGoVip = findViewById(R.id.btn_go_vip)
+        switchFemaleOnly = findViewById(R.id.switch_female_only)
+
+        tvTimer = findViewById(R.id.tv_timer)
+        tvPartnerLevel = findViewById(R.id.tv_partner_level)
+        tvDiagnostics = findViewById(R.id.tv_diagnostics)
+        adView = findViewById(R.id.adView)
+
+        btnBeginner = findViewById(R.id.btn_beginner)
+        btnIntermediate = findViewById(R.id.btn_intermediate)
+        btnAdvanced = findViewById(R.id.btn_advanced)
+
+        val adRequest = AdRequest.Builder().build()
+        adView.loadAd(adRequest)
+    }
+
+    private fun setupListeners() {
+        btnBeginner.setOnClickListener { selectLevel("Beginner") }
+        btnIntermediate.setOnClickListener { selectLevel("Intermediate") }
+        btnAdvanced.setOnClickListener { selectLevel("Advanced") }
+
+        btnGoVip.setOnClickListener {
+            isVip = true
+            Toast.makeText(this, "VIP Access Granted! Unlimited calls & unlocked filters.", Toast.LENGTH_SHORT).show()
+            AppLogger.log("VIP", "VIP status active")
         }
 
-        CallService.onCallExpired = {
-            runOnUiThread { hangUpCall() }
-        }
-
-        CallService.onCallEndedByRemote = {
-            runOnUiThread {
-                callState.value = AppCallState.IDLE
-                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                SignalingClient.setListener(this@MainActivity)
+        switchFemaleOnly.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked && !isVip) {
+                switchFemaleOnly.isChecked = false
+                showVipRequiredDialog("Talk to Female Gender is a VIP feature.")
             }
         }
 
-        CallService.onAudioStateChanged = { muted, speaker ->
-            runOnUiThread {
-                isMuted.value = muted
-                isSpeakerOn.value = speaker
-            }
+        btnTalkNow.setOnClickListener {
+            checkPermissionsAndStart()
         }
 
-        setContent {
-            val isSubscribed by BillingManager.isSubscribed.collectAsState()
+        btnCancelSearch.setOnClickListener {
+            SignalingClient.leaveQueue()
+            showDashboard()
+        }
 
-            var hasAudioPermission by remember {
-                mutableStateOf(
-                    ContextCompat.checkSelfPermission(
-                        this@MainActivity,
-                        Manifest.permission.RECORD_AUDIO
-                    ) == PackageManager.PERMISSION_GRANTED
-                )
+        btnEndCall.setOnClickListener {
+            endCurrentCall()
+        }
+
+        btnMute.setOnClickListener {
+            val intent = Intent(this, CallService::class.java).apply {
+                action = CallService.ACTION_TOGGLE_MUTE
             }
+            startService(intent)
+        }
 
-            val permissionLauncher = rememberLauncherForActivityResult(
-                contract = ActivityResultContracts.RequestPermission()
-            ) { isGranted ->
-                hasAudioPermission = isGranted
-                if (isGranted) startSearching()
+        btnSpeaker.setOnClickListener {
+            val intent = Intent(this, CallService::class.java).apply {
+                action = CallService.ACTION_TOGGLE_SPEAKER
             }
-
-            LaunchedEffect(Unit) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                        requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 102)
-                    }
-                }
-            }
-
-            BackHandler(enabled = callState.value != AppCallState.IDLE && callState.value != AppCallState.ONBOARDING_GENDER) {
-                if (callState.value == AppCallState.SEARCHING) {
-                    SignalingClient.leaveQueue()
-                    callState.value = AppCallState.IDLE
-                }
-            }
-
-            LaunchedEffect(callState.value) {
-                if (callState.value == AppCallState.CONNECTED) {
-                    while (callState.value == AppCallState.CONNECTED) {
-                        delay(500L)
-                        callDurationSeconds.longValue = CallService.getElapsedSeconds()
-                    }
-                }
-            }
-
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = Color(0xFF0F172A)
-            ) {
-                if (callState.value == AppCallState.ONBOARDING_GENDER) {
-                    GenderSelectionOnboardingScreen { chosenGender ->
-                        userGender.value = chosenGender
-                        prefs.edit().putString("user_gender", chosenGender).apply()
-                        callState.value = AppCallState.IDLE
-                    }
-                } else {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 20.dp, vertical = 16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        TopHeaderBar(
-                            isVip = isSubscribed,
-                            onVipClick = { showVipDialog.value = true }
-                        )
-
-                        when (callState.value) {
-                            AppCallState.IDLE -> IdleDashboard(
-                                selectedLevel = selectedLevel.value,
-                                talkToFemaleOnly = talkToFemaleOnly.value,
-                                isVip = isSubscribed,
-                                onLevelSelected = { selectedLevel.value = it },
-                                onToggleTalkToFemale = {
-                                    if (isSubscribed) {
-                                        talkToFemaleOnly.value = !talkToFemaleOnly.value
-                                    } else {
-                                        showVipDialog.value = true
-                                    }
-                                },
-                                onStartClick = {
-                                    if (CallService.isCallActive) {
-                                        callState.value = AppCallState.CONNECTED
-                                    } else if (hasAudioPermission) {
-                                        startSearching()
-                                    } else {
-                                        permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                                    }
-                                }
-                            )
-
-                            AppCallState.SEARCHING -> SearchingDashboard(
-                                onCancelClick = {
-                                    SignalingClient.leaveQueue()
-                                    callState.value = AppCallState.IDLE
-                                }
-                            )
-
-                            AppCallState.CONNECTED -> ActiveCallDashboard(
-                                durationSeconds = callDurationSeconds.longValue,
-                                peerLevel = matchedPeerLevel.value,
-                                isMuted = isMuted.value,
-                                isSpeakerOn = isSpeakerOn.value,
-                                onToggleMute = {
-                                    val muteIntent = Intent(this@MainActivity, CallService::class.java).apply {
-                                        action = CallService.ACTION_TOGGLE_MUTE
-                                    }
-                                    startService(muteIntent)
-                                },
-                                onToggleSpeaker = {
-                                    val speakerIntent = Intent(this@MainActivity, CallService::class.java).apply {
-                                        action = CallService.ACTION_TOGGLE_SPEAKER
-                                    }
-                                    startService(speakerIntent)
-                                },
-                                onEndCall = { hangUpCall() }
-                            )
-
-                            else -> {}
-                        }
-
-                        // Diagnostics Box is now visible on IDLE, SEARCHING, and CONNECTED
-                        DebugLogOverlay()
-
-                        AdManager.BannerAdView(modifier = Modifier.padding(top = 4.dp))
-                    }
-                }
-
-                if (showExtendCallDialog.value) {
-                    AlertDialog(
-                        onDismissRequest = { showExtendCallDialog.value = false },
-                        containerColor = Color(0xFF1E293B),
-                        title = {
-                            Text("1 Minute Remaining!", color = Color.White, fontWeight = FontWeight.Bold)
-                        },
-                        text = {
-                            Text(
-                                "Your free 15-minute call is ending soon. Watch an ad to add +5 extra minutes, or upgrade to VIP for unlimited talk time.",
-                                color = Color(0xFFCBD5E1)
-                            )
-                        },
-                        confirmButton = {
-                            Button(
-                                onClick = {
-                                    showExtendCallDialog.value = false
-                                    AdManager.showRewardedAd(this@MainActivity) {
-                                        val extendIntent = Intent(this@MainActivity, CallService::class.java).apply {
-                                            action = CallService.ACTION_EXTEND
-                                        }
-                                        startService(extendIntent)
-                                    }
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB))
-                            ) {
-                                Text("Watch Ad (+5 Min)")
-                            }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { showExtendCallDialog.value = false }) {
-                                Text("Dismiss", color = Color(0xFF94A3B8))
-                            }
-                        }
-                    )
-                }
-
-                if (showVipDialog.value) {
-                    AlertDialog(
-                        onDismissRequest = { showVipDialog.value = false },
-                        containerColor = Color(0xFF1E293B),
-                        title = {
-                            Text("✨ English Talk VIP", color = Color(0xFFFBBF24), fontWeight = FontWeight.Bold)
-                        },
-                        text = {
-                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Text("👩 Talk to Female Gender (Exclusive Match)", color = Color(0xFF38BDF8), fontWeight = FontWeight.SemiBold)
-                                Text("⏱ Unlimited Call Duration (No 15-Min Cutoff)", color = Color.White)
-                                Text("🚫 100% Ad-Free Experience", color = Color.White)
-                                Text("⚡ Priority Fast-Track Matchmaking", color = Color.White)
-                                Text("🎯 Strict Proficiency Level Lock", color = Color.White)
-                            }
-                        },
-                        confirmButton = {
-                            Button(
-                                onClick = {
-                                    BillingManager.launchPurchaseFlow(this@MainActivity)
-                                    showVipDialog.value = false
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF59E0B))
-                            ) {
-                                Text("Upgrade Now", color = Color.Black, fontWeight = FontWeight.Bold)
-                            }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { showVipDialog.value = false }) {
-                                Text("Close", color = Color(0xFF94A3B8))
-                            }
-                        }
-                    )
-                }
-            }
+            startService(intent)
         }
     }
 
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        if (CallService.isCallActive) {
-            callState.value = AppCallState.CONNECTED
-        }
+    private fun selectLevel(level: String) {
+        selectedLevel = level
+        val defaultBg = ContextCompat.getDrawable(this, R.drawable.bg_level_button)
+        val selectedBg = ContextCompat.getDrawable(this, R.drawable.bg_level_button_selected)
+
+        btnBeginner.background = if (level == "Beginner") selectedBg else defaultBg
+        btnIntermediate.background = if (level == "Intermediate") selectedBg else defaultBg
+        btnAdvanced.background = if (level == "Advanced") selectedBg else defaultBg
     }
 
-    override fun onUserLeaveHint() {
-        super.onUserLeaveHint()
-        if (callState.value == AppCallState.CONNECTED) {
-            val backgroundIntent = Intent(this, CallService::class.java).apply {
-                action = CallService.ACTION_APP_BACKGROUNDED
-            }
-            startService(backgroundIntent)
+    private fun checkPermissionsAndStart() {
+        val permissionsToRequest = mutableListOf(Manifest.permission.RECORD_AUDIO)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
         }
-    }
 
-    override fun onResume() {
-        super.onResume()
-        if (CallService.isCallActive) {
-            callState.value = AppCallState.CONNECTED
-            isMuted.value = CallService.isMuted
-            isSpeakerOn.value = CallService.isSpeakerOn
-            val resumeIntent = Intent(this, CallService::class.java).apply {
-                action = CallService.ACTION_APP_FOREGROUNDED
-            }
-            startService(resumeIntent)
+        val missingPermissions = permissionsToRequest.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+
+        if (missingPermissions.isEmpty()) {
+            startSearchFlow()
         } else {
-            SignalingClient.setListener(this)
+            permissionLauncher.launch(missingPermissions.toTypedArray())
         }
     }
 
-    private fun startSearching() {
-        if (CallService.isCallActive) {
-            callState.value = AppCallState.CONNECTED
-            return
-        }
-        SignalingClient.setListener(this)
-        callState.value = AppCallState.SEARCHING
+    private fun startSearchFlow() {
+        showSearching()
         SignalingClient.joinQueue(
-            level = selectedLevel.value,
-            userGender = userGender.value,
-            talkToFemaleOnly = talkToFemaleOnly.value,
-            isVip = BillingManager.isSubscribed.value
+            level = selectedLevel,
+            userGender = userGender,
+            talkToFemaleOnly = switchFemaleOnly.isChecked,
+            isVip = isVip
         )
     }
 
-    private fun hangUpCall() {
-        val duration = CallService.getElapsedSeconds()
-        val serviceIntent = Intent(this, CallService::class.java).apply {
+    private fun endCurrentCall() {
+        val intent = Intent(this, CallService::class.java).apply {
             action = CallService.ACTION_END_CALL
         }
-        startService(serviceIntent)
-
-        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        callState.value = AppCallState.IDLE
-        showExtendCallDialog.value = false
-        SignalingClient.setListener(this)
-        AdManager.showPostCallInterstitial(this, duration) {}
+        startService(intent)
+        showDashboard()
     }
 
     override fun onMatchFound(roomId: String, isInitiator: Boolean, peerLevel: String) {
-        runOnUiThread {
-            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            matchedPeerLevel.value = peerLevel
-            callState.value = AppCallState.CONNECTED
-
-            val serviceIntent = Intent(this, CallService::class.java).apply {
+        mainHandler.post {
+            showConnected(peerLevel)
+            val intent = Intent(this, CallService::class.java).apply {
                 action = CallService.ACTION_START_CALL
                 putExtra(CallService.EXTRA_ROOM_ID, roomId)
                 putExtra(CallService.EXTRA_IS_INITIATOR, isInitiator)
                 putExtra(CallService.EXTRA_PEER_LEVEL, peerLevel)
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(serviceIntent)
-            } else {
-                startService(serviceIntent)
-            }
+            ContextCompat.startForegroundService(this, intent)
         }
     }
 
     override fun onOfferReceived(sdp: SessionDescription) {}
     override fun onAnswerReceived(sdp: SessionDescription) {}
     override fun onIceCandidateReceived(candidate: IceCandidate) {}
-    override fun onCallEnded() {}
+    override fun onCallEnded() {
+        mainHandler.post { showDashboard() }
+    }
+
+    private fun setupCallServiceCallbacks() {
+        CallService.onAudioStateChanged = { muted, speaker ->
+            mainHandler.post {
+                btnMute.alpha = if (muted) 0.4f else 1.0f
+                btnSpeaker.alpha = if (speaker) 1.0f else 0.4f
+            }
+        }
+
+        CallService.onCallEndedByRemote = {
+            mainHandler.post {
+                Toast.makeText(this, "Call ended by partner", Toast.LENGTH_SHORT).show()
+                showDashboard()
+            }
+        }
+
+        CallService.onWarningChime = {
+            mainHandler.post {
+                playWarningChime()
+                showExtendCallDialog()
+            }
+        }
+
+        CallService.onCallExpired = {
+            mainHandler.post {
+                Toast.makeText(this, "Call limit reached", Toast.LENGTH_SHORT).show()
+                showDashboard()
+            }
+        }
+
+        // Periodic UI Timer
+        mainHandler.post(object : Runnable {
+            override fun run() {
+                if (CallService.isCallActive) {
+                    val sec = CallService.getElapsedSeconds()
+                    val m = sec / 60
+                    val s = sec % 60
+                    tvTimer.text = String.format("%02d:%02d", m, s)
+                }
+                mainHandler.postDelayed(this, 500L)
+            }
+        })
+    }
+
+    private fun showDashboard() {
+        layoutDashboard.visibility = View.VISIBLE
+        layoutSearching.visibility = View.GONE
+        layoutConnected.visibility = View.GONE
+    }
+
+    private fun showSearching() {
+        layoutDashboard.visibility = View.GONE
+        layoutSearching.visibility = View.VISIBLE
+        layoutConnected.visibility = View.GONE
+    }
+
+    private fun showConnected(peerLevel: String) {
+        layoutDashboard.visibility = View.GONE
+        layoutSearching.visibility = View.GONE
+        layoutConnected.visibility = View.VISIBLE
+        tvPartnerLevel.text = "Connected ($peerLevel Partner)"
+    }
+
+    private fun playWarningChime() {
+        try {
+            warningPlayer?.release()
+            warningPlayer = MediaPlayer.create(this, android.provider.Settings.System.DEFAULT_NOTIFICATION_URI)
+            warningPlayer?.start()
+        } catch (e: Exception) {
+            AppLogger.log("MainActivity-ERR", "Chime error: ${e.message}")
+        }
+    }
+
+    private fun showExtendCallDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("1 Minute Remaining")
+            .setMessage("Would you like to extend your conversation by 5 minutes?")
+            .setPositiveButton("Extend +5 Mins") { _, _ ->
+                val intent = Intent(this, CallService::class.java).apply {
+                    action = CallService.ACTION_EXTEND
+                }
+                startService(intent)
+                Toast.makeText(this, "Call extended +5 minutes!", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Dismiss", null)
+            .show()
+    }
+
+    private fun showVipRequiredDialog(message: String) {
+        AlertDialog.Builder(this)
+            .setTitle("VIP Feature")
+            .setMessage(message)
+            .setPositiveButton("Unlock VIP") { _, _ ->
+                isVip = true
+                switchFemaleOnly.isChecked = true
+                Toast.makeText(this, "VIP Unlocked!", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun setupDiagnosticsLogger() {
+        AppLogger.onLogUpdated = { logs ->
+            mainHandler.post {
+                tvDiagnostics.text = logs
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (CallService.isCallActive) {
+            val intent = Intent(this, CallService::class.java).apply {
+                action = CallService.ACTION_APP_FOREGROUNDED
+            }
+            startService(intent)
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        if (CallService.isCallActive) {
+            val intent = Intent(this, CallService::class.java).apply {
+                action = CallService.ACTION_APP_BACKGROUNDED
+            }
+            startService(intent)
+        }
+    }
 
     override fun onDestroy() {
         super.onDestroy()
-        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-    }
-}
-
-@Composable
-fun DebugLogOverlay() {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(110.dp)
-            .padding(vertical = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xDD000000)),
-        shape = RoundedCornerShape(8.dp)
-    ) {
-        Column(modifier = Modifier.padding(6.dp)) {
-            Text(
-                text = "⚡ Live Diagnostics (Logs)",
-                color = Color(0xFF38BDF8),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold
-            )
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                items(AppLogger.logs.reversed()) { logEntry ->
-                    Text(
-                        text = logEntry,
-                        color = if (logEntry.contains("ERR") || logEntry.contains("Exception") || logEntry.contains("Failure")) Color(0xFFEF4444) else Color(0xFFE2E8F0),
-                        fontSize = 9.sp,
-                        fontFamily = FontFamily.Monospace
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun GenderSelectionOnboardingScreen(onGenderSelected: (String) -> Unit) {
-    var selected by remember { mutableStateOf("Male") }
-    val options = listOf("Male", "Female", "Other")
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(28.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(
-            text = "Welcome to English Talk!",
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.White
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "Please select your gender to personalize your profile. You will only be asked this once.",
-            fontSize = 14.sp,
-            color = Color(0xFF94A3B8),
-            textAlign = TextAlign.Center
-        )
-
-        Spacer(modifier = Modifier.height(36.dp))
-
-        options.forEach { option ->
-            val isOptionSelected = option == selected
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = if (isOptionSelected) Color(0xFF2563EB) else Color(0xFF1E293B)
-                ),
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 6.dp)
-                    .clickable { selected = option }
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(18.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = option,
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    RadioButton(
-                        selected = isOptionSelected,
-                        onClick = { selected = option },
-                        colors = RadioButtonDefaults.colors(
-                            selectedColor = Color.White,
-                            unselectedColor = Color(0xFF64748B)
-                        )
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(40.dp))
-
-        Button(
-            onClick = { onGenderSelected(selected) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(52.dp),
-            shape = RoundedCornerShape(26.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981))
-        ) {
-            Text(
-                text = "Continue to App",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
-        }
-    }
-}
-
-@Composable
-fun TopHeaderBar(isVip: Boolean, onVipClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = "English Talk",
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.White
-        )
-
-        Button(
-            onClick = onVipClick,
-            shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = if (isVip) Color(0xFF10B981) else Color(0xFFF59E0B)
-            ),
-            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-        ) {
-            Text(
-                text = if (isVip) "VIP ACTIVE" else "👑 GO VIP",
-                color = Color.Black,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-    }
-}
-
-@Composable
-fun IdleDashboard(
-    selectedLevel: String,
-    talkToFemaleOnly: Boolean,
-    isVip: Boolean,
-    onLevelSelected: (String) -> Unit,
-    onToggleTalkToFemale: () -> Unit,
-    onStartClick: () -> Unit
-) {
-    val levels = listOf("Beginner", "Intermediate", "Advanced")
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Text(
-            text = "Choose Your English Level",
-            color = Color(0xFF94A3B8),
-            fontSize = 14.sp,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
-
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 24.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            levels.forEach { level ->
-                FilterChip(
-                    modifier = Modifier.weight(1f),
-                    selected = level == selectedLevel,
-                    onClick = { onLevelSelected(level) },
-                    label = {
-                        Text(
-                            text = level,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = Color(0xFF2563EB),
-                        selectedLabelColor = Color.White,
-                        containerColor = Color(0xFF1E293B),
-                        labelColor = Color(0xFF94A3B8)
-                    )
-                )
-            }
-        }
-
-        Card(
-            colors = CardDefaults.cardColors(
-                containerColor = if (talkToFemaleOnly && isVip) Color(0xFF1E3A5F) else Color(0xFF1E293B)
-            ),
-            shape = RoundedCornerShape(14.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 36.dp)
-                .clickable { onToggleTalkToFemale() }
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "👩 Talk to Female Gender",
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    if (!isVip) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "👑 VIP",
-                            color = Color(0xFFF59E0B),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-                Switch(
-                    checked = talkToFemaleOnly && isVip,
-                    onCheckedChange = { onToggleTalkToFemale() },
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = Color.White,
-                        checkedTrackColor = Color(0xFFF59E0B),
-                        uncheckedThumbColor = Color(0xFF94A3B8),
-                        uncheckedTrackColor = Color(0xFF0F172A)
-                    )
-                )
-            }
-        }
-
-        Button(
-            onClick = onStartClick,
-            modifier = Modifier
-                .size(150.dp)
-                .clip(CircleShape),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB))
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(
-                    imageVector = Icons.Default.Call,
-                    contentDescription = "Start Call",
-                    modifier = Modifier.size(38.dp),
-                    tint = Color.White
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = "TALK NOW",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp,
-                    color = Color.White
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun SearchingDashboard(onCancelClick: () -> Unit) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        CircularProgressIndicator(
-            color = Color(0xFF38BDF8),
-            strokeWidth = 4.dp,
-            modifier = Modifier.size(64.dp)
-        )
-        Spacer(modifier = Modifier.height(24.dp))
-        Text(
-            text = "Searching for a conversation partner...",
-            color = Color.White,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Medium
-        )
-        Spacer(modifier = Modifier.height(32.dp))
-        OutlinedButton(
-            onClick = onCancelClick,
-            shape = RoundedCornerShape(24.dp)
-        ) {
-            Text("Cancel Search", color = Color(0xFFEF4444))
-        }
-    }
-}
-
-@Composable
-fun ActiveCallDashboard(
-    durationSeconds: Long,
-    peerLevel: String,
-    isMuted: Boolean,
-    isSpeakerOn: Boolean,
-    onToggleMute: () -> Unit,
-    onToggleSpeaker: () -> Unit,
-    onEndCall: () -> Unit
-) {
-    val minutes = durationSeconds / 60
-    val seconds = durationSeconds % 60
-    val timeFormatted = String.format("%02d:%02d", minutes, seconds)
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Box(
-            modifier = Modifier
-                .size(110.dp)
-                .background(
-                    brush = Brush.radialGradient(
-                        colors = listOf(Color(0xFF2563EB), Color(0xFF1E293B))
-                    ),
-                    shape = CircleShape
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Default.Person,
-                contentDescription = "Peer Avatar",
-                tint = Color.White,
-                modifier = Modifier.size(54.dp)
-            )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = "Connected ($peerLevel Partner)",
-            color = Color(0xFF38BDF8),
-            fontSize = 16.sp,
-            fontWeight = FontWeight.SemiBold
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = timeFormatted,
-            color = Color.White,
-            fontSize = 32.sp,
-            fontWeight = FontWeight.Bold
-        )
-
-        Spacer(modifier = Modifier.height(48.dp))
-
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(24.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(
-                onClick = onToggleMute,
-                modifier = Modifier
-                    .size(56.dp)
-                    .background(
-                        if (isMuted) Color(0xFFEF4444) else Color(0xFF1E293B),
-                        CircleShape
-                    )
-            ) {
-                Icon(
-                    imageVector = if (isMuted) Icons.Default.MicOff else Icons.Default.Mic,
-                    contentDescription = "Mute",
-                    tint = Color.White
-                )
-            }
-
-            IconButton(
-                onClick = onEndCall,
-                modifier = Modifier
-                    .size(64.dp)
-                    .background(Color(0xFFDC2626), CircleShape)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.CallEnd,
-                    contentDescription = "End Call",
-                    tint = Color.White,
-                    modifier = Modifier.size(32.dp)
-                )
-            }
-
-            IconButton(
-                onClick = onToggleSpeaker,
-                modifier = Modifier
-                    .size(56.dp)
-                    .background(
-                        if (isSpeakerOn) Color(0xFF2563EB) else Color(0xFF1E293B),
-                        CircleShape
-                    )
-            ) {
-                Icon(
-                    imageVector = if (isSpeakerOn) Icons.Default.VolumeUp else Icons.Default.VolumeDown,
-                    contentDescription = "Speaker",
-                    tint = Color.White
-                )
-            }
-        }
+        warningPlayer?.release()
+        warningPlayer = null
     }
 }

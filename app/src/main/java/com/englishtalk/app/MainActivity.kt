@@ -387,6 +387,7 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
 
             val serviceIntent = Intent(this, CallService::class.java).apply {
                 action = CallService.ACTION_START_CALL
+                putExtra(CallService.EXTRA_ROOM_ID, roomId)
                 putExtra(CallService.EXTRA_IS_INITIATOR, isInitiator)
                 putExtra(CallService.EXTRA_PEER_LEVEL, peerLevel)
             }
@@ -768,7 +769,7 @@ fun ActiveCallDashboard(
             fontWeight = FontWeight.Bold
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(48.dp))
 
         Row(
             horizontalArrangement = Arrangement.spacedBy(24.dp),

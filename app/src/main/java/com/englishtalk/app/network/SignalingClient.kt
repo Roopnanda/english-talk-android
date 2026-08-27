@@ -19,6 +19,7 @@ object SignalingClient {
 
     private var activeListener: SignalingListener? = null
     private var webSocket: WebSocket? = null
+    private var isConnected = false
     private val client = OkHttpClient.Builder()
         .readTimeout(0, TimeUnit.MILLISECONDS)
         .build()
@@ -30,12 +31,19 @@ object SignalingClient {
         this.activeListener = listener
     }
 
-    fun connect() {
-        if (webSocket != null) return
+    fun connect(onReady: (() -> Unit)? = null) {
+        if (isConnected && webSocket != null) {
+            onReady?.invoke()
+            return
+        }
+
+        AppLogger.log("Signaling", "Connecting to WebSocket server...")
         val request = Request.Builder().url(SERVER_URL).build()
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
-                AppLogger.log("Signaling", "WebSocket connected successfully")
+                isConnected = true
+                AppLogger.log("Signaling", "WebSocket Connected Successfully!")
+                onReady?.invoke()
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
@@ -47,7 +55,7 @@ object SignalingClient {
                             val isInitiator = json.getBoolean("isInitiator")
                             val peerLevel = json.optString("peerLevel", "Intermediate")
                             currentRoomId = roomId
-                            AppLogger.log("Signaling", "Match confirmed: room=$roomId initiator=$isInitiator")
+                            AppLogger.log("Signaling", "Match found! Room: $roomId, Initiator: $isInitiator")
                             activeListener?.onMatchFound(roomId, isInitiator, peerLevel)
                         }
                         "offer" -> {
@@ -70,25 +78,26 @@ object SignalingClient {
                             activeListener?.onIceCandidateReceived(candidate)
                         }
                         "call_ended", "peer_disconnected" -> {
-                            AppLogger.log("Signaling", "Remote end-call received")
+                            AppLogger.log("Signaling", "Remote peer hung up")
                             currentRoomId = null
                             activeListener?.onCallEnded()
                         }
                     }
                 } catch (e: Exception) {
-                    AppLogger.log("Signaling-ERR", "Message parse error: ${e.message}")
+                    AppLogger.log("Signaling-ERR", "Parse Error: ${e.message}")
                 }
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                AppLogger.log("Signaling-ERR", "WebSocket failure: ${t.message}")
-                webSocket.close(1000, "Failure")
+                isConnected = false
                 this@SignalingClient.webSocket = null
+                AppLogger.log("Signaling-ERR", "WebSocket Error: ${t.message}")
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                AppLogger.log("Signaling", "WebSocket closed: $reason")
+                isConnected = false
                 this@SignalingClient.webSocket = null
+                AppLogger.log("Signaling", "WebSocket Closed: $reason")
             }
         })
     }
@@ -101,7 +110,17 @@ object SignalingClient {
             put("talkToFemaleOnly", talkToFemaleOnly)
             put("isVip", isVip)
         }
-        webSocket?.send(payload.toString())
+
+        if (webSocket == null || !isConnected) {
+            AppLogger.log("Signaling", "Socket not ready, reconnecting first...")
+            connect {
+                AppLogger.log("Signaling", "Sending join_queue (level: $level)...")
+                webSocket?.send(payload.toString())
+            }
+        } else {
+            AppLogger.log("Signaling", "Sending join_queue (level: $level)...")
+            webSocket?.send(payload.toString())
+        }
     }
 
     fun leaveQueue() {
@@ -109,6 +128,7 @@ object SignalingClient {
             put("type", "leave_queue")
         }
         webSocket?.send(payload.toString())
+        AppLogger.log("Signaling", "Sent leave_queue")
     }
 
     fun sendOffer(sdp: SessionDescription) {
@@ -122,6 +142,7 @@ object SignalingClient {
             put("sdp", sdpJson)
         }
         webSocket?.send(payload.toString())
+        AppLogger.log("Signaling", "Offer sent to peer")
     }
 
     fun sendAnswer(sdp: SessionDescription) {
@@ -135,6 +156,7 @@ object SignalingClient {
             put("sdp", sdpJson)
         }
         webSocket?.send(payload.toString())
+        AppLogger.log("Signaling", "Answer sent to peer")
     }
 
     fun sendIceCandidate(candidate: IceCandidate) {
@@ -158,5 +180,6 @@ object SignalingClient {
         }
         webSocket?.send(payload.toString())
         currentRoomId = null
+        AppLogger.log("Signaling", "Sent end_call")
     }
 }

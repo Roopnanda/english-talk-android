@@ -128,8 +128,9 @@ class CallService : Service(), SignalingClient.SignalingListener {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        safeStartForeground("Starting call service...")
 
+        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "EnglishTalk:CallWakeLock").apply {
             setReferenceCounted(false)
@@ -147,6 +148,7 @@ class CallService : Service(), SignalingClient.SignalingListener {
 
         when (intent?.action) {
             ACTION_START_CALL -> {
+                safeStartForeground("Live voice call in progress")
                 val isInitiator = intent.getBooleanExtra(EXTRA_IS_INITIATOR, false)
                 val roomId = intent.getStringExtra(EXTRA_ROOM_ID)
                 SignalingClient.currentRoomId = roomId
@@ -155,7 +157,6 @@ class CallService : Service(), SignalingClient.SignalingListener {
                 isMuted = false
                 isSpeakerOn = false
 
-                safeStartForeground("Call in progress...")
                 requestCallAudioFocus()
                 acquireWakeLock()
                 resetAndStartTimer()
@@ -182,7 +183,7 @@ class CallService : Service(), SignalingClient.SignalingListener {
                     autoMuteRunnable = Runnable {
                         if (isCallActive && !isScreenOff) {
                             isAutoMuted = true
-                            AppLogger.log("CallService", "30s passed -> Mic auto-muted")
+                            AppLogger.log("CallService", "30s background passed -> Mic auto-muted")
                             webRtcClient?.setMicrophoneEnabled(false)
                         }
                     }
@@ -204,20 +205,24 @@ class CallService : Service(), SignalingClient.SignalingListener {
     }
 
     private fun setupCallConnection(isInitiator: Boolean) {
-        SignalingClient.setListener(this)
+        try {
+            SignalingClient.setListener(this)
 
-        webRtcClient = WebRtcAudioClient(
-            context = applicationContext,
-            onIceCandidateGenerated = { candidate ->
-                SignalingClient.sendIceCandidate(candidate)
-            },
-            onRemoteStreamActive = {
-                AppLogger.log("CallService", "Remote audio stream is active")
+            webRtcClient = WebRtcAudioClient(
+                context = applicationContext,
+                onIceCandidateGenerated = { candidate ->
+                    SignalingClient.sendIceCandidate(candidate)
+                },
+                onRemoteStreamActive = {
+                    AppLogger.log("CallService", "Remote audio stream is active")
+                }
+            )
+
+            webRtcClient?.initPeerConnection(isInitiator) { offer ->
+                SignalingClient.sendOffer(offer)
             }
-        )
-
-        webRtcClient?.initPeerConnection(isInitiator) { offer ->
-            SignalingClient.sendOffer(offer)
+        } catch (e: Exception) {
+            AppLogger.log("CallService-ERR", "Setup WebRTC failed: ${e.message}")
         }
     }
 
@@ -315,7 +320,7 @@ class CallService : Service(), SignalingClient.SignalingListener {
     private fun safeStartForeground(text: String) {
         try {
             val notification = buildNotification(text)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 val serviceType = ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
                 ServiceCompat.startForeground(
                     this,

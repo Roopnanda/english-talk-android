@@ -5,8 +5,10 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
@@ -61,6 +63,26 @@ class CallService : Service() {
     private var isAutoMuted = false
     private var audioManager: AudioManager? = null
     private var audioFocusRequest: AudioFocusRequest? = null
+    private var isScreenOff = false
+
+    private val screenStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                Intent.ACTION_SCREEN_OFF -> {
+                    isScreenOff = true
+                    // Screen turned off by power button -> cancel any auto-mute, mic must stay active
+                    cancelAutoMuteTimer()
+                    if (isAutoMuted) {
+                        isAutoMuted = false
+                        onAutoMuteTriggered?.invoke(false)
+                    }
+                }
+                Intent.ACTION_SCREEN_ON -> {
+                    isScreenOff = false
+                }
+            }
+        }
+    }
 
     private val timerRunnable = object : Runnable {
         override fun run() {
@@ -91,6 +113,12 @@ class CallService : Service() {
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "EnglishTalk:CallWakeLock").apply {
             setReferenceCounted(false)
         }
+
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_SCREEN_ON)
+        }
+        registerReceiver(screenStateReceiver, filter)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -110,11 +138,11 @@ class CallService : Service() {
                 updateNotification()
             }
             ACTION_APP_BACKGROUNDED -> {
-                // If screen is ON (user minimized app), start 30s timer
-                if (isCallActive && powerManager.isInteractive) {
+                // If screen is physically ON and user navigated away into another app, start 30s timer
+                if (isCallActive && !isScreenOff && powerManager.isInteractive) {
                     cancelAutoMuteTimer()
                     autoMuteRunnable = Runnable {
-                        if (isCallActive) {
+                        if (isCallActive && !isScreenOff) {
                             isAutoMuted = true
                             onAutoMuteTriggered?.invoke(true)
                             Log.d("CallService", "30-sec background auto-mute applied")
@@ -309,6 +337,11 @@ class CallService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        try {
+            unregisterReceiver(screenStateReceiver)
+        } catch (e: Exception) {
+            Log.e("CallService", "Unregister receiver error: ${e.message}")
+        }
         terminateService()
     }
 }

@@ -4,10 +4,8 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
-import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -38,7 +36,6 @@ import com.englishtalk.app.ads.AdManager
 import com.englishtalk.app.billing.BillingManager
 import com.englishtalk.app.network.SignalingClient
 import com.englishtalk.app.service.CallService
-import com.englishtalk.app.webrtc.WebRtcAudioClient
 import kotlinx.coroutines.*
 import org.webrtc.IceCandidate
 import org.webrtc.SessionDescription
@@ -49,9 +46,7 @@ enum class AppCallState {
 
 class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
 
-    private lateinit var signalingClient: SignalingClient
-    private var webRtcClient: WebRtcAudioClient? = null
-    private lateinit var audioManager: AudioManager
+    private lateinit var matchSignalingClient: SignalingClient
 
     private val callState = mutableStateOf(AppCallState.IDLE)
     private val selectedLevel = mutableStateOf("Intermediate")
@@ -68,7 +63,6 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
 
         val prefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
         val savedGender = prefs.getString("user_gender", "") ?: ""
@@ -79,13 +73,15 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
             userGender.value = savedGender
             if (CallService.isCallActive) {
                 callState.value = AppCallState.CONNECTED
+                isMuted.value = CallService.isMuted
+                isSpeakerOn.value = CallService.isSpeakerOn
             } else {
                 callState.value = AppCallState.IDLE
             }
         }
 
-        signalingClient = SignalingClient(serverUrl, this)
-        signalingClient.connect()
+        matchSignalingClient = SignalingClient(serverUrl, this)
+        matchSignalingClient.connect()
 
         CallService.onWarningChime = {
             runOnUiThread { showExtendCallDialog.value = true }
@@ -95,13 +91,17 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
             runOnUiThread { hangUpCall() }
         }
 
-        CallService.onAutoMuteTriggered = { autoMuted ->
+        CallService.onCallTerminatedByPeer = {
             runOnUiThread {
-                if (autoMuted) {
-                    webRtcClient?.setMicrophoneEnabled(false)
-                } else {
-                    webRtcClient?.setMicrophoneEnabled(!isMuted.value)
-                }
+                callState.value = AppCallState.IDLE
+                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
+        }
+
+        CallService.onAudioStateChanged = { muted, speaker ->
+            runOnUiThread {
+                isMuted.value = muted
+                isSpeakerOn.value = speaker
             }
         }
 
@@ -134,7 +134,7 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
 
             BackHandler(enabled = callState.value != AppCallState.IDLE && callState.value != AppCallState.ONBOARDING_GENDER) {
                 if (callState.value == AppCallState.SEARCHING) {
-                    signalingClient.leaveQueue()
+                    matchSignalingClient.leaveQueue()
                     callState.value = AppCallState.IDLE
                 }
             }
@@ -197,7 +197,7 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
 
                             AppCallState.SEARCHING -> SearchingDashboard(
                                 onCancelClick = {
-                                    signalingClient.leaveQueue()
+                                    matchSignalingClient.leaveQueue()
                                     callState.value = AppCallState.IDLE
                                 }
                             )
@@ -207,8 +207,18 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
                                 peerLevel = matchedPeerLevel.value,
                                 isMuted = isMuted.value,
                                 isSpeakerOn = isSpeakerOn.value,
-                                onToggleMute = { toggleMute() },
-                                onToggleSpeaker = { toggleSpeaker() },
+                                onToggleMute = {
+                                    val muteIntent = Intent(this@MainActivity, CallService::class.java).apply {
+                                        action = CallService.ACTION_TOGGLE_MUTE
+                                    }
+                                    startService(muteIntent)
+                                },
+                                onToggleSpeaker = {
+                                    val speakerIntent = Intent(this@MainActivity, CallService::class.java).apply {
+                                        action = CallService.ACTION_TOGGLE_SPEAKER
+                                    }
+                                    startService(speakerIntent)
+                                },
                                 onEndCall = { hangUpCall() }
                             )
 
@@ -304,7 +314,6 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        // Fired specifically when user presses Home or switches apps (minimizing)
         if (callState.value == AppCallState.CONNECTED) {
             val backgroundIntent = Intent(this, CallService::class.java).apply {
                 action = CallService.ACTION_APP_BACKGROUNDED
@@ -317,6 +326,8 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
         super.onResume()
         if (CallService.isCallActive) {
             callState.value = AppCallState.CONNECTED
+            isMuted.value = CallService.isMuted
+            isSpeakerOn.value = CallService.isSpeakerOn
             val resumeIntent = Intent(this, CallService::class.java).apply {
                 action = CallService.ACTION_APP_FOREGROUNDED
             }
@@ -330,7 +341,7 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
             return
         }
         callState.value = AppCallState.SEARCHING
-        signalingClient.joinQueue(
+        matchSignalingClient.joinQueue(
             level = selectedLevel.value,
             userGender = userGender.value,
             talkToFemaleOnly = talkToFemaleOnly.value,
@@ -338,97 +349,47 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
         )
     }
 
-    private fun toggleMute() {
-        isMuted.value = !isMuted.value
-        webRtcClient?.setMicrophoneEnabled(!isMuted.value)
-    }
-
-    private fun toggleSpeaker() {
-        isSpeakerOn.value = !isSpeakerOn.value
-        audioManager.isSpeakerphoneOn = isSpeakerOn.value
-    }
-
     private fun hangUpCall() {
         val duration = CallService.getElapsedSeconds()
-        signalingClient.endCall()
-        cleanupCall()
-        AdManager.showPostCallInterstitial(this, duration) {}
-    }
-
-    private fun cleanupCall() {
-        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-
         val serviceIntent = Intent(this, CallService::class.java).apply {
-            action = CallService.ACTION_STOP
+            action = CallService.ACTION_END_CALL
         }
         startService(serviceIntent)
 
-        webRtcClient?.disconnect()
-        webRtcClient = null
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         callState.value = AppCallState.IDLE
         showExtendCallDialog.value = false
-        audioManager.mode = AudioManager.MODE_NORMAL
-        audioManager.isSpeakerphoneOn = false
-        audioManager.isMicrophoneMute = false
+        AdManager.showPostCallInterstitial(this, duration) {}
     }
 
     override fun onMatchFound(roomId: String, isInitiator: Boolean, peerLevel: String) {
         runOnUiThread {
-            try {
-                window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                matchedPeerLevel.value = peerLevel
-                callState.value = AppCallState.CONNECTED
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            matchedPeerLevel.value = peerLevel
+            callState.value = AppCallState.CONNECTED
 
-                // 1. Establish Foreground Service first to activate mic permissions in foreground
-                val serviceIntent = Intent(this, CallService::class.java).apply {
-                    action = CallService.ACTION_START
-                }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    startForegroundService(serviceIntent)
-                } else {
-                    startService(serviceIntent)
-                }
-
-                // 2. Initialize WebRTC client using applicationContext
-                webRtcClient = WebRtcAudioClient(
-                    context = applicationContext,
-                    onIceCandidateGenerated = { candidate ->
-                        signalingClient.sendIceCandidate(candidate)
-                    },
-                    onRemoteStreamActive = {}
-                )
-
-                webRtcClient?.initPeerConnection(isInitiator) { offer ->
-                    signalingClient.sendOffer(offer)
-                }
-            } catch (e: Exception) {
-                Log.e("MainActivity", "Match setup error: ${e.message}")
+            val serviceIntent = Intent(this, CallService::class.java).apply {
+                action = CallService.ACTION_START_CALL
+                putExtra(CallService.EXTRA_ROOM_ID, roomId)
+                putExtra(CallService.EXTRA_IS_INITIATOR, isInitiator)
+                putExtra(CallService.EXTRA_PEER_LEVEL, peerLevel)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
             }
         }
     }
 
-    override fun onOfferReceived(sdp: SessionDescription) {
-        webRtcClient?.onRemoteOfferReceived(sdp) { answer ->
-            signalingClient.sendAnswer(answer)
-        }
-    }
-
-    override fun onAnswerReceived(sdp: SessionDescription) {
-        webRtcClient?.onRemoteAnswerReceived(sdp)
-    }
-
-    override fun onIceCandidateReceived(candidate: IceCandidate) {
-        webRtcClient?.addRemoteIceCandidate(candidate)
-    }
-
-    override fun onCallEnded() {
-        runOnUiThread { cleanupCall() }
-    }
+    override fun onOfferReceived(sdp: SessionDescription) {}
+    override fun onAnswerReceived(sdp: SessionDescription) {}
+    override fun onIceCandidateReceived(candidate: IceCandidate) {}
+    override fun onCallEnded() {}
 
     override fun onDestroy() {
         super.onDestroy()
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        cleanupCall()
     }
 }
 

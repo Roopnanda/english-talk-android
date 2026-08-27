@@ -46,17 +46,6 @@ class WebRtcAudioClient(
             val adm = JavaAudioDeviceModule.builder(context)
                 .setUseHardwareAcousticEchoCanceler(true)
                 .setUseHardwareNoiseSuppressor(true)
-                .setAudioRecordErrorCallback(object : JavaAudioDeviceModule.AudioRecordErrorCallback {
-                    override fun onWebRtcAudioRecordInitError(msg: String?) {
-                        AppLogger.log("WebRTC-ERR", "ADM Init: $msg")
-                    }
-                    override fun onWebRtcAudioRecordStartError(code: JavaAudioDeviceModule.AudioRecordStartErrorCode?, msg: String?) {
-                        AppLogger.log("WebRTC-ERR", "ADM Start: $msg")
-                    }
-                    override fun onWebRtcAudioRecordError(msg: String?) {
-                        AppLogger.log("WebRTC-ERR", "ADM Err: $msg")
-                    }
-                })
                 .createAudioDeviceModule()
 
             val options = PeerConnectionFactory.Options()

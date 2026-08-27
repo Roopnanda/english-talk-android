@@ -50,8 +50,6 @@ enum class AppCallState {
 
 class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
 
-    private lateinit var matchFinderSignalingClient: SignalingClient
-
     private val callState = mutableStateOf(AppCallState.IDLE)
     private val selectedLevel = mutableStateOf("Intermediate")
     private val userGender = mutableStateOf("")
@@ -63,8 +61,6 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
     private val isSpeakerOn = mutableStateOf(false)
     private val matchedPeerLevel = mutableStateOf("Intermediate")
     private val showDebugLogs = mutableStateOf(true)
-
-    private val serverUrl = "wss://english-talk-server-5pm7.onrender.com"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -85,8 +81,8 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
             }
         }
 
-        matchFinderSignalingClient = SignalingClient(serverUrl, this)
-        matchFinderSignalingClient.connect()
+        SignalingClient.connect()
+        SignalingClient.setListener(this)
         AppLogger.log("MainUI", "App started, signaling connected")
 
         CallService.onWarningChime = {
@@ -101,7 +97,7 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
             runOnUiThread {
                 callState.value = AppCallState.IDLE
                 window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                matchFinderSignalingClient.connect()
+                SignalingClient.setListener(this@MainActivity)
             }
         }
 
@@ -141,7 +137,7 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
 
             BackHandler(enabled = callState.value != AppCallState.IDLE && callState.value != AppCallState.ONBOARDING_GENDER) {
                 if (callState.value == AppCallState.SEARCHING) {
-                    matchFinderSignalingClient.leaveQueue()
+                    SignalingClient.leaveQueue()
                     callState.value = AppCallState.IDLE
                 }
             }
@@ -204,7 +200,7 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
 
                             AppCallState.SEARCHING -> SearchingDashboard(
                                 onCancelClick = {
-                                    matchFinderSignalingClient.leaveQueue()
+                                    SignalingClient.leaveQueue()
                                     callState.value = AppCallState.IDLE
                                 }
                             )
@@ -326,7 +322,6 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
         if (callState.value == AppCallState.CONNECTED) {
-            AppLogger.log("MainUI", "onUserLeaveHint triggered")
             val backgroundIntent = Intent(this, CallService::class.java).apply {
                 action = CallService.ACTION_APP_BACKGROUNDED
             }
@@ -340,11 +335,12 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
             callState.value = AppCallState.CONNECTED
             isMuted.value = CallService.isMuted
             isSpeakerOn.value = CallService.isSpeakerOn
-            AppLogger.log("MainUI", "onResume -> Foreground intent to CallService")
             val resumeIntent = Intent(this, CallService::class.java).apply {
                 action = CallService.ACTION_APP_FOREGROUNDED
             }
             startService(resumeIntent)
+        } else {
+            SignalingClient.setListener(this)
         }
     }
 
@@ -355,8 +351,9 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
         }
         AppLogger.clear()
         AppLogger.log("MainUI", "Joining match queue...")
+        SignalingClient.setListener(this)
         callState.value = AppCallState.SEARCHING
-        matchFinderSignalingClient.joinQueue(
+        SignalingClient.joinQueue(
             level = selectedLevel.value,
             userGender = userGender.value,
             talkToFemaleOnly = talkToFemaleOnly.value,
@@ -374,7 +371,7 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         callState.value = AppCallState.IDLE
         showExtendCallDialog.value = false
-        matchFinderSignalingClient.connect()
+        SignalingClient.setListener(this)
         AdManager.showPostCallInterstitial(this, duration) {}
     }
 

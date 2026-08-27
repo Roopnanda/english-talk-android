@@ -77,7 +77,6 @@ class WebRtcAudioClient(
                 override fun onRenegotiationNeeded() {}
             })
 
-            // Setup Local Audio Track off the UI thread
             val audioConstraints = MediaConstraints()
             localAudioSource = factory.createAudioSource(audioConstraints)
             localAudioTrack = factory.createAudioTrack("local_audio_track", localAudioSource)
@@ -99,6 +98,13 @@ class WebRtcAudioClient(
                     }
                 }, constraints)
             }
+        }
+    }
+
+    fun setMicrophoneEnabled(enabled: Boolean) {
+        executor.execute {
+            localAudioTrack?.setEnabled(enabled)
+            Log.d("WebRtcAudioClient", "WebRTC Local AudioTrack enabled: $enabled")
         }
     }
 

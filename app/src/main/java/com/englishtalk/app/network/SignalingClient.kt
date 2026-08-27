@@ -1,5 +1,7 @@
 package com.englishtalk.app.network
 
+import android.os.Handler
+import android.os.Looper
 import com.englishtalk.app.utils.AppLogger
 import okhttp3.*
 import org.json.JSONObject
@@ -20,7 +22,15 @@ object SignalingClient {
     private var activeListener: SignalingListener? = null
     private var webSocket: WebSocket? = null
     private var isConnected = false
+    private var isSearching = false
+    private var lastJoinPayload: JSONObject? = null
+
+    private val mainHandler = Handler(Looper.getMainLooper())
+
     private val client = OkHttpClient.Builder()
+        .pingInterval(10, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
+        .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.MILLISECONDS)
         .build()
 
@@ -42,8 +52,14 @@ object SignalingClient {
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 isConnected = true
-                AppLogger.log("Signaling", "WebSocket Connected Successfully!")
-                onReady?.invoke()
+                AppLogger.log("Signaling", "WebSocket Connected (Heartbeat Active)")
+                mainHandler.post {
+                    onReady?.invoke()
+                    if (isSearching && lastJoinPayload != null) {
+                        AppLogger.log("Signaling", "Resending join_queue after reconnect...")
+                        webSocket.send(lastJoinPayload.toString())
+                    }
+                }
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
@@ -51,11 +67,13 @@ object SignalingClient {
                     val json = JSONObject(text)
                     when (json.optString("type")) {
                         "match_found" -> {
+                            isSearching = false
+                            lastJoinPayload = null
                             val roomId = json.getString("roomId")
                             val isInitiator = json.getBoolean("isInitiator")
                             val peerLevel = json.optString("peerLevel", "Intermediate")
                             currentRoomId = roomId
-                            AppLogger.log("Signaling", "Match found! Room: $roomId, Initiator: $isInitiator")
+                            AppLogger.log("Signaling", "Match confirmed: room=$roomId initiator=$isInitiator")
                             activeListener?.onMatchFound(roomId, isInitiator, peerLevel)
                         }
                         "offer" -> {
@@ -78,7 +96,7 @@ object SignalingClient {
                             activeListener?.onIceCandidateReceived(candidate)
                         }
                         "call_ended", "peer_disconnected" -> {
-                            AppLogger.log("Signaling", "Remote peer hung up")
+                            AppLogger.log("Signaling", "Remote end-call received")
                             currentRoomId = null
                             activeListener?.onCallEnded()
                         }
@@ -91,7 +109,14 @@ object SignalingClient {
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 isConnected = false
                 this@SignalingClient.webSocket = null
-                AppLogger.log("Signaling-ERR", "WebSocket Error: ${t.message}")
+                AppLogger.log("Signaling-ERR", "WebSocket dropped: ${t.message}")
+
+                if (isSearching) {
+                    AppLogger.log("Signaling", "Auto-reconnecting in 2 seconds...")
+                    mainHandler.postDelayed({
+                        if (isSearching) connect()
+                    }, 2000L)
+                }
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
@@ -103,6 +128,7 @@ object SignalingClient {
     }
 
     fun joinQueue(level: String, userGender: String, talkToFemaleOnly: Boolean, isVip: Boolean) {
+        isSearching = true
         val payload = JSONObject().apply {
             put("type", "join_queue")
             put("level", level)
@@ -110,9 +136,9 @@ object SignalingClient {
             put("talkToFemaleOnly", talkToFemaleOnly)
             put("isVip", isVip)
         }
+        lastJoinPayload = payload
 
         if (webSocket == null || !isConnected) {
-            AppLogger.log("Signaling", "Socket not ready, reconnecting first...")
             connect {
                 AppLogger.log("Signaling", "Sending join_queue (level: $level)...")
                 webSocket?.send(payload.toString())
@@ -124,6 +150,8 @@ object SignalingClient {
     }
 
     fun leaveQueue() {
+        isSearching = false
+        lastJoinPayload = null
         val payload = JSONObject().apply {
             put("type", "leave_queue")
         }

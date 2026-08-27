@@ -43,18 +43,12 @@ class WebRtcAudioClient(
                 .createInitializationOptions()
             PeerConnectionFactory.initialize(initOptions)
 
-            val adm = JavaAudioDeviceModule.builder(context)
-                .setUseHardwareAcousticEchoCanceler(true)
-                .setUseHardwareNoiseSuppressor(true)
-                .createAudioDeviceModule()
-
             val options = PeerConnectionFactory.Options()
             peerConnectionFactory = PeerConnectionFactory.builder()
                 .setOptions(options)
-                .setAudioDeviceModule(adm)
                 .createPeerConnectionFactory()
 
-            AppLogger.log("WebRTC", "Factory initialized on dedicated thread")
+            AppLogger.log("WebRTC", "Factory initialized successfully")
         } catch (e: Throwable) {
             AppLogger.log("WebRTC-ERR", "Factory init failed: ${e.message}")
         }
@@ -74,27 +68,35 @@ class WebRtcAudioClient(
                 peerConnection = factory.createPeerConnection(rtcConfig, object : PeerConnection.Observer {
                     override fun onIceCandidate(candidate: IceCandidate?) {
                         candidate?.let {
-                            AppLogger.log("WebRTC", "Local candidate generated")
+                            AppLogger.log("WebRTC", "Local ICE candidate generated")
                             mainHandler.post { onIceCandidateGenerated(it) }
                         }
                     }
 
                     override fun onIceCandidatesRemoved(candidates: Array<out IceCandidate>?) {}
+
                     override fun onSignalingChange(newState: PeerConnection.SignalingState?) {
                         AppLogger.log("WebRTC", "Signaling: $newState")
                     }
+
                     override fun onIceConnectionChange(newState: PeerConnection.IceConnectionState?) {
                         AppLogger.log("WebRTC", "ICE: $newState")
                     }
+
                     override fun onIceConnectionReceivingChange(receiving: Boolean) {}
+
                     override fun onIceGatheringChange(newState: PeerConnection.IceGatheringState?) {}
+
                     override fun onAddStream(stream: MediaStream?) {}
+
                     override fun onRemoveStream(stream: MediaStream?) {}
+
                     override fun onDataChannel(channel: DataChannel?) {}
+
                     override fun onRenegotiationNeeded() {}
 
                     override fun onAddTrack(receiver: RtpReceiver?, mediaStreams: Array<out MediaStream>?) {
-                        AppLogger.log("WebRTC", "Remote track active")
+                        AppLogger.log("WebRTC", "Remote audio stream is active")
                         mainHandler.post { onRemoteStreamActive() }
                     }
                 })
@@ -111,7 +113,7 @@ class WebRtcAudioClient(
                 }
 
                 peerConnection?.addTrack(localAudioTrack, listOf("ARDAMS"))
-                AppLogger.log("WebRTC", "AudioTrack created and enabled")
+                AppLogger.log("WebRTC", "Local audio track enabled")
 
                 if (isInitiator) {
                     val sdpConstraints = MediaConstraints().apply {
@@ -125,7 +127,7 @@ class WebRtcAudioClient(
                                 peerConnection?.setLocalDescription(object : SdpObserver {
                                     override fun onCreateSuccess(p0: SessionDescription?) {}
                                     override fun onSetSuccess() {
-                                        AppLogger.log("WebRTC", "Local Offer SDP ready")
+                                        AppLogger.log("WebRTC", "Local Offer SDP created")
                                         mainHandler.post { onOfferReady(localSdp) }
                                     }
                                     override fun onCreateFailure(err: String?) {}
@@ -152,10 +154,12 @@ class WebRtcAudioClient(
         executor.execute {
             if (isDisposed) return@execute
             try {
+                ensureFactoryInitialized()
+
                 peerConnection?.setRemoteDescription(object : SdpObserver {
                     override fun onCreateSuccess(p0: SessionDescription?) {}
                     override fun onSetSuccess() {
-                        AppLogger.log("WebRTC", "Remote Offer set")
+                        AppLogger.log("WebRTC", "Remote offer set successfully")
                         drainPendingCandidates()
 
                         val sdpConstraints = MediaConstraints().apply {
@@ -169,7 +173,7 @@ class WebRtcAudioClient(
                                     peerConnection?.setLocalDescription(object : SdpObserver {
                                         override fun onCreateSuccess(p0: SessionDescription?) {}
                                         override fun onSetSuccess() {
-                                            AppLogger.log("WebRTC", "Local Answer ready")
+                                            AppLogger.log("WebRTC", "Local Answer SDP set")
                                             mainHandler.post { onAnswerReady(answer) }
                                         }
                                         override fun onCreateFailure(p0: String?) {}
@@ -204,7 +208,7 @@ class WebRtcAudioClient(
                 peerConnection?.setRemoteDescription(object : SdpObserver {
                     override fun onCreateSuccess(p0: SessionDescription?) {}
                     override fun onSetSuccess() {
-                        AppLogger.log("WebRTC", "Remote Answer set")
+                        AppLogger.log("WebRTC", "Remote answer set successfully")
                         drainPendingCandidates()
                     }
                     override fun onCreateFailure(p0: String?) {}
@@ -273,7 +277,7 @@ class WebRtcAudioClient(
                 peerConnectionFactory?.dispose()
                 peerConnectionFactory = null
 
-                AppLogger.log("WebRTC", "Resources disposed cleanly")
+                AppLogger.log("WebRTC", "WebRTC resources fully disposed")
             } catch (e: Throwable) {
                 AppLogger.log("WebRTC-ERR", "Disconnect error: ${e.message}")
             }

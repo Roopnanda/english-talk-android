@@ -344,7 +344,7 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
 
         webRtcClient?.disconnect()
         webRtcClient = null
-        callState.value = AppCallState.IDLE
+                callState.value = AppCallState.IDLE
         showExtendCallDialog.value = false
         audioManager.isSpeakerphoneOn = false
         audioManager.isMicrophoneMute = false
@@ -366,7 +366,7 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
             }
 
             webRtcClient = WebRtcAudioClient(
-                context = this,
+                context = applicationContext,
                 onIceCandidateGenerated = { candidate ->
                     signalingClient.sendIceCandidate(candidate)
                 },
@@ -380,23 +380,17 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
     }
 
     override fun onOfferReceived(sdp: SessionDescription) {
-        runOnUiThread {
-            webRtcClient?.onRemoteOfferReceived(sdp) { answer ->
-                signalingClient.sendAnswer(answer)
-            }
+        webRtcClient?.onRemoteOfferReceived(sdp) { answer ->
+            signalingClient.sendAnswer(answer)
         }
     }
 
     override fun onAnswerReceived(sdp: SessionDescription) {
-        runOnUiThread {
-            webRtcClient?.onRemoteAnswerReceived(sdp)
-        }
+        webRtcClient?.onRemoteAnswerReceived(sdp)
     }
 
     override fun onIceCandidateReceived(candidate: IceCandidate) {
-        runOnUiThread {
-            webRtcClient?.addRemoteIceCandidate(candidate)
-        }
+        webRtcClient?.addRemoteIceCandidate(candidate)
     }
 
     override fun onCallEnded() {
@@ -409,7 +403,9 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
         backgroundScope.cancel()
         cleanupCall()
     }
-}
+
+    }
+
 
 @Composable
 fun GenderSelectionOnboardingScreen(onGenderSelected: (String) -> Unit) {

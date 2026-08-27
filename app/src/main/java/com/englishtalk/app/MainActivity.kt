@@ -1,13 +1,18 @@
 package com.englishtalk.app
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.media.MediaPlayer
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.Gravity
 import android.view.View
 import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
@@ -18,6 +23,7 @@ import com.englishtalk.app.network.SignalingClient
 import com.englishtalk.app.service.CallService
 import com.englishtalk.app.utils.AppLogger
 import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.AdSize
 import com.google.android.gms.ads.AdView
 import com.google.android.gms.ads.MobileAds
 import org.webrtc.IceCandidate
@@ -25,21 +31,21 @@ import org.webrtc.SessionDescription
 
 class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener {
 
-    private lateinit var layoutDashboard: View
-    private lateinit var layoutSearching: View
-    private lateinit var layoutConnected: View
+    private lateinit var rootLayout: RelativeLayout
+    private lateinit var layoutDashboard: LinearLayout
+    private lateinit var layoutSearching: LinearLayout
+    private lateinit var layoutConnected: LinearLayout
 
-    private lateinit var btnTalkNow: View
+    private lateinit var btnTalkNow: Button
     private lateinit var btnCancelSearch: Button
-    private lateinit var btnEndCall: View
+    private lateinit var btnEndCall: ImageView
     private lateinit var btnMute: ImageView
     private lateinit var btnSpeaker: ImageView
-    private lateinit var btnGoVip: View
+    private lateinit var btnGoVip: Button
     private lateinit var switchFemaleOnly: androidx.appcompat.widget.SwitchCompat
     private lateinit var tvTimer: TextView
     private lateinit var tvPartnerLevel: TextView
     private lateinit var tvDiagnostics: TextView
-    private lateinit var adView: AdView
 
     private lateinit var btnBeginner: Button
     private lateinit var btnIntermediate: Button
@@ -65,7 +71,6 @@ class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
 
         Thread.setDefaultUncaughtExceptionHandler { _, throwable ->
             AppLogger.log("FATAL", "${throwable.javaClass.simpleName}: ${throwable.message}")
@@ -73,7 +78,7 @@ class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener {
 
         MobileAds.initialize(this) {}
 
-        bindViews()
+        buildProgrammaticUI()
         setupListeners()
         setupDiagnosticsLogger()
         setupCallServiceCallbacks()
@@ -82,30 +87,357 @@ class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener {
         SignalingClient.connect()
     }
 
-    private fun bindViews() {
-        layoutDashboard = findViewById(R.id.layout_dashboard)
-        layoutSearching = findViewById(R.id.layout_searching)
-        layoutConnected = findViewById(R.id.layout_connected)
+    private fun buildProgrammaticUI() {
+        rootLayout = RelativeLayout(this).apply {
+            setBackgroundColor(Color.parseColor("#0F172A"))
+            layoutParams = RelativeLayout.LayoutParams(
+                RelativeLayout.LayoutParams.MATCH_PARENT,
+                RelativeLayout.LayoutParams.MATCH_PARENT
+            )
+        }
 
-        btnTalkNow = findViewById(R.id.btn_talk_now)
-        btnCancelSearch = findViewById(R.id.btn_cancel_search)
-        btnEndCall = findViewById(R.id.btn_end_call)
-        btnMute = findViewById(R.id.btn_mute)
-        btnSpeaker = findViewById(R.id.btn_speaker)
-        btnGoVip = findViewById(R.id.btn_go_vip)
-        switchFemaleOnly = findViewById(R.id.switch_female_only)
+        // --- TOP BAR ---
+        val topBar = RelativeLayout(this).apply {
+            id = View.generateViewId()
+            setPadding(40, 40, 40, 20)
+            layoutParams = RelativeLayout.LayoutParams(
+                RelativeLayout.LayoutParams.MATCH_PARENT,
+                RelativeLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                addRule(RelativeLayout.ALIGN_PARENT_TOP)
+            }
+        }
 
-        tvTimer = findViewById(R.id.tv_timer)
-        tvPartnerLevel = findViewById(R.id.tv_partner_level)
-        tvDiagnostics = findViewById(R.id.tv_diagnostics)
-        adView = findViewById(R.id.adView)
+        val appTitle = TextView(this).apply {
+            text = "English Talk"
+            setTextColor(Color.WHITE)
+            textSize = 24f
+            typeface = Typeface.DEFAULT_BOLD
+            layoutParams = RelativeLayout.LayoutParams(
+                RelativeLayout.LayoutParams.WRAP_CONTENT,
+                RelativeLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                addRule(RelativeLayout.ALIGN_PARENT_START)
+                addRule(RelativeLayout.CENTER_VERTICAL)
+            }
+        }
 
-        btnBeginner = findViewById(R.id.btn_beginner)
-        btnIntermediate = findViewById(R.id.btn_intermediate)
-        btnAdvanced = findViewById(R.id.btn_advanced)
+        btnGoVip = Button(this).apply {
+            text = "👑 GO VIP"
+            setTextColor(Color.BLACK)
+            textSize = 13f
+            typeface = Typeface.DEFAULT_BOLD
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#F59E0B"))
+                cornerRadius = 20f
+            }
+            layoutParams = RelativeLayout.LayoutParams(
+                RelativeLayout.LayoutParams.WRAP_CONTENT,
+                110
+            ).apply {
+                addRule(RelativeLayout.ALIGN_PARENT_END)
+                addRule(RelativeLayout.CENTER_VERTICAL)
+            }
+        }
 
-        val adRequest = AdRequest.Builder().build()
-        adView.loadAd(adRequest)
+        topBar.addView(appTitle)
+        topBar.addView(btnGoVip)
+        rootLayout.addView(topBar)
+
+        // --- BOTTOM CONTAINER (DIAGNOSTICS & AD) ---
+        val bottomContainer = LinearLayout(this).apply {
+            id = View.generateViewId()
+            orientation = LinearLayout.VERTICAL
+            layoutParams = RelativeLayout.LayoutParams(
+                RelativeLayout.LayoutParams.MATCH_PARENT,
+                RelativeLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                addRule(RelativeLayout.ALIGN_PARENT_BOTTOM)
+            }
+        }
+
+        tvDiagnostics = TextView(this).apply {
+            setBackgroundColor(Color.parseColor("#050B14"))
+            setTextColor(Color.parseColor("#38BDF8"))
+            textSize = 10f
+            typeface = Typeface.MONOSPACE
+            setPadding(20, 20, 20, 20)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                260
+            )
+        }
+
+        val adView = AdView(this).apply {
+            setAdSize(AdSize.BANNER)
+            adUnitId = "ca-app-pub-3940256099942544/6300978111"
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+            }
+        }
+
+        bottomContainer.addView(tvDiagnostics)
+        bottomContainer.addView(adView)
+        rootLayout.addView(bottomContainer)
+
+        try {
+            adView.loadAd(AdRequest.Builder().build())
+        } catch (e: Exception) {
+            AppLogger.log("AdView", "Ad load error: ${e.message}")
+        }
+
+        // --- 1. DASHBOARD VIEW ---
+        layoutDashboard = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(40, 20, 40, 20)
+            visibility = View.VISIBLE
+            layoutParams = RelativeLayout.LayoutParams(
+                RelativeLayout.LayoutParams.MATCH_PARENT,
+                RelativeLayout.LayoutParams.MATCH_PARENT
+            ).apply {
+                addRule(RelativeLayout.BELOW, topBar.id)
+                addRule(RelativeLayout.ABOVE, bottomContainer.id)
+            }
+        }
+
+        val tvLevelHeading = TextView(this).apply {
+            text = "Choose Your English Level"
+            setTextColor(Color.parseColor("#94A3B8"))
+            textSize = 16f
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = 30
+            }
+        }
+
+        val levelRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = 50
+            }
+        }
+
+        btnBeginner = createLevelButton("Beginner")
+        btnIntermediate = createLevelButton("Intermediate")
+        btnAdvanced = createLevelButton("Advanced")
+
+        levelRow.addView(btnBeginner)
+        levelRow.addView(btnIntermediate)
+        levelRow.addView(btnAdvanced)
+
+        val vipRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(30, 25, 30, 25)
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#1E293B"))
+                cornerRadius = 24f
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = 60
+            }
+        }
+
+        val tvFemaleVip = TextView(this).apply {
+            text = "👩 Talk to Female Gender 👑 VIP"
+            setTextColor(Color.WHITE)
+            textSize = 15f
+            typeface = Typeface.DEFAULT_BOLD
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+
+        switchFemaleOnly = androidx.appcompat.widget.SwitchCompat(this)
+        vipRow.addView(tvFemaleVip)
+        vipRow.addView(switchFemaleOnly)
+
+        btnTalkNow = Button(this).apply {
+            text = "📞\n\nTALK NOW"
+            setTextColor(Color.WHITE)
+            textSize = 18f
+            typeface = Typeface.DEFAULT_BOLD
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.parseColor("#2563EB"))
+            }
+            layoutParams = LinearLayout.LayoutParams(400, 400)
+        }
+
+        layoutDashboard.addView(tvLevelHeading)
+        layoutDashboard.addView(levelRow)
+        layoutDashboard.addView(vipRow)
+        layoutDashboard.addView(btnTalkNow)
+        rootLayout.addView(layoutDashboard)
+
+        // --- 2. SEARCHING VIEW ---
+        layoutSearching = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(40, 20, 40, 20)
+            visibility = View.GONE
+            layoutParams = RelativeLayout.LayoutParams(
+                RelativeLayout.LayoutParams.MATCH_PARENT,
+                RelativeLayout.LayoutParams.MATCH_PARENT
+            ).apply {
+                addRule(RelativeLayout.BELOW, topBar.id)
+                addRule(RelativeLayout.ABOVE, bottomContainer.id)
+            }
+        }
+
+        val progress = ProgressBar(this).apply {
+            layoutParams = LinearLayout.LayoutParams(140, 140).apply { bottomMargin = 40 }
+        }
+
+        val tvSearching = TextView(this).apply {
+            text = "Searching for a conversation partner..."
+            setTextColor(Color.WHITE)
+            textSize = 18f
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = 60
+            }
+        }
+
+        btnCancelSearch = Button(this).apply {
+            text = "Cancel Search"
+            setTextColor(Color.WHITE)
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#EF4444"))
+                cornerRadius = 24f
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+
+        layoutSearching.addView(progress)
+        layoutSearching.addView(tvSearching)
+        layoutSearching.addView(btnCancelSearch)
+        rootLayout.addView(layoutSearching)
+
+        // --- 3. CONNECTED VIEW ---
+        layoutConnected = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(40, 20, 40, 20)
+            visibility = View.GONE
+            layoutParams = RelativeLayout.LayoutParams(
+                RelativeLayout.LayoutParams.MATCH_PARENT,
+                RelativeLayout.LayoutParams.MATCH_PARENT
+            ).apply {
+                addRule(RelativeLayout.BELOW, topBar.id)
+                addRule(RelativeLayout.ABOVE, bottomContainer.id)
+            }
+        }
+
+        val ivUser = ImageView(this).apply {
+            setImageResource(android.R.drawable.ic_menu_call)
+            layoutParams = LinearLayout.LayoutParams(180, 180).apply { bottomMargin = 30 }
+        }
+
+        tvPartnerLevel = TextView(this).apply {
+            text = "Connected (Intermediate Partner)"
+            setTextColor(Color.parseColor("#38BDF8"))
+            textSize = 18f
+            typeface = Typeface.DEFAULT_BOLD
+        }
+
+        tvTimer = TextView(this).apply {
+            text = "00:00"
+            setTextColor(Color.WHITE)
+            textSize = 36f
+            typeface = Typeface.DEFAULT_BOLD
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = 20
+                bottomMargin = 40
+            }
+        }
+
+        val callControlRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+
+        btnMute = ImageView(this).apply {
+            setImageResource(android.R.drawable.ic_lock_silent_mode_off)
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.parseColor("#334155"))
+            }
+            setPadding(25, 25, 25, 25)
+            layoutParams = LinearLayout.LayoutParams(130, 130).apply { rightMargin = 40 }
+        }
+
+        btnEndCall = ImageView(this).apply {
+            setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.parseColor("#EF4444"))
+            }
+            setPadding(30, 30, 30, 30)
+            layoutParams = LinearLayout.LayoutParams(160, 160).apply { rightMargin = 40 }
+        }
+
+        btnSpeaker = ImageView(this).apply {
+            setImageResource(android.R.drawable.ic_lock_silent_mode)
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.parseColor("#334155"))
+            }
+            setPadding(25, 25, 25, 25)
+            layoutParams = LinearLayout.LayoutParams(130, 130)
+        }
+
+        callControlRow.addView(btnMute)
+        callControlRow.addView(btnEndCall)
+        callControlRow.addView(btnSpeaker)
+
+        layoutConnected.addView(ivUser)
+        layoutConnected.addView(tvPartnerLevel)
+        layoutConnected.addView(tvTimer)
+        layoutConnected.addView(callControlRow)
+        rootLayout.addView(layoutConnected)
+
+        setContentView(rootLayout)
+        selectLevel("Intermediate")
+    }
+
+    private fun createLevelButton(levelName: String): Button {
+        return Button(this).apply {
+            text = levelName
+            setTextColor(Color.WHITE)
+            textSize = 12f
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#1E293B"))
+                cornerRadius = 16f
+            }
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                leftMargin = 8
+                rightMargin = 8
+            }
+        }
     }
 
     private fun setupListeners() {
@@ -156,12 +488,12 @@ class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener {
 
     private fun selectLevel(level: String) {
         selectedLevel = level
-        val defaultBg = ContextCompat.getDrawable(this, R.drawable.bg_level_button)
-        val selectedBg = ContextCompat.getDrawable(this, R.drawable.bg_level_button_selected)
+        val activeColor = Color.parseColor("#2563EB")
+        val idleColor = Color.parseColor("#1E293B")
 
-        btnBeginner.background = if (level == "Beginner") selectedBg else defaultBg
-        btnIntermediate.background = if (level == "Intermediate") selectedBg else defaultBg
-        btnAdvanced.background = if (level == "Advanced") selectedBg else defaultBg
+        (btnBeginner.background as? GradientDrawable)?.setColor(if (level == "Beginner") activeColor else idleColor)
+        (btnIntermediate.background as? GradientDrawable)?.setColor(if (level == "Intermediate") activeColor else idleColor)
+        (btnAdvanced.background as? GradientDrawable)?.setColor(if (level == "Advanced") activeColor else idleColor)
     }
 
     private fun checkPermissionsAndStart() {

@@ -1,11 +1,14 @@
 package com.englishtalk.app
 
 import android.Manifest
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.IBinder
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -46,7 +49,9 @@ enum class AppCallState {
 
 class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
 
-    private lateinit var matchSignalingClient: SignalingClient
+    private lateinit var signalingClient: SignalingClient
+    private var boundCallService: CallService? = null
+    private var isServiceBound = false
 
     private val callState = mutableStateOf(AppCallState.IDLE)
     private val selectedLevel = mutableStateOf("Intermediate")
@@ -60,6 +65,19 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
     private val matchedPeerLevel = mutableStateOf("Intermediate")
 
     private val serverUrl = "wss://english-talk-server-5pm7.onrender.com"
+
+    private val serviceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
+            val b = binder as? CallService.CallServiceBinder
+            boundCallService = b?.service
+            isServiceBound = true
+        }
+
+        override fun onServiceDisconnected(name: ComponentName?) {
+            boundCallService = null
+            isServiceBound = false
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -80,8 +98,12 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
             }
         }
 
-        matchSignalingClient = SignalingClient(serverUrl, this)
-        matchSignalingClient.connect()
+        signalingClient = SignalingClient(serverUrl, this)
+        signalingClient.connect()
+
+        CallService.onSendOffer = { offer -> signalingClient.sendOffer(offer) }
+        CallService.onSendAnswer = { answer -> signalingClient.sendAnswer(answer) }
+        CallService.onSendIceCandidate = { candidate -> signalingClient.sendIceCandidate(candidate) }
 
         CallService.onWarningChime = {
             runOnUiThread { showExtendCallDialog.value = true }
@@ -91,19 +113,15 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
             runOnUiThread { hangUpCall() }
         }
 
-        CallService.onCallTerminatedByPeer = {
-            runOnUiThread {
-                callState.value = AppCallState.IDLE
-                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            }
-        }
-
         CallService.onAudioStateChanged = { muted, speaker ->
             runOnUiThread {
                 isMuted.value = muted
                 isSpeakerOn.value = speaker
             }
         }
+
+        val serviceIntent = Intent(this, CallService::class.java)
+        bindService(serviceIntent, serviceConnection, Context.BIND_AUTO_CREATE)
 
         setContent {
             val isSubscribed by BillingManager.isSubscribed.collectAsState()
@@ -134,7 +152,7 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
 
             BackHandler(enabled = callState.value != AppCallState.IDLE && callState.value != AppCallState.ONBOARDING_GENDER) {
                 if (callState.value == AppCallState.SEARCHING) {
-                    matchSignalingClient.leaveQueue()
+                    signalingClient.leaveQueue()
                     callState.value = AppCallState.IDLE
                 }
             }
@@ -197,7 +215,7 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
 
                             AppCallState.SEARCHING -> SearchingDashboard(
                                 onCancelClick = {
-                                    matchSignalingClient.leaveQueue()
+                                    signalingClient.leaveQueue()
                                     callState.value = AppCallState.IDLE
                                 }
                             )
@@ -341,7 +359,7 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
             return
         }
         callState.value = AppCallState.SEARCHING
-        matchSignalingClient.joinQueue(
+        signalingClient.joinQueue(
             level = selectedLevel.value,
             userGender = userGender.value,
             talkToFemaleOnly = talkToFemaleOnly.value,
@@ -351,6 +369,8 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
 
     private fun hangUpCall() {
         val duration = CallService.getElapsedSeconds()
+        signalingClient.endCall()
+
         val serviceIntent = Intent(this, CallService::class.java).apply {
             action = CallService.ACTION_END_CALL
         }
@@ -370,9 +390,7 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
 
             val serviceIntent = Intent(this, CallService::class.java).apply {
                 action = CallService.ACTION_START_CALL
-                putExtra(CallService.EXTRA_ROOM_ID, roomId)
                 putExtra(CallService.EXTRA_IS_INITIATOR, isInitiator)
-                putExtra(CallService.EXTRA_PEER_LEVEL, peerLevel)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(serviceIntent)
@@ -382,14 +400,36 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
         }
     }
 
-    override fun onOfferReceived(sdp: SessionDescription) {}
-    override fun onAnswerReceived(sdp: SessionDescription) {}
-    override fun onIceCandidateReceived(candidate: IceCandidate) {}
-    override fun onCallEnded() {}
+    override fun onOfferReceived(sdp: SessionDescription) {
+        boundCallService?.handleRemoteOffer(sdp)
+    }
+
+    override fun onAnswerReceived(sdp: SessionDescription) {
+        boundCallService?.handleRemoteAnswer(sdp)
+    }
+
+    override fun onIceCandidateReceived(candidate: IceCandidate) {
+        boundCallService?.handleRemoteIceCandidate(candidate)
+    }
+
+    override fun onCallEnded() {
+        runOnUiThread {
+            val serviceIntent = Intent(this, CallService::class.java).apply {
+                action = CallService.ACTION_END_CALL
+            }
+            startService(serviceIntent)
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            callState.value = AppCallState.IDLE
+        }
+    }
 
     override fun onDestroy() {
         super.onDestroy()
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        if (isServiceBound) {
+            unbindService(serviceConnection)
+            isServiceBound = false
+        }
     }
 }
 

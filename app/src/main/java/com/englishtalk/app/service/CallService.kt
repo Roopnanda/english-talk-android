@@ -22,12 +22,11 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.englishtalk.app.MainActivity
-import com.englishtalk.app.network.SignalingClient
 import com.englishtalk.app.webrtc.WebRtcAudioClient
 import org.webrtc.IceCandidate
 import org.webrtc.SessionDescription
 
-class CallService : Service(), SignalingClient.SignalingListener {
+class CallService : Service() {
 
     companion object {
         const val ACTION_START_CALL = "ACTION_START_CALL"
@@ -38,9 +37,7 @@ class CallService : Service(), SignalingClient.SignalingListener {
         const val ACTION_TOGGLE_MUTE = "ACTION_TOGGLE_MUTE"
         const val ACTION_TOGGLE_SPEAKER = "ACTION_TOGGLE_SPEAKER"
 
-        const val EXTRA_ROOM_ID = "EXTRA_ROOM_ID"
         const val EXTRA_IS_INITIATOR = "EXTRA_IS_INITIATOR"
-        const val EXTRA_PEER_LEVEL = "EXTRA_PEER_LEVEL"
 
         private const val CHANNEL_ID = "english_talk_call_channel"
         private const val NOTIFICATION_ID = 1001
@@ -68,8 +65,11 @@ class CallService : Service(), SignalingClient.SignalingListener {
 
         var onWarningChime: (() -> Unit)? = null
         var onCallExpired: (() -> Unit)? = null
-        var onCallTerminatedByPeer: (() -> Unit)? = null
         var onAudioStateChanged: ((muted: Boolean, speaker: Boolean) -> Unit)? = null
+
+        var onSendOffer: ((SessionDescription) -> Unit)? = null
+        var onSendAnswer: ((SessionDescription) -> Unit)? = null
+        var onSendIceCandidate: ((IceCandidate) -> Unit)? = null
 
         fun getElapsedSeconds(): Long = elapsedSeconds
     }
@@ -85,7 +85,6 @@ class CallService : Service(), SignalingClient.SignalingListener {
     private var isScreenOff = false
 
     private var webRtcClient: WebRtcAudioClient? = null
-    private var signalingClient: SignalingClient? = null
 
     private val screenStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -156,7 +155,7 @@ class CallService : Service(), SignalingClient.SignalingListener {
                 acquireWakeLock()
                 safeStartForeground("Call in progress...")
                 resetAndStartTimer()
-                startWebRtcCall(isInitiator)
+                initWebRtc(isInitiator)
             }
             ACTION_TOGGLE_MUTE -> {
                 isMuted = !isMuted
@@ -180,7 +179,6 @@ class CallService : Service(), SignalingClient.SignalingListener {
                         if (isCallActive && !isScreenOff) {
                             isAutoMuted = true
                             webRtcClient?.setMicrophoneEnabled(false)
-                            Log.d("CallService", "30s background mic mute applied")
                         }
                     }
                     handler.postDelayed(autoMuteRunnable!!, 30_000L)
@@ -200,46 +198,32 @@ class CallService : Service(), SignalingClient.SignalingListener {
         return START_NOT_STICKY
     }
 
-    private fun startWebRtcCall(isInitiator: Boolean) {
-        val serverUrl = "wss://english-talk-server-5pm7.onrender.com"
-        signalingClient = SignalingClient(serverUrl, this).apply {
-            connect()
-        }
-
+    private fun initWebRtc(isInitiator: Boolean) {
         webRtcClient = WebRtcAudioClient(
             context = applicationContext,
             onIceCandidateGenerated = { candidate ->
-                signalingClient?.sendIceCandidate(candidate)
+                onSendIceCandidate?.invoke(candidate)
             },
             onRemoteStreamActive = {}
         )
 
         webRtcClient?.initPeerConnection(isInitiator) { offer ->
-            signalingClient?.sendOffer(offer)
+            onSendOffer?.invoke(offer)
         }
     }
 
-    override fun onOfferReceived(sdp: SessionDescription) {
+    fun handleRemoteOffer(sdp: SessionDescription) {
         webRtcClient?.onRemoteOfferReceived(sdp) { answer ->
-            signalingClient?.sendAnswer(answer)
+            onSendAnswer?.invoke(answer)
         }
     }
 
-    override fun onAnswerReceived(sdp: SessionDescription) {
+    fun handleRemoteAnswer(sdp: SessionDescription) {
         webRtcClient?.onRemoteAnswerReceived(sdp)
     }
 
-    override fun onIceCandidateReceived(candidate: IceCandidate) {
+    fun handleRemoteIceCandidate(candidate: IceCandidate) {
         webRtcClient?.addRemoteIceCandidate(candidate)
-    }
-
-    override fun onMatchFound(roomId: String, isInitiator: Boolean, peerLevel: String) {}
-
-    override fun onCallEnded() {
-        handler.post {
-            onCallTerminatedByPeer?.invoke()
-            terminateService()
-        }
     }
 
     private fun requestCallAudioFocus() {
@@ -263,7 +247,7 @@ class CallService : Service(), SignalingClient.SignalingListener {
                 audioManager?.requestAudioFocus(null, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN)
             }
         } catch (e: Exception) {
-            Log.e("CallService", "Audio focus request error: ${e.message}")
+            Log.e("CallService", "Audio focus error: ${e.message}")
         }
     }
 
@@ -398,10 +382,8 @@ class CallService : Service(), SignalingClient.SignalingListener {
         abandonCallAudioFocus()
 
         try {
-            signalingClient?.endCall()
             webRtcClient?.disconnect()
             webRtcClient = null
-            signalingClient = null
         } catch (e: Exception) {
             Log.e("CallService", "Cleanup error: ${e.message}")
         }
@@ -416,7 +398,9 @@ class CallService : Service(), SignalingClient.SignalingListener {
         stopSelf()
     }
 
-    override fun onBind(intent: Intent?): IBinder? = null
+    override fun onBind(intent: Intent?): IBinder = CallServiceBinder(this)
+
+    class CallServiceBinder(val service: CallService) : android.os.Binder()
 
     override fun onDestroy() {
         super.onDestroy()

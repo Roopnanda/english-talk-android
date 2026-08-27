@@ -91,7 +91,7 @@ class CallService : Service(), SignalingClient.SignalingListener {
             when (intent?.action) {
                 Intent.ACTION_SCREEN_OFF -> {
                     isScreenOff = true
-                    AppLogger.log("CallService", "Screen OFF -> Mic remains active")
+                    AppLogger.log("CallService", "Screen OFF -> Mic active")
                     cancelAutoMuteTimer()
                     if (isAutoMuted) {
                         isAutoMuted = false
@@ -128,7 +128,7 @@ class CallService : Service(), SignalingClient.SignalingListener {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        safeStartForeground("Starting call service...")
+        safeStartForeground("Initializing live call...")
 
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
@@ -144,11 +144,11 @@ class CallService : Service(), SignalingClient.SignalingListener {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        safeStartForeground("Voice call connected")
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
 
         when (intent?.action) {
             ACTION_START_CALL -> {
-                safeStartForeground("Live voice call in progress")
                 val isInitiator = intent.getBooleanExtra(EXTRA_IS_INITIATOR, false)
                 val roomId = intent.getStringExtra(EXTRA_ROOM_ID)
                 SignalingClient.currentRoomId = roomId
@@ -183,7 +183,7 @@ class CallService : Service(), SignalingClient.SignalingListener {
                     autoMuteRunnable = Runnable {
                         if (isCallActive && !isScreenOff) {
                             isAutoMuted = true
-                            AppLogger.log("CallService", "30s background passed -> Mic auto-muted")
+                            AppLogger.log("CallService", "30s background -> Mic muted")
                             webRtcClient?.setMicrophoneEnabled(false)
                         }
                     }
@@ -221,20 +221,20 @@ class CallService : Service(), SignalingClient.SignalingListener {
             webRtcClient?.initPeerConnection(isInitiator) { offer ->
                 SignalingClient.sendOffer(offer)
             }
-        } catch (e: Exception) {
-            AppLogger.log("CallService-ERR", "Setup WebRTC failed: ${e.message}")
+        } catch (e: Throwable) {
+            AppLogger.log("CallService-ERR", "WebRTC init failed: ${e.message}")
         }
     }
 
     override fun onOfferReceived(sdp: SessionDescription) {
-        AppLogger.log("CallService", "Offer received via unified signaling")
+        AppLogger.log("CallService", "Processing offer")
         webRtcClient?.onRemoteOfferReceived(sdp) { answer ->
             SignalingClient.sendAnswer(answer)
         }
     }
 
     override fun onAnswerReceived(sdp: SessionDescription) {
-        AppLogger.log("CallService", "Answer received via unified signaling")
+        AppLogger.log("CallService", "Processing answer")
         webRtcClient?.onRemoteAnswerReceived(sdp)
     }
 
@@ -245,7 +245,7 @@ class CallService : Service(), SignalingClient.SignalingListener {
     override fun onMatchFound(roomId: String, isInitiator: Boolean, peerLevel: String) {}
 
     override fun onCallEnded() {
-        AppLogger.log("Signaling", "Call ended by remote peer")
+        AppLogger.log("Signaling", "Remote end received")
         handler.post {
             onCallEndedByRemote?.invoke()
             terminateService()
@@ -272,8 +272,8 @@ class CallService : Service(), SignalingClient.SignalingListener {
                 @Suppress("DEPRECATION")
                 audioManager?.requestAudioFocus(null, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN)
             }
-        } catch (e: Exception) {
-            AppLogger.log("Audio-ERR", "AudioFocus request failed: ${e.message}")
+        } catch (e: Throwable) {
+            AppLogger.log("Audio-ERR", "Focus fail: ${e.message}")
         }
     }
 
@@ -287,8 +287,8 @@ class CallService : Service(), SignalingClient.SignalingListener {
                 @Suppress("DEPRECATION")
                 audioManager?.abandonAudioFocus(null)
             }
-        } catch (e: Exception) {
-            AppLogger.log("Audio-ERR", "Abandon audio focus error: ${e.message}")
+        } catch (e: Throwable) {
+            AppLogger.log("Audio-ERR", "Abandon focus error: ${e.message}")
         }
     }
 
@@ -302,8 +302,8 @@ class CallService : Service(), SignalingClient.SignalingListener {
             if (wakeLock?.isHeld == false) {
                 wakeLock?.acquire(35 * 60 * 1000L)
             }
-        } catch (e: Exception) {
-            AppLogger.log("CallService-ERR", "WakeLock error: ${e.message}")
+        } catch (e: Throwable) {
+            AppLogger.log("CallService-ERR", "WakeLock: ${e.message}")
         }
     }
 
@@ -312,8 +312,8 @@ class CallService : Service(), SignalingClient.SignalingListener {
             if (wakeLock?.isHeld == true) {
                 wakeLock?.release()
             }
-        } catch (e: Exception) {
-            AppLogger.log("CallService-ERR", "WakeLock release error: ${e.message}")
+        } catch (e: Throwable) {
+            AppLogger.log("CallService-ERR", "Release WakeLock: ${e.message}")
         }
     }
 
@@ -331,8 +331,8 @@ class CallService : Service(), SignalingClient.SignalingListener {
             } else {
                 startForeground(NOTIFICATION_ID, notification)
             }
-        } catch (e: Exception) {
-            AppLogger.log("CallService-ERR", "Foreground start failed: ${e.message}")
+        } catch (e: Throwable) {
+            AppLogger.log("CallService-ERR", "Foreground fail: ${e.message}")
         }
     }
 
@@ -359,8 +359,8 @@ class CallService : Service(), SignalingClient.SignalingListener {
             val timeFormatted = String.format("%02d:%02d", minutes, seconds)
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.notify(NOTIFICATION_ID, buildNotification("Call Duration: $timeFormatted"))
-        } catch (e: Exception) {
-            AppLogger.log("CallService-ERR", "Notification update error: ${e.message}")
+        } catch (e: Throwable) {
+            AppLogger.log("CallService-ERR", "Notif update error: ${e.message}")
         }
     }
 
@@ -411,7 +411,7 @@ class CallService : Service(), SignalingClient.SignalingListener {
             SignalingClient.endCall()
             webRtcClient?.disconnect()
             webRtcClient = null
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             AppLogger.log("CallService-ERR", "Cleanup error: ${e.message}")
         }
 
@@ -419,7 +419,7 @@ class CallService : Service(), SignalingClient.SignalingListener {
             ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.cancel(NOTIFICATION_ID)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             AppLogger.log("CallService-ERR", "Stop error: ${e.message}")
         }
         stopSelf()
@@ -431,8 +431,8 @@ class CallService : Service(), SignalingClient.SignalingListener {
         super.onDestroy()
         try {
             unregisterReceiver(screenStateReceiver)
-        } catch (e: Exception) {
-            AppLogger.log("CallService-ERR", "Unregister receiver error: ${e.message}")
+        } catch (e: Throwable) {
+            AppLogger.log("CallService-ERR", "Unregister receiver: ${e.message}")
         }
         terminateService()
     }

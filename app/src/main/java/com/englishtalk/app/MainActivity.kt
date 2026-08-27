@@ -302,18 +302,19 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
         }
     }
 
-    override fun onStop() {
-        super.onStop()
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        // Fired specifically when user presses Home or switches apps (minimizing)
         if (callState.value == AppCallState.CONNECTED) {
-            val pauseIntent = Intent(this, CallService::class.java).apply {
+            val backgroundIntent = Intent(this, CallService::class.java).apply {
                 action = CallService.ACTION_APP_BACKGROUNDED
             }
-            startService(pauseIntent)
+            startService(backgroundIntent)
         }
     }
 
-    override fun onStart() {
-        super.onStart()
+    override fun onResume() {
+        super.onResume()
         if (CallService.isCallActive) {
             callState.value = AppCallState.CONNECTED
             val resumeIntent = Intent(this, CallService::class.java).apply {
@@ -378,7 +379,7 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
                 matchedPeerLevel.value = peerLevel
                 callState.value = AppCallState.CONNECTED
 
-                // 1. Establish Foreground Service first so the OS activates microphone capture permissions
+                // 1. Establish Foreground Service first to activate mic permissions in foreground
                 val serviceIntent = Intent(this, CallService::class.java).apply {
                     action = CallService.ACTION_START
                 }
@@ -388,7 +389,7 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
                     startService(serviceIntent)
                 }
 
-                // 2. Initialize WebRTC client
+                // 2. Initialize WebRTC client using applicationContext
                 webRtcClient = WebRtcAudioClient(
                     context = applicationContext,
                     onIceCandidateGenerated = { candidate ->

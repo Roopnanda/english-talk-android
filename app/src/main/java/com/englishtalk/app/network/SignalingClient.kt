@@ -11,6 +11,8 @@ import java.util.concurrent.TimeUnit
 
 object SignalingClient {
 
+    private const val WS_URL = "wss://english-talk-server-5pm7.onrender.com"
+
     interface SignalingListener {
         fun onMatchFound(roomId: String, isInitiator: Boolean, peerLevel: String)
         fun onOfferReceived(sdp: SessionDescription)
@@ -19,116 +21,93 @@ object SignalingClient {
         fun onCallEnded()
     }
 
-    private var activeListener: SignalingListener? = null
+    private var listener: SignalingListener? = null
     private var webSocket: WebSocket? = null
-    private var isConnected = false
-    private var isSearching = false
-    private var lastJoinPayload: JSONObject? = null
-
-    private val mainHandler = Handler(Looper.getMainLooper())
-
     private val client = OkHttpClient.Builder()
-        .pingInterval(10, TimeUnit.SECONDS)
-        .retryOnConnectionFailure(true)
-        .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.MILLISECONDS)
+        .pingInterval(20, TimeUnit.SECONDS)
         .build()
 
-    private const val SERVER_URL = "wss://english-talk-server-5pm7.onrender.com"
+    private val handler = Handler(Looper.getMainLooper())
     var currentRoomId: String? = null
+    var isConnected = false
+        private set
 
     fun setListener(listener: SignalingListener?) {
-        this.activeListener = listener
+        this.listener = listener
     }
 
-    fun connect(onReady: (() -> Unit)? = null) {
-        if (isConnected && webSocket != null) {
-            onReady?.invoke()
-            return
-        }
-
+    fun connect() {
+        if (isConnected || webSocket != null) return
         AppLogger.log("Signaling", "Connecting to WebSocket server...")
-        val request = Request.Builder().url(SERVER_URL).build()
+
+        val request = Request.Builder().url(WS_URL).build()
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
-            override fun onOpen(webSocket: WebSocket, response: Response) {
+            override fun onOpen(ws: WebSocket, response: Response) {
                 isConnected = true
                 AppLogger.log("Signaling", "WebSocket Connected (Heartbeat Active)")
-                mainHandler.post {
-                    onReady?.invoke()
-                    if (isSearching && lastJoinPayload != null) {
-                        AppLogger.log("Signaling", "Resending join_queue after reconnect...")
-                        webSocket.send(lastJoinPayload.toString())
-                    }
-                }
             }
 
-            override fun onMessage(webSocket: WebSocket, text: String) {
+            override fun onMessage(ws: WebSocket, text: String) {
                 try {
                     val json = JSONObject(text)
                     when (json.optString("type")) {
                         "match_found" -> {
-                            isSearching = false
-                            lastJoinPayload = null
                             val roomId = json.getString("roomId")
                             val isInitiator = json.getBoolean("isInitiator")
                             val peerLevel = json.optString("peerLevel", "Intermediate")
                             currentRoomId = roomId
                             AppLogger.log("Signaling", "Match confirmed: room=$roomId initiator=$isInitiator")
-                            activeListener?.onMatchFound(roomId, isInitiator, peerLevel)
+                            handler.post { listener?.onMatchFound(roomId, isInitiator, peerLevel) }
                         }
                         "offer" -> {
-                            val sdpObj = json.getJSONObject("sdp")
-                            val sdp = SessionDescription(SessionDescription.Type.OFFER, sdpObj.getString("sdp"))
-                            activeListener?.onOfferReceived(sdp)
+                            val sdpString = json.getString("sdp")
+                            val sdp = SessionDescription(SessionDescription.Type.OFFER, sdpString)
+                            handler.post { listener?.onOfferReceived(sdp) }
                         }
                         "answer" -> {
-                            val sdpObj = json.getJSONObject("sdp")
-                            val sdp = SessionDescription(SessionDescription.Type.ANSWER, sdpObj.getString("sdp"))
-                            activeListener?.onAnswerReceived(sdp)
+                            val sdpString = json.getString("sdp")
+                            val sdp = SessionDescription(SessionDescription.Type.ANSWER, sdpString)
+                            handler.post { listener?.onAnswerReceived(sdp) }
                         }
                         "ice_candidate" -> {
-                            val candidateObj = json.getJSONObject("candidate")
+                            val candJson = json.getJSONObject("candidate")
                             val candidate = IceCandidate(
-                                candidateObj.getString("sdpMid"),
-                                candidateObj.getInt("sdpMLineIndex"),
-                                candidateObj.getString("sdp")
+                                candJson.getString("sdpMid"),
+                                candJson.getInt("sdpMLineIndex"),
+                                candJson.getString("sdp")
                             )
-                            activeListener?.onIceCandidateReceived(candidate)
+                            handler.post { listener?.onIceCandidateReceived(candidate) }
                         }
-                        "call_ended", "peer_disconnected" -> {
+                        "call_ended" -> {
                             AppLogger.log("Signaling", "Remote end-call received")
-                            currentRoomId = null
-                            activeListener?.onCallEnded()
+                            handler.post { listener?.onCallEnded() }
                         }
                     }
                 } catch (e: Exception) {
-                    AppLogger.log("Signaling-ERR", "Parse Error: ${e.message}")
+                    AppLogger.log("Signaling-ERR", "Msg parse fail: ${e.message}")
                 }
             }
 
-            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+            override fun onClosing(ws: WebSocket, code: Int, reason: String) {
                 isConnected = false
-                this@SignalingClient.webSocket = null
+            }
+
+            override fun onClosed(ws: WebSocket, code: Int, reason: String) {
+                isConnected = false
+                webSocket = null
+            }
+
+            override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
+                isConnected = false
+                webSocket = null
                 AppLogger.log("Signaling-ERR", "WebSocket dropped: ${t.message}")
-
-                if (isSearching) {
-                    AppLogger.log("Signaling", "Auto-reconnecting in 2 seconds...")
-                    mainHandler.postDelayed({
-                        if (isSearching) connect()
-                    }, 2000L)
-                }
-            }
-
-            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                isConnected = false
-                this@SignalingClient.webSocket = null
-                AppLogger.log("Signaling", "WebSocket Closed: $reason")
+                handler.postDelayed({ connect() }, 3000L)
             }
         })
     }
 
     fun joinQueue(level: String, userGender: String, talkToFemaleOnly: Boolean, isVip: Boolean) {
-        isSearching = true
         val payload = JSONObject().apply {
             put("type", "join_queue")
             put("level", level)
@@ -136,59 +115,40 @@ object SignalingClient {
             put("talkToFemaleOnly", talkToFemaleOnly)
             put("isVip", isVip)
         }
-        lastJoinPayload = payload
-
-        if (webSocket == null || !isConnected) {
-            connect {
-                AppLogger.log("Signaling", "Sending join_queue (level: $level)...")
-                webSocket?.send(payload.toString())
-            }
-        } else {
-            AppLogger.log("Signaling", "Sending join_queue (level: $level)...")
-            webSocket?.send(payload.toString())
-        }
+        send(payload.toString())
+        AppLogger.log("Signaling", "Sending join_queue (level: $level)...")
     }
 
     fun leaveQueue() {
-        isSearching = false
-        lastJoinPayload = null
         val payload = JSONObject().apply {
             put("type", "leave_queue")
         }
-        webSocket?.send(payload.toString())
+        send(payload.toString())
         AppLogger.log("Signaling", "Sent leave_queue")
     }
 
     fun sendOffer(sdp: SessionDescription) {
-        val sdpJson = JSONObject().apply {
-            put("type", sdp.type.canonicalForm())
-            put("sdp", sdp.description)
-        }
         val payload = JSONObject().apply {
             put("type", "offer")
             put("roomId", currentRoomId)
-            put("sdp", sdpJson)
+            put("sdp", sdp.description)
         }
-        webSocket?.send(payload.toString())
+        send(payload.toString())
         AppLogger.log("Signaling", "Offer sent to peer")
     }
 
     fun sendAnswer(sdp: SessionDescription) {
-        val sdpJson = JSONObject().apply {
-            put("type", sdp.type.canonicalForm())
-            put("sdp", sdp.description)
-        }
         val payload = JSONObject().apply {
             put("type", "answer")
             put("roomId", currentRoomId)
-            put("sdp", sdpJson)
+            put("sdp", sdp.description)
         }
-        webSocket?.send(payload.toString())
+        send(payload.toString())
         AppLogger.log("Signaling", "Answer sent to peer")
     }
 
     fun sendIceCandidate(candidate: IceCandidate) {
-        val candidateJson = JSONObject().apply {
+        val candJson = JSONObject().apply {
             put("sdpMid", candidate.sdpMid)
             put("sdpMLineIndex", candidate.sdpMLineIndex)
             put("sdp", candidate.sdp)
@@ -196,9 +156,9 @@ object SignalingClient {
         val payload = JSONObject().apply {
             put("type", "ice_candidate")
             put("roomId", currentRoomId)
-            put("candidate", candidateJson)
+            put("candidate", candJson)
         }
-        webSocket?.send(payload.toString())
+        send(payload.toString())
     }
 
     fun endCall() {
@@ -206,8 +166,16 @@ object SignalingClient {
             put("type", "end_call")
             put("roomId", currentRoomId)
         }
-        webSocket?.send(payload.toString())
-        currentRoomId = null
+        send(payload.toString())
         AppLogger.log("Signaling", "Sent end_call")
+        currentRoomId = null
+    }
+
+    private fun send(message: String) {
+        try {
+            webSocket?.send(message)
+        } catch (e: Exception) {
+            AppLogger.log("Signaling-ERR", "Send error: ${e.message}")
+        }
     }
 }

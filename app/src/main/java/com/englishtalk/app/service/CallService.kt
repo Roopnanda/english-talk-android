@@ -27,7 +27,7 @@ import com.englishtalk.app.webrtc.WebRtcAudioClient
 import org.webrtc.IceCandidate
 import org.webrtc.SessionDescription
 
-class CallService : Service(), SignalingClient.SignalingListener {
+class CallService : Service() {
 
     companion object {
         const val ACTION_START_CALL = "ACTION_START_CALL"
@@ -71,7 +71,23 @@ class CallService : Service(), SignalingClient.SignalingListener {
         var onCallEndedByRemote: (() -> Unit)? = null
         var onAudioStateChanged: ((muted: Boolean, speaker: Boolean) -> Unit)? = null
 
+        private var activeServiceInstance: CallService? = null
+
         fun getElapsedSeconds(): Long = elapsedSeconds
+
+        fun handleRemoteOffer(sdp: SessionDescription) {
+            activeServiceInstance?.webRtcClient?.onRemoteOfferReceived(sdp) { answer ->
+                SignalingClient.sendAnswer(answer)
+            }
+        }
+
+        fun handleRemoteAnswer(sdp: SessionDescription) {
+            activeServiceInstance?.webRtcClient?.onRemoteAnswerReceived(sdp)
+        }
+
+        fun handleRemoteIceCandidate(candidate: IceCandidate) {
+            activeServiceInstance?.webRtcClient?.addRemoteIceCandidate(candidate)
+        }
     }
 
     private val handler = Handler(Looper.getMainLooper())
@@ -127,6 +143,7 @@ class CallService : Service(), SignalingClient.SignalingListener {
 
     override fun onCreate() {
         super.onCreate()
+        activeServiceInstance = this
         createNotificationChannel()
         safeStartForeground("Initializing live call...")
 
@@ -206,8 +223,6 @@ class CallService : Service(), SignalingClient.SignalingListener {
 
     private fun setupCallConnection(isInitiator: Boolean) {
         try {
-            SignalingClient.setListener(this)
-
             webRtcClient = WebRtcAudioClient(
                 context = applicationContext,
                 onIceCandidateGenerated = { candidate ->
@@ -223,32 +238,6 @@ class CallService : Service(), SignalingClient.SignalingListener {
             }
         } catch (e: Throwable) {
             AppLogger.log("CallService-ERR", "WebRTC init failed: ${e.message}")
-        }
-    }
-
-    override fun onOfferReceived(sdp: SessionDescription) {
-        AppLogger.log("CallService", "Processing offer")
-        webRtcClient?.onRemoteOfferReceived(sdp) { answer ->
-            SignalingClient.sendAnswer(answer)
-        }
-    }
-
-    override fun onAnswerReceived(sdp: SessionDescription) {
-        AppLogger.log("CallService", "Processing answer")
-        webRtcClient?.onRemoteAnswerReceived(sdp)
-    }
-
-    override fun onIceCandidateReceived(candidate: IceCandidate) {
-        webRtcClient?.addRemoteIceCandidate(candidate)
-    }
-
-    override fun onMatchFound(roomId: String, isInitiator: Boolean, peerLevel: String) {}
-
-    override fun onCallEnded() {
-        AppLogger.log("Signaling", "Remote end received")
-        handler.post {
-            onCallEndedByRemote?.invoke()
-            terminateService()
         }
     }
 
@@ -429,6 +418,7 @@ class CallService : Service(), SignalingClient.SignalingListener {
 
     override fun onDestroy() {
         super.onDestroy()
+        activeServiceInstance = null
         try {
             unregisterReceiver(screenStateReceiver)
         } catch (e: Throwable) {

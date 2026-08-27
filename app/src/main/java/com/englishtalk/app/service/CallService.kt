@@ -8,6 +8,9 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -24,8 +27,8 @@ class CallService : Service() {
         const val ACTION_START = "ACTION_START"
         const val ACTION_STOP = "ACTION_STOP"
         const val ACTION_EXTEND = "ACTION_EXTEND"
-        const val ACTION_APP_PAUSED = "ACTION_APP_PAUSED"
-        const val ACTION_APP_RESUMED = "ACTION_APP_RESUMED"
+        const val ACTION_APP_BACKGROUNDED = "ACTION_APP_BACKGROUNDED"
+        const val ACTION_APP_FOREGROUNDED = "ACTION_APP_FOREGROUNDED"
 
         private const val CHANNEL_ID = "english_talk_call_channel"
         private const val NOTIFICATION_ID = 1001
@@ -56,6 +59,8 @@ class CallService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var autoMuteRunnable: Runnable? = null
     private var isAutoMuted = false
+    private var audioManager: AudioManager? = null
+    private var audioFocusRequest: AudioFocusRequest? = null
 
     private val timerRunnable = object : Runnable {
         override fun run() {
@@ -80,8 +85,10 @@ class CallService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
-        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "EnglishTalk:AudioCallWakeLock").apply {
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "EnglishTalk:CallWakeLock").apply {
             setReferenceCounted(false)
         }
     }
@@ -92,6 +99,7 @@ class CallService : Service() {
         when (intent?.action) {
             ACTION_START -> {
                 isCallActive = true
+                requestCallAudioFocus()
                 acquireWakeLock()
                 safeStartForeground("Call in progress...")
                 resetAndStartTimer()
@@ -101,26 +109,26 @@ class CallService : Service() {
                 hasFiredWarning = false
                 updateNotification()
             }
-            ACTION_APP_PAUSED -> {
-                // Only start 30s timer when minimized with screen ON
+            ACTION_APP_BACKGROUNDED -> {
+                // If screen is ON (user minimized app), start 30s timer
                 if (isCallActive && powerManager.isInteractive) {
                     cancelAutoMuteTimer()
                     autoMuteRunnable = Runnable {
                         if (isCallActive) {
                             isAutoMuted = true
                             onAutoMuteTriggered?.invoke(true)
-                            Log.d("CallService", "30-second background auto-mute applied")
+                            Log.d("CallService", "30-sec background auto-mute applied")
                         }
                     }
                     handler.postDelayed(autoMuteRunnable!!, 30_000L)
                 }
             }
-            ACTION_APP_RESUMED -> {
+            ACTION_APP_FOREGROUNDED -> {
                 cancelAutoMuteTimer()
                 if (isAutoMuted) {
                     isAutoMuted = false
                     onAutoMuteTriggered?.invoke(false)
-                    Log.d("CallService", "App foregrounded, auto-mute removed")
+                    Log.d("CallService", "Foreground restored, auto-mute removed")
                 }
             }
             ACTION_STOP -> {
@@ -133,6 +141,45 @@ class CallService : Service() {
         return START_NOT_STICKY
     }
 
+    private fun requestCallAudioFocus() {
+        try {
+            audioManager?.mode = AudioManager.MODE_IN_COMMUNICATION
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val playbackAttributes = AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+
+                audioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                    .setAudioAttributes(playbackAttributes)
+                    .setAcceptsDelayedFocusGain(true)
+                    .setOnAudioFocusChangeListener {}
+                    .build()
+
+                audioFocusRequest?.let { audioManager?.requestAudioFocus(it) }
+            } else {
+                @Suppress("DEPRECATION")
+                audioManager?.requestAudioFocus(null, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN)
+            }
+        } catch (e: Exception) {
+            Log.e("CallService", "Audio focus request error: ${e.message}")
+        }
+    }
+
+    private fun abandonCallAudioFocus() {
+        try {
+            audioManager?.mode = AudioManager.MODE_NORMAL
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                audioFocusRequest?.let { audioManager?.abandonAudioFocusRequest(it) }
+            } else {
+                @Suppress("DEPRECATION")
+                audioManager?.abandonAudioFocus(null)
+            }
+        } catch (e: Exception) {
+            Log.e("CallService", "Abandon audio focus error: ${e.message}")
+        }
+    }
+
     private fun cancelAutoMuteTimer() {
         autoMuteRunnable?.let { handler.removeCallbacks(it) }
         autoMuteRunnable = null
@@ -141,10 +188,10 @@ class CallService : Service() {
     private fun acquireWakeLock() {
         try {
             if (wakeLock?.isHeld == false) {
-                wakeLock?.acquire(30 * 60 * 1000L)
+                wakeLock?.acquire(35 * 60 * 1000L)
             }
         } catch (e: Exception) {
-            Log.e("CallService", "WakeLock acquire error: ${e.message}")
+            Log.e("CallService", "WakeLock error: ${e.message}")
         }
     }
 
@@ -173,7 +220,7 @@ class CallService : Service() {
                 startForeground(NOTIFICATION_ID, notification)
             }
         } catch (e: Exception) {
-            Log.e("CallService", "Foreground service start failed: ${e.message}")
+            Log.e("CallService", "Foreground start failed: ${e.message}")
         }
     }
 
@@ -246,14 +293,14 @@ class CallService : Service() {
         cancelAutoMuteTimer()
         stopTimer()
         releaseWakeLock()
+        abandonCallAudioFocus()
 
         try {
-            // Dismiss notification from status bar immediately
             ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.cancel(NOTIFICATION_ID)
         } catch (e: Exception) {
-            Log.e("CallService", "Stop notification error: ${e.message}")
+            Log.e("CallService", "Stop error: ${e.message}")
         }
         stopSelf()
     }

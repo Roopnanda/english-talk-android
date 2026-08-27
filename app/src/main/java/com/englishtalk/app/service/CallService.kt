@@ -22,15 +22,25 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.englishtalk.app.MainActivity
+import com.englishtalk.app.network.SignalingClient
+import com.englishtalk.app.webrtc.WebRtcAudioClient
+import org.webrtc.IceCandidate
+import org.webrtc.SessionDescription
 
-class CallService : Service() {
+class CallService : Service(), SignalingClient.SignalingListener {
 
     companion object {
-        const val ACTION_START = "ACTION_START"
-        const val ACTION_STOP = "ACTION_STOP"
+        const val ACTION_START_CALL = "ACTION_START_CALL"
+        const val ACTION_END_CALL = "ACTION_END_CALL"
         const val ACTION_EXTEND = "ACTION_EXTEND"
         const val ACTION_APP_BACKGROUNDED = "ACTION_APP_BACKGROUNDED"
         const val ACTION_APP_FOREGROUNDED = "ACTION_APP_FOREGROUNDED"
+        const val ACTION_TOGGLE_MUTE = "ACTION_TOGGLE_MUTE"
+        const val ACTION_TOGGLE_SPEAKER = "ACTION_TOGGLE_SPEAKER"
+
+        const val EXTRA_ROOM_ID = "EXTRA_ROOM_ID"
+        const val EXTRA_IS_INITIATOR = "EXTRA_IS_INITIATOR"
+        const val EXTRA_PEER_LEVEL = "EXTRA_PEER_LEVEL"
 
         private const val CHANNEL_ID = "english_talk_call_channel"
         private const val NOTIFICATION_ID = 1001
@@ -43,6 +53,14 @@ class CallService : Service() {
             private set
 
         @Volatile
+        var isMuted = false
+            private set
+
+        @Volatile
+        var isSpeakerOn = false
+            private set
+
+        @Volatile
         private var elapsedSeconds = 0L
 
         @Volatile
@@ -50,7 +68,8 @@ class CallService : Service() {
 
         var onWarningChime: (() -> Unit)? = null
         var onCallExpired: (() -> Unit)? = null
-        var onAutoMuteTriggered: ((Boolean) -> Unit)? = null
+        var onCallTerminatedByPeer: (() -> Unit)? = null
+        var onAudioStateChanged: ((muted: Boolean, speaker: Boolean) -> Unit)? = null
 
         fun getElapsedSeconds(): Long = elapsedSeconds
     }
@@ -65,16 +84,18 @@ class CallService : Service() {
     private var audioFocusRequest: AudioFocusRequest? = null
     private var isScreenOff = false
 
+    private var webRtcClient: WebRtcAudioClient? = null
+    private var signalingClient: SignalingClient? = null
+
     private val screenStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
                 Intent.ACTION_SCREEN_OFF -> {
                     isScreenOff = true
-                    // Screen turned off by power button -> cancel any auto-mute, mic must stay active
                     cancelAutoMuteTimer()
                     if (isAutoMuted) {
                         isAutoMuted = false
-                        onAutoMuteTriggered?.invoke(false)
+                        webRtcClient?.setMicrophoneEnabled(!isMuted)
                     }
                 }
                 Intent.ACTION_SCREEN_ON -> {
@@ -95,7 +116,7 @@ class CallService : Service() {
 
             if (elapsedSeconds >= callLimitSeconds) {
                 onCallExpired?.invoke()
-                stopSelf()
+                terminateService()
                 return
             }
 
@@ -125,12 +146,27 @@ class CallService : Service() {
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
 
         when (intent?.action) {
-            ACTION_START -> {
+            ACTION_START_CALL -> {
+                val isInitiator = intent.getBooleanExtra(EXTRA_IS_INITIATOR, false)
                 isCallActive = true
+                isMuted = false
+                isSpeakerOn = false
+
                 requestCallAudioFocus()
                 acquireWakeLock()
                 safeStartForeground("Call in progress...")
                 resetAndStartTimer()
+                startWebRtcCall(isInitiator)
+            }
+            ACTION_TOGGLE_MUTE -> {
+                isMuted = !isMuted
+                webRtcClient?.setMicrophoneEnabled(!isMuted)
+                onAudioStateChanged?.invoke(isMuted, isSpeakerOn)
+            }
+            ACTION_TOGGLE_SPEAKER -> {
+                isSpeakerOn = !isSpeakerOn
+                audioManager?.isSpeakerphoneOn = isSpeakerOn
+                onAudioStateChanged?.invoke(isMuted, isSpeakerOn)
             }
             ACTION_EXTEND -> {
                 callLimitSeconds += EXTENSION_SECONDS
@@ -138,14 +174,13 @@ class CallService : Service() {
                 updateNotification()
             }
             ACTION_APP_BACKGROUNDED -> {
-                // If screen is physically ON and user navigated away into another app, start 30s timer
                 if (isCallActive && !isScreenOff && powerManager.isInteractive) {
                     cancelAutoMuteTimer()
                     autoMuteRunnable = Runnable {
                         if (isCallActive && !isScreenOff) {
                             isAutoMuted = true
-                            onAutoMuteTriggered?.invoke(true)
-                            Log.d("CallService", "30-sec background auto-mute applied")
+                            webRtcClient?.setMicrophoneEnabled(false)
+                            Log.d("CallService", "30s background mic mute applied")
                         }
                     }
                     handler.postDelayed(autoMuteRunnable!!, 30_000L)
@@ -155,18 +190,56 @@ class CallService : Service() {
                 cancelAutoMuteTimer()
                 if (isAutoMuted) {
                     isAutoMuted = false
-                    onAutoMuteTriggered?.invoke(false)
-                    Log.d("CallService", "Foreground restored, auto-mute removed")
+                    webRtcClient?.setMicrophoneEnabled(!isMuted)
                 }
             }
-            ACTION_STOP -> {
+            ACTION_END_CALL -> {
                 terminateService()
-            }
-            else -> {
-                safeStartForeground("English Talk Call Active")
             }
         }
         return START_NOT_STICKY
+    }
+
+    private fun startWebRtcCall(isInitiator: Boolean) {
+        val serverUrl = "wss://english-talk-server-5pm7.onrender.com"
+        signalingClient = SignalingClient(serverUrl, this).apply {
+            connect()
+        }
+
+        webRtcClient = WebRtcAudioClient(
+            context = applicationContext,
+            onIceCandidateGenerated = { candidate ->
+                signalingClient?.sendIceCandidate(candidate)
+            },
+            onRemoteStreamActive = {}
+        )
+
+        webRtcClient?.initPeerConnection(isInitiator) { offer ->
+            signalingClient?.sendOffer(offer)
+        }
+    }
+
+    override fun onOfferReceived(sdp: SessionDescription) {
+        webRtcClient?.onRemoteOfferReceived(sdp) { answer ->
+            signalingClient?.sendAnswer(answer)
+        }
+    }
+
+    override fun onAnswerReceived(sdp: SessionDescription) {
+        webRtcClient?.onRemoteAnswerReceived(sdp)
+    }
+
+    override fun onIceCandidateReceived(candidate: IceCandidate) {
+        webRtcClient?.addRemoteIceCandidate(candidate)
+    }
+
+    override fun onMatchFound(roomId: String, isInitiator: Boolean, peerLevel: String) {}
+
+    override fun onCallEnded() {
+        handler.post {
+            onCallTerminatedByPeer?.invoke()
+            terminateService()
+        }
     }
 
     private fun requestCallAudioFocus() {
@@ -197,6 +270,7 @@ class CallService : Service() {
     private fun abandonCallAudioFocus() {
         try {
             audioManager?.mode = AudioManager.MODE_NORMAL
+            audioManager?.isSpeakerphoneOn = false
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 audioFocusRequest?.let { audioManager?.abandonAudioFocusRequest(it) }
             } else {
@@ -322,6 +396,15 @@ class CallService : Service() {
         stopTimer()
         releaseWakeLock()
         abandonCallAudioFocus()
+
+        try {
+            signalingClient?.endCall()
+            webRtcClient?.disconnect()
+            webRtcClient = null
+            signalingClient = null
+        } catch (e: Exception) {
+            Log.e("CallService", "Cleanup error: ${e.message}")
+        }
 
         try {
             ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)

@@ -1,14 +1,11 @@
 package com.englishtalk.app
 
 import android.Manifest
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import android.os.IBinder
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -19,6 +16,8 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -30,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -39,6 +39,7 @@ import com.englishtalk.app.ads.AdManager
 import com.englishtalk.app.billing.BillingManager
 import com.englishtalk.app.network.SignalingClient
 import com.englishtalk.app.service.CallService
+import com.englishtalk.app.utils.AppLogger
 import kotlinx.coroutines.*
 import org.webrtc.IceCandidate
 import org.webrtc.SessionDescription
@@ -49,9 +50,7 @@ enum class AppCallState {
 
 class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
 
-    private lateinit var signalingClient: SignalingClient
-    private var boundCallService: CallService? = null
-    private var isServiceBound = false
+    private lateinit var matchFinderSignalingClient: SignalingClient
 
     private val callState = mutableStateOf(AppCallState.IDLE)
     private val selectedLevel = mutableStateOf("Intermediate")
@@ -63,21 +62,9 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
     private val isMuted = mutableStateOf(false)
     private val isSpeakerOn = mutableStateOf(false)
     private val matchedPeerLevel = mutableStateOf("Intermediate")
+    private val showDebugLogs = mutableStateOf(true)
 
     private val serverUrl = "wss://english-talk-server-5pm7.onrender.com"
-
-    private val serviceConnection = object : ServiceConnection {
-        override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
-            val b = binder as? CallService.CallServiceBinder
-            boundCallService = b?.service
-            isServiceBound = true
-        }
-
-        override fun onServiceDisconnected(name: ComponentName?) {
-            boundCallService = null
-            isServiceBound = false
-        }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -98,12 +85,9 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
             }
         }
 
-        signalingClient = SignalingClient(serverUrl, this)
-        signalingClient.connect()
-
-        CallService.onSendOffer = { offer -> signalingClient.sendOffer(offer) }
-        CallService.onSendAnswer = { answer -> signalingClient.sendAnswer(answer) }
-        CallService.onSendIceCandidate = { candidate -> signalingClient.sendIceCandidate(candidate) }
+        matchFinderSignalingClient = SignalingClient(serverUrl, this)
+        matchFinderSignalingClient.connect()
+        AppLogger.log("MainUI", "App started, signaling connected")
 
         CallService.onWarningChime = {
             runOnUiThread { showExtendCallDialog.value = true }
@@ -113,15 +97,20 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
             runOnUiThread { hangUpCall() }
         }
 
+        CallService.onCallEndedByRemote = {
+            runOnUiThread {
+                callState.value = AppCallState.IDLE
+                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                matchFinderSignalingClient.connect()
+            }
+        }
+
         CallService.onAudioStateChanged = { muted, speaker ->
             runOnUiThread {
                 isMuted.value = muted
                 isSpeakerOn.value = speaker
             }
         }
-
-        val serviceIntent = Intent(this, CallService::class.java)
-        bindService(serviceIntent, serviceConnection, Context.BIND_AUTO_CREATE)
 
         setContent {
             val isSubscribed by BillingManager.isSubscribed.collectAsState()
@@ -152,7 +141,7 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
 
             BackHandler(enabled = callState.value != AppCallState.IDLE && callState.value != AppCallState.ONBOARDING_GENDER) {
                 if (callState.value == AppCallState.SEARCHING) {
-                    signalingClient.leaveQueue()
+                    matchFinderSignalingClient.leaveQueue()
                     callState.value = AppCallState.IDLE
                 }
             }
@@ -215,7 +204,7 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
 
                             AppCallState.SEARCHING -> SearchingDashboard(
                                 onCancelClick = {
-                                    signalingClient.leaveQueue()
+                                    matchFinderSignalingClient.leaveQueue()
                                     callState.value = AppCallState.IDLE
                                 }
                             )
@@ -241,6 +230,10 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
                             )
 
                             else -> {}
+                        }
+
+                        if (callState.value == AppCallState.CONNECTED && showDebugLogs.value) {
+                            DebugLogOverlay()
                         }
 
                         AdManager.BannerAdView(modifier = Modifier.padding(top = 8.dp))
@@ -333,6 +326,7 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
         if (callState.value == AppCallState.CONNECTED) {
+            AppLogger.log("MainUI", "onUserLeaveHint triggered")
             val backgroundIntent = Intent(this, CallService::class.java).apply {
                 action = CallService.ACTION_APP_BACKGROUNDED
             }
@@ -346,6 +340,7 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
             callState.value = AppCallState.CONNECTED
             isMuted.value = CallService.isMuted
             isSpeakerOn.value = CallService.isSpeakerOn
+            AppLogger.log("MainUI", "onResume -> Foreground intent to CallService")
             val resumeIntent = Intent(this, CallService::class.java).apply {
                 action = CallService.ACTION_APP_FOREGROUNDED
             }
@@ -358,8 +353,10 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
             callState.value = AppCallState.CONNECTED
             return
         }
+        AppLogger.clear()
+        AppLogger.log("MainUI", "Joining match queue...")
         callState.value = AppCallState.SEARCHING
-        signalingClient.joinQueue(
+        matchFinderSignalingClient.joinQueue(
             level = selectedLevel.value,
             userGender = userGender.value,
             talkToFemaleOnly = talkToFemaleOnly.value,
@@ -369,8 +366,6 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
 
     private fun hangUpCall() {
         val duration = CallService.getElapsedSeconds()
-        signalingClient.endCall()
-
         val serviceIntent = Intent(this, CallService::class.java).apply {
             action = CallService.ACTION_END_CALL
         }
@@ -379,11 +374,13 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         callState.value = AppCallState.IDLE
         showExtendCallDialog.value = false
+        matchFinderSignalingClient.connect()
         AdManager.showPostCallInterstitial(this, duration) {}
     }
 
     override fun onMatchFound(roomId: String, isInitiator: Boolean, peerLevel: String) {
         runOnUiThread {
+            AppLogger.log("MainUI", "Match found! Room: $roomId, Initiator: $isInitiator")
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             matchedPeerLevel.value = peerLevel
             callState.value = AppCallState.CONNECTED
@@ -391,6 +388,7 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
             val serviceIntent = Intent(this, CallService::class.java).apply {
                 action = CallService.ACTION_START_CALL
                 putExtra(CallService.EXTRA_IS_INITIATOR, isInitiator)
+                putExtra(CallService.EXTRA_PEER_LEVEL, peerLevel)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(serviceIntent)
@@ -400,35 +398,44 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
         }
     }
 
-    override fun onOfferReceived(sdp: SessionDescription) {
-        boundCallService?.handleRemoteOffer(sdp)
-    }
-
-    override fun onAnswerReceived(sdp: SessionDescription) {
-        boundCallService?.handleRemoteAnswer(sdp)
-    }
-
-    override fun onIceCandidateReceived(candidate: IceCandidate) {
-        boundCallService?.handleRemoteIceCandidate(candidate)
-    }
-
-    override fun onCallEnded() {
-        runOnUiThread {
-            val serviceIntent = Intent(this, CallService::class.java).apply {
-                action = CallService.ACTION_END_CALL
-            }
-            startService(serviceIntent)
-            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            callState.value = AppCallState.IDLE
-        }
-    }
+    override fun onOfferReceived(sdp: SessionDescription) {}
+    override fun onAnswerReceived(sdp: SessionDescription) {}
+    override fun onIceCandidateReceived(candidate: IceCandidate) {}
+    override fun onCallEnded() {}
 
     override fun onDestroy() {
         super.onDestroy()
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        if (isServiceBound) {
-            unbindService(serviceConnection)
-            isServiceBound = false
+    }
+}
+
+@Composable
+fun DebugLogOverlay() {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(130.dp)
+            .padding(vertical = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xDD000000)),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Column(modifier = Modifier.padding(6.dp)) {
+            Text(
+                text = "⚡ Live Audio & WebRTC Diagnostics",
+                color = Color(0xFF38BDF8),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold
+            )
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                items(AppLogger.logs.reversed()) { logEntry ->
+                    Text(
+                        text = logEntry,
+                        color = if (logEntry.contains("ERR") || logEntry.contains("Exception") || logEntry.contains("Failure")) Color(0xFFEF4444) else Color(0xFFE2E8F0),
+                        fontSize = 9.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
         }
     }
 }
@@ -761,7 +768,7 @@ fun ActiveCallDashboard(
             fontWeight = FontWeight.Bold
         )
 
-        Spacer(modifier = Modifier.height(48.dp))
+        Spacer(modifier = Modifier.height(32.dp))
 
         Row(
             horizontalArrangement = Arrangement.spacedBy(24.dp),

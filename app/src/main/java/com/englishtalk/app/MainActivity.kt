@@ -60,7 +60,6 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
     private val isMuted = mutableStateOf(false)
     private val isSpeakerOn = mutableStateOf(false)
     private val matchedPeerLevel = mutableStateOf("Intermediate")
-    private val showDebugLogs = mutableStateOf(true)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -81,9 +80,8 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
             }
         }
 
-        SignalingClient.connect()
         SignalingClient.setListener(this)
-        AppLogger.log("MainUI", "App started, signaling connected")
+        SignalingClient.connect()
 
         CallService.onWarningChime = {
             runOnUiThread { showExtendCallDialog.value = true }
@@ -228,11 +226,10 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
                             else -> {}
                         }
 
-                        if (callState.value == AppCallState.CONNECTED && showDebugLogs.value) {
-                            DebugLogOverlay()
-                        }
+                        // Diagnostics Box is now visible on IDLE, SEARCHING, and CONNECTED
+                        DebugLogOverlay()
 
-                        AdManager.BannerAdView(modifier = Modifier.padding(top = 8.dp))
+                        AdManager.BannerAdView(modifier = Modifier.padding(top = 4.dp))
                     }
                 }
 
@@ -349,8 +346,6 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
             callState.value = AppCallState.CONNECTED
             return
         }
-        AppLogger.clear()
-        AppLogger.log("MainUI", "Joining match queue...")
         SignalingClient.setListener(this)
         callState.value = AppCallState.SEARCHING
         SignalingClient.joinQueue(
@@ -377,7 +372,6 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
 
     override fun onMatchFound(roomId: String, isInitiator: Boolean, peerLevel: String) {
         runOnUiThread {
-            AppLogger.log("MainUI", "Match found! Room: $roomId, Initiator: $isInitiator")
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             matchedPeerLevel.value = peerLevel
             callState.value = AppCallState.CONNECTED
@@ -412,14 +406,14 @@ fun DebugLogOverlay() {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .height(130.dp)
+            .height(110.dp)
             .padding(vertical = 4.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xDD000000)),
         shape = RoundedCornerShape(8.dp)
     ) {
         Column(modifier = Modifier.padding(6.dp)) {
             Text(
-                text = "⚡ Live Audio & WebRTC Diagnostics",
+                text = "⚡ Live Diagnostics (Logs)",
                 color = Color(0xFF38BDF8),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold

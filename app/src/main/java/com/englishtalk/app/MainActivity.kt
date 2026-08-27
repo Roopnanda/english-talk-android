@@ -68,7 +68,7 @@ class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener {
         setContentView(R.layout.activity_main)
 
         Thread.setDefaultUncaughtExceptionHandler { _, throwable ->
-            AppLogger.log("FATAL-CRASH", "${throwable.javaClass.simpleName}: ${throwable.message}")
+            AppLogger.log("FATAL", "${throwable.javaClass.simpleName}: ${throwable.message}")
         }
 
         MobileAds.initialize(this) {}
@@ -212,9 +212,24 @@ class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener {
         }
     }
 
-    override fun onOfferReceived(sdp: SessionDescription) {}
-    override fun onAnswerReceived(sdp: SessionDescription) {}
-    override fun onIceCandidateReceived(candidate: IceCandidate) {}
+    override fun onOfferReceived(sdp: SessionDescription) {
+        mainHandler.post {
+            CallService.handleRemoteOffer(sdp)
+        }
+    }
+
+    override fun onAnswerReceived(sdp: SessionDescription) {
+        mainHandler.post {
+            CallService.handleRemoteAnswer(sdp)
+        }
+    }
+
+    override fun onIceCandidateReceived(candidate: IceCandidate) {
+        mainHandler.post {
+            CallService.handleRemoteIceCandidate(candidate)
+        }
+    }
+
     override fun onCallEnded() {
         mainHandler.post { showDashboard() }
     }
@@ -248,7 +263,6 @@ class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener {
             }
         }
 
-        // Periodic UI Timer
         mainHandler.post(object : Runnable {
             override fun run() {
                 if (CallService.isCallActive) {

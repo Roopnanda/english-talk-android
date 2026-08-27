@@ -84,9 +84,7 @@ class CallService : Service(), SignalingClient.SignalingListener {
     private var audioFocusRequest: AudioFocusRequest? = null
     private var isScreenOff = false
 
-    private var signalingClient: SignalingClient? = null
     private var webRtcClient: WebRtcAudioClient? = null
-    private var currentRoomId: String? = null
 
     private val screenStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -102,7 +100,6 @@ class CallService : Service(), SignalingClient.SignalingListener {
                 }
                 Intent.ACTION_SCREEN_ON -> {
                     isScreenOff = false
-                    AppLogger.log("CallService", "Screen ON")
                 }
             }
         }
@@ -151,7 +148,9 @@ class CallService : Service(), SignalingClient.SignalingListener {
         when (intent?.action) {
             ACTION_START_CALL -> {
                 val isInitiator = intent.getBooleanExtra(EXTRA_IS_INITIATOR, false)
-                currentRoomId = intent.getStringExtra(EXTRA_ROOM_ID)
+                val roomId = intent.getStringExtra(EXTRA_ROOM_ID)
+                SignalingClient.currentRoomId = roomId
+
                 isCallActive = true
                 isMuted = false
                 isSpeakerOn = false
@@ -160,7 +159,7 @@ class CallService : Service(), SignalingClient.SignalingListener {
                 requestCallAudioFocus()
                 acquireWakeLock()
                 resetAndStartTimer()
-                setupCallConnection(isInitiator, currentRoomId)
+                setupCallConnection(isInitiator)
             }
             ACTION_TOGGLE_MUTE -> {
                 isMuted = !isMuted
@@ -204,17 +203,13 @@ class CallService : Service(), SignalingClient.SignalingListener {
         return START_NOT_STICKY
     }
 
-    private fun setupCallConnection(isInitiator: Boolean, roomId: String?) {
-        val serverUrl = "wss://english-talk-server-5pm7.onrender.com"
-        signalingClient = SignalingClient(serverUrl, this).apply {
-            connect()
-            roomId?.let { setRoomId(it) }
-        }
+    private fun setupCallConnection(isInitiator: Boolean) {
+        SignalingClient.setListener(this)
 
         webRtcClient = WebRtcAudioClient(
             context = applicationContext,
             onIceCandidateGenerated = { candidate ->
-                signalingClient?.sendIceCandidate(candidate)
+                SignalingClient.sendIceCandidate(candidate)
             },
             onRemoteStreamActive = {
                 AppLogger.log("CallService", "Remote audio stream is active")
@@ -222,17 +217,19 @@ class CallService : Service(), SignalingClient.SignalingListener {
         )
 
         webRtcClient?.initPeerConnection(isInitiator) { offer ->
-            signalingClient?.sendOffer(offer)
+            SignalingClient.sendOffer(offer)
         }
     }
 
     override fun onOfferReceived(sdp: SessionDescription) {
+        AppLogger.log("CallService", "Offer received via unified signaling")
         webRtcClient?.onRemoteOfferReceived(sdp) { answer ->
-            signalingClient?.sendAnswer(answer)
+            SignalingClient.sendAnswer(answer)
         }
     }
 
     override fun onAnswerReceived(sdp: SessionDescription) {
+        AppLogger.log("CallService", "Answer received via unified signaling")
         webRtcClient?.onRemoteAnswerReceived(sdp)
     }
 
@@ -329,7 +326,6 @@ class CallService : Service(), SignalingClient.SignalingListener {
             } else {
                 startForeground(NOTIFICATION_ID, notification)
             }
-            AppLogger.log("CallService", "FGS started (microphone|mediaPlayback)")
         } catch (e: Exception) {
             AppLogger.log("CallService-ERR", "Foreground start failed: ${e.message}")
         }
@@ -407,8 +403,7 @@ class CallService : Service(), SignalingClient.SignalingListener {
         abandonCallAudioFocus()
 
         try {
-            signalingClient?.endCall()
-            signalingClient = null
+            SignalingClient.endCall()
             webRtcClient?.disconnect()
             webRtcClient = null
         } catch (e: Exception) {

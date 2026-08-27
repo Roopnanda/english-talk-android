@@ -7,11 +7,14 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
 import com.englishtalk.app.MainActivity
 
 class CallService : Service() {
@@ -23,8 +26,8 @@ class CallService : Service() {
         private const val CHANNEL_ID = "english_talk_call_channel"
         private const val NOTIFICATION_ID = 1001
 
-        private const val BASE_CALL_LIMIT_SECONDS = 15 * 60L // 15 Minutes
-        private const val EXTENSION_SECONDS = 5 * 60L // +5 Minutes
+        private const val BASE_CALL_LIMIT_SECONDS = 15 * 60L
+        private const val EXTENSION_SECONDS = 5 * 60L
 
         @Volatile
         private var elapsedSeconds = 0L
@@ -46,13 +49,11 @@ class CallService : Service() {
         override fun run() {
             elapsedSeconds++
 
-            // 1 Minute Warning Trigger (at 14 minutes or limit - 60s)
             if (!hasFiredWarning && elapsedSeconds >= (callLimitSeconds - 60L)) {
                 hasFiredWarning = true
                 onWarningChime?.invoke()
             }
 
-            // Call Expiration Trigger
             if (elapsedSeconds >= callLimitSeconds) {
                 onCallExpired?.invoke()
                 stopSelf()
@@ -72,7 +73,7 @@ class CallService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> {
-                startForeground(NOTIFICATION_ID, buildNotification("Call in progress..."))
+                safeStartForeground("Call in progress...")
                 resetAndStartTimer()
             }
             ACTION_EXTEND -> {
@@ -82,14 +83,36 @@ class CallService : Service() {
             }
             ACTION_STOP -> {
                 stopTimer()
-                stopForeground(STOP_FOREGROUND_REMOVE)
+                try {
+                    ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+                } catch (e: Exception) {
+                    Log.e("CallService", "Stop error: ${e.message}")
+                }
                 stopSelf()
             }
             else -> {
-                startForeground(NOTIFICATION_ID, buildNotification("English Talk Call Active"))
+                safeStartForeground("English Talk Call Active")
             }
         }
         return START_NOT_STICKY
+    }
+
+    private fun safeStartForeground(text: String) {
+        try {
+            val notification = buildNotification(text)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ServiceCompat.startForeground(
+                    this,
+                    NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL
+                )
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+        } catch (e: Exception) {
+            Log.e("CallService", "Foreground service start failed safely: ${e.message}")
+        }
     }
 
     private fun resetAndStartTimer() {
@@ -109,11 +132,15 @@ class CallService : Service() {
     }
 
     private fun updateNotification() {
-        val minutes = elapsedSeconds / 60
-        val seconds = elapsedSeconds % 60
-        val timeFormatted = String.format("%02d:%02d", minutes, seconds)
-        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.notify(NOTIFICATION_ID, buildNotification("Call Duration: $timeFormatted"))
+        try {
+            val minutes = elapsedSeconds / 60
+            val seconds = elapsedSeconds % 60
+            val timeFormatted = String.format("%02d:%02d", minutes, seconds)
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.notify(NOTIFICATION_ID, buildNotification("Call Duration: $timeFormatted"))
+        } catch (e: Exception) {
+            Log.e("CallService", "Notification update error: ${e.message}")
+        }
     }
 
     private fun buildNotification(contentText: String): Notification {

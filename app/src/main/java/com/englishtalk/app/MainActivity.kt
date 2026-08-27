@@ -8,6 +8,7 @@ import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
+import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -65,6 +66,7 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
     private val isSpeakerOn = mutableStateOf(false)
     private val matchedPeerLevel = mutableStateOf("")
 
+    // Background 30-Second Mic Inactivity Handler
     private val backgroundScope = CoroutineScope(Dispatchers.Main + Job())
     private var backgroundMicJob: Job? = null
     private var isBackgroundAutoMuted = false
@@ -344,37 +346,45 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
 
         webRtcClient?.disconnect()
         webRtcClient = null
-                callState.value = AppCallState.IDLE
+        callState.value = AppCallState.IDLE
         showExtendCallDialog.value = false
+        audioManager.mode = AudioManager.MODE_NORMAL
         audioManager.isSpeakerphoneOn = false
         audioManager.isMicrophoneMute = false
     }
 
     override fun onMatchFound(roomId: String, isInitiator: Boolean, peerLevel: String) {
         runOnUiThread {
-            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            matchedPeerLevel.value = peerLevel
-            callState.value = AppCallState.CONNECTED
+            try {
+                window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                matchedPeerLevel.value = peerLevel
+                callState.value = AppCallState.CONNECTED
 
-            val serviceIntent = Intent(this, CallService::class.java).apply {
-                action = CallService.ACTION_START
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(serviceIntent)
-            } else {
-                startService(serviceIntent)
-            }
+                // Set hardware audio mode specifically for voice call
+                audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
 
-            webRtcClient = WebRtcAudioClient(
-                context = applicationContext,
-                onIceCandidateGenerated = { candidate ->
-                    signalingClient.sendIceCandidate(candidate)
-                },
-                onRemoteStreamActive = {}
-            )
+                val serviceIntent = Intent(this, CallService::class.java).apply {
+                    action = CallService.ACTION_START
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    startForegroundService(serviceIntent)
+                } else {
+                    startService(serviceIntent)
+                }
 
-            webRtcClient?.initPeerConnection(isInitiator) { offer ->
-                signalingClient.sendOffer(offer)
+                webRtcClient = WebRtcAudioClient(
+                    context = applicationContext,
+                    onIceCandidateGenerated = { candidate ->
+                        signalingClient.sendIceCandidate(candidate)
+                    },
+                    onRemoteStreamActive = {}
+                )
+
+                webRtcClient?.initPeerConnection(isInitiator) { offer ->
+                    signalingClient.sendOffer(offer)
+                }
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Match setup error: ${e.message}")
             }
         }
     }
@@ -403,9 +413,7 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener {
         backgroundScope.cancel()
         cleanupCall()
     }
-
-    }
-
+}
 
 @Composable
 fun GenderSelectionOnboardingScreen(onGenderSelected: (String) -> Unit) {
@@ -580,7 +588,6 @@ fun IdleDashboard(
             }
         }
 
-        // Talk to Female VIP Feature Card
         Card(
             colors = CardDefaults.cardColors(
                 containerColor = if (talkToFemaleOnly && isVip) Color(0xFF1E3A5F) else Color(0xFF1E293B)

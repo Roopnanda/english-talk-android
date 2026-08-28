@@ -15,6 +15,7 @@ import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
 import android.view.View
+import android.view.WindowManager
 import android.widget.*
 import com.englishtalk.app.network.SignalingClient
 import com.englishtalk.app.service.CallService
@@ -618,18 +619,21 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
     }
 
     private fun showDashboard() {
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         layoutDashboard.visibility = View.VISIBLE
         layoutSearching.visibility = View.GONE
         layoutConnected.visibility = View.GONE
     }
 
     private fun showSearching() {
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         layoutDashboard.visibility = View.GONE
         layoutSearching.visibility = View.VISIBLE
         layoutConnected.visibility = View.GONE
     }
 
     private fun showConnected(peerLevel: String) {
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         layoutDashboard.visibility = View.GONE
         layoutSearching.visibility = View.GONE
         layoutConnected.visibility = View.VISIBLE
@@ -682,8 +686,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
         }
     }
 
-    override fun onResume() {
-        super.onResume()
+    override fun onStart() {
+        super.onStart()
         if (CallService.isCallActive) {
             val intent = Intent(this, CallService::class.java).apply {
                 action = CallService.ACTION_APP_FOREGROUNDED
@@ -692,8 +696,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
         }
     }
 
-    override fun onPause() {
-        super.onPause()
+    override fun onStop() {
+        super.onStop()
         if (CallService.isCallActive) {
             val intent = Intent(this, CallService::class.java).apply {
                 action = CallService.ACTION_APP_BACKGROUNDED
@@ -704,6 +708,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
 
     override fun onDestroy() {
         super.onDestroy()
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         warningPlayer?.release()
         warningPlayer = null
     }

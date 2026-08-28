@@ -115,7 +115,6 @@ class CallService : Service(), SensorEventListener {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
                 Intent.ACTION_SCREEN_OFF -> {
-                    // If the user locked the screen while talking, don't auto-mute
                     cancelAutoMuteTimer()
                 }
             }
@@ -189,18 +188,21 @@ class CallService : Service(), SensorEventListener {
                 isAutoMuted = false
 
                 requestCallAudioFocus()
+                enforceAudioHardwareRouting(speaker = false)
                 acquireWakeLocks()
                 resetAndStartTimer()
                 setupCallConnection(isInitiator)
+                onAudioStateChanged?.invoke(isMuted, isSpeakerOn)
             }
             ACTION_TOGGLE_MUTE -> {
                 isMuted = !isMuted
                 webRtcClient?.setMicrophoneEnabled(!isMuted)
                 onAudioStateChanged?.invoke(isMuted, isSpeakerOn)
+                AppLogger.log("CallService", "Mute toggled: $isMuted")
             }
             ACTION_TOGGLE_SPEAKER -> {
                 isSpeakerOn = !isSpeakerOn
-                audioManager?.isSpeakerphoneOn = isSpeakerOn
+                enforceAudioHardwareRouting(isSpeakerOn)
 
                 if (isSpeakerOn) {
                     releaseProximityLock()
@@ -209,6 +211,7 @@ class CallService : Service(), SensorEventListener {
                 }
 
                 onAudioStateChanged?.invoke(isMuted, isSpeakerOn)
+                AppLogger.log("CallService", "Speaker toggled: $isSpeakerOn")
             }
             ACTION_EXTEND -> {
                 callLimitSeconds += EXTENSION_SECONDS
@@ -218,11 +221,11 @@ class CallService : Service(), SensorEventListener {
             ACTION_APP_BACKGROUNDED -> {
                 if (isCallActive && !isNearEar) {
                     cancelAutoMuteTimer()
-                    AppLogger.log("CallService", "App in background -> starting 30s auto-mute timer")
+                    AppLogger.log("CallService", "Background detected -> 30s auto-mute timer running")
                     autoMuteRunnable = Runnable {
                         if (isCallActive) {
                             isAutoMuted = true
-                            AppLogger.log("CallService", "30s background expired -> Auto-muting mic")
+                            AppLogger.log("CallService", "30s passed in background -> Mic auto-muted")
                             webRtcClient?.setMicrophoneEnabled(false)
                         }
                     }
@@ -233,7 +236,7 @@ class CallService : Service(), SensorEventListener {
                 cancelAutoMuteTimer()
                 if (isAutoMuted) {
                     isAutoMuted = false
-                    AppLogger.log("CallService", "App foregrounded -> Restoring mic")
+                    AppLogger.log("CallService", "App returned to screen -> Restoring mic state")
                     webRtcClient?.setMicrophoneEnabled(!isMuted)
                 }
             }
@@ -242,6 +245,15 @@ class CallService : Service(), SensorEventListener {
             }
         }
         return START_NOT_STICKY
+    }
+
+    private fun enforceAudioHardwareRouting(speaker: Boolean) {
+        try {
+            audioManager?.mode = AudioManager.MODE_IN_COMMUNICATION
+            audioManager?.isSpeakerphoneOn = speaker
+        } catch (e: Throwable) {
+            AppLogger.log("Audio-ERR", "Hardware routing fail: ${e.message}")
+        }
     }
 
     private fun setupCallConnection(isInitiator: Boolean) {
@@ -454,6 +466,8 @@ class CallService : Service(), SensorEventListener {
 
     private fun terminateService() {
         isCallActive = false
+        isMuted = false
+        isSpeakerOn = false
         cancelAutoMuteTimer()
         stopTimer()
         releaseWakeLocks()

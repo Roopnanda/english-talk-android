@@ -97,7 +97,7 @@ class CallService : Service(), SensorEventListener {
     private val handler = Handler(Looper.getMainLooper())
     private var isTimerRunning = false
     private var hasFiredWarning = false
-    
+
     private var wakeLock: PowerManager.WakeLock? = null
     private var proximityWakeLock: PowerManager.WakeLock? = null
     private var sensorManager: SensorManager? = null
@@ -107,7 +107,7 @@ class CallService : Service(), SensorEventListener {
     private var isAutoMuted = false
     private var audioManager: AudioManager? = null
     private var audioFocusRequest: AudioFocusRequest? = null
-    private var isScreenOff = false
+    private var isNearEar = false
 
     private var webRtcClient: WebRtcAudioClient? = null
 
@@ -115,15 +115,8 @@ class CallService : Service(), SensorEventListener {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
                 Intent.ACTION_SCREEN_OFF -> {
-                    isScreenOff = true
+                    // If the user locked the screen while talking, don't auto-mute
                     cancelAutoMuteTimer()
-                    if (isAutoMuted) {
-                        isAutoMuted = false
-                        webRtcClient?.setMicrophoneEnabled(!isMuted)
-                    }
-                }
-                Intent.ACTION_SCREEN_ON -> {
-                    isScreenOff = false
                 }
             }
         }
@@ -157,12 +150,11 @@ class CallService : Service(), SensorEventListener {
 
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
-        
+
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "EnglishTalk:CallWakeLock").apply {
             setReferenceCounted(false)
         }
 
-        // Initialize Proximity WakeLock
         if (powerManager.isWakeLockLevelSupported(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK)) {
             proximityWakeLock = powerManager.newWakeLock(
                 PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK,
@@ -184,7 +176,6 @@ class CallService : Service(), SensorEventListener {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         safeStartForeground("Voice call connected")
-        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
 
         when (intent?.action) {
             ACTION_START_CALL -> {
@@ -195,6 +186,7 @@ class CallService : Service(), SensorEventListener {
                 isCallActive = true
                 isMuted = false
                 isSpeakerOn = false
+                isAutoMuted = false
 
                 requestCallAudioFocus()
                 acquireWakeLocks()
@@ -209,14 +201,13 @@ class CallService : Service(), SensorEventListener {
             ACTION_TOGGLE_SPEAKER -> {
                 isSpeakerOn = !isSpeakerOn
                 audioManager?.isSpeakerphoneOn = isSpeakerOn
-                
-                // If speaker is ON, disable proximity screen-off
+
                 if (isSpeakerOn) {
                     releaseProximityLock()
                 } else {
                     acquireProximityLock()
                 }
-                
+
                 onAudioStateChanged?.invoke(isMuted, isSpeakerOn)
             }
             ACTION_EXTEND -> {
@@ -225,12 +216,13 @@ class CallService : Service(), SensorEventListener {
                 updateNotification()
             }
             ACTION_APP_BACKGROUNDED -> {
-                if (isCallActive && !isScreenOff && powerManager.isInteractive) {
+                if (isCallActive && !isNearEar) {
                     cancelAutoMuteTimer()
+                    AppLogger.log("CallService", "App in background -> starting 30s auto-mute timer")
                     autoMuteRunnable = Runnable {
-                        if (isCallActive && !isScreenOff) {
+                        if (isCallActive) {
                             isAutoMuted = true
-                            AppLogger.log("CallService", "30s background -> Mic muted")
+                            AppLogger.log("CallService", "30s background expired -> Auto-muting mic")
                             webRtcClient?.setMicrophoneEnabled(false)
                         }
                     }
@@ -241,6 +233,7 @@ class CallService : Service(), SensorEventListener {
                 cancelAutoMuteTimer()
                 if (isAutoMuted) {
                     isAutoMuted = false
+                    AppLogger.log("CallService", "App foregrounded -> Restoring mic")
                     webRtcClient?.setMicrophoneEnabled(!isMuted)
                 }
             }
@@ -367,8 +360,10 @@ class CallService : Service(), SensorEventListener {
         if (event?.sensor?.type == Sensor.TYPE_PROXIMITY) {
             val distance = event.values[0]
             val maxRange = proximitySensor?.maximumRange ?: 5f
-            val isNear = distance < maxRange
-            AppLogger.log("Proximity", if (isNear) "Near ear" else "Far from ear")
+            isNearEar = distance < maxRange
+            if (isNearEar) {
+                cancelAutoMuteTimer()
+            }
         }
     }
 

@@ -38,11 +38,11 @@ class WebRtcAudioClient(
                 .createInitializationOptions()
             PeerConnectionFactory.initialize(initOptions)
 
-            // Force Software AEC & Noise Suppression with VOICE_COMMUNICATION source
+            // Re-enable hardware AEC and Noise Suppression with VOICE_COMMUNICATION DSP source
             audioDeviceModule = JavaAudioDeviceModule.builder(context)
                 .setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
-                .setUseHardwareAcousticEchoCanceler(false)
-                .setUseHardwareNoiseSuppressor(false)
+                .setUseHardwareAcousticEchoCanceler(true)
+                .setUseHardwareNoiseSuppressor(true)
                 .setAudioRecordErrorCallback(object : JavaAudioDeviceModule.AudioRecordErrorCallback {
                     override fun onWebRtcAudioRecordInitError(errorMessage: String?) {
                         AppLogger.log("WebRTC-Audio", "Record Init Error: $errorMessage")
@@ -63,7 +63,7 @@ class WebRtcAudioClient(
                 .createPeerConnectionFactory()
 
             createLocalAudioTrack()
-            AppLogger.log("WebRTC", "Factory initialized with WebRTC Software AEC & Voice Communication Source")
+            AppLogger.log("WebRTC", "Factory initialized with Hardware DSP AEC & NS")
         } catch (e: Throwable) {
             AppLogger.log("WebRTC-ERR", "Factory init failed: ${e.message}")
         }
@@ -72,12 +72,9 @@ class WebRtcAudioClient(
     private fun createLocalAudioTrack() {
         val audioConstraints = MediaConstraints().apply {
             mandatory.add(MediaConstraints.KeyValuePair("googEchoCancellation", "true"))
-            mandatory.add(MediaConstraints.KeyValuePair("googEchoCancellation2", "true"))
-            mandatory.add(MediaConstraints.KeyValuePair("googDAEchoCancellation", "true"))
             mandatory.add(MediaConstraints.KeyValuePair("googAutoGainControl", "true"))
             mandatory.add(MediaConstraints.KeyValuePair("googHighpassFilter", "true"))
             mandatory.add(MediaConstraints.KeyValuePair("googNoiseSuppression", "true"))
-            mandatory.add(MediaConstraints.KeyValuePair("googTypingNoiseDetection", "true"))
             optional.add(MediaConstraints.KeyValuePair("DtlsSrtpKeyAgreement", "true"))
         }
 

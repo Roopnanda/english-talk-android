@@ -15,6 +15,7 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.media.AudioAttributes
+import android.media.AudioDeviceInfo
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.os.Build
@@ -116,7 +117,6 @@ class CallService : Service(), SensorEventListener {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
                 Intent.ACTION_SCREEN_OFF -> {
-                    // Only cancel the auto-mute timer if the app was in the foreground when screen turned off
                     if (!isAppInBackground) {
                         cancelAutoMuteTimer()
                     }
@@ -257,7 +257,20 @@ class CallService : Service(), SensorEventListener {
     private fun enforceAudioHardwareRouting(speaker: Boolean) {
         try {
             audioManager?.mode = AudioManager.MODE_IN_COMMUNICATION
-            audioManager?.isSpeakerphoneOn = speaker
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val devices = audioManager?.availableCommunicationDevices ?: emptyList()
+                val targetType = if (speaker) AudioDeviceInfo.TYPE_BUILTIN_SPEAKER else AudioDeviceInfo.TYPE_BUILTIN_EARPIECE
+                val targetDevice = devices.find { it.type == targetType }
+                if (targetDevice != null) {
+                    audioManager?.setCommunicationDevice(targetDevice)
+                } else {
+                    audioManager?.isSpeakerphoneOn = speaker
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                audioManager?.isSpeakerphoneOn = speaker
+            }
         } catch (e: Throwable) {
             AppLogger.log("Audio-ERR", "Hardware routing fail: ${e.message}")
         }
@@ -310,7 +323,11 @@ class CallService : Service(), SensorEventListener {
 
     private fun abandonCallAudioFocus() {
         try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                audioManager?.clearCommunicationDevice()
+            }
             audioManager?.mode = AudioManager.MODE_NORMAL
+            @Suppress("DEPRECATION")
             audioManager?.isSpeakerphoneOn = false
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 audioFocusRequest?.let { audioManager?.abandonAudioFocusRequest(it) }

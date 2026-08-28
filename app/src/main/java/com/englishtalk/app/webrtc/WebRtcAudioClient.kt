@@ -3,6 +3,8 @@ package com.englishtalk.app.webrtc
 import android.content.Context
 import com.englishtalk.app.utils.AppLogger
 import org.webrtc.*
+import org.webrtc.audio.AudioDeviceModule
+import org.webrtc.audio.JavaAudioDeviceModule
 import java.util.concurrent.Executors
 
 class WebRtcAudioClient(
@@ -15,6 +17,7 @@ class WebRtcAudioClient(
 
     private var peerConnectionFactory: PeerConnectionFactory? = null
     private var peerConnection: PeerConnection? = null
+    private var audioDeviceModule: AudioDeviceModule? = null
     private var localAudioSource: AudioSource? = null
     private var localAudioTrack: AudioTrack? = null
 
@@ -34,13 +37,31 @@ class WebRtcAudioClient(
                 .createInitializationOptions()
             PeerConnectionFactory.initialize(initOptions)
 
+            // Hardware Echo Cancellation & Noise Suppression Module
+            audioDeviceModule = JavaAudioDeviceModule.builder(context)
+                .setUseHardwareAcousticEchoCanceler(true)
+                .setUseHardwareNoiseSuppressor(true)
+                .setAudioRecordErrorCallback(object : JavaAudioDeviceModule.AudioRecordErrorCallback {
+                    override fun onWebRtcAudioRecordInitError(errorMessage: String?) {
+                        AppLogger.log("WebRTC-Audio", "Record Init Error: $errorMessage")
+                    }
+                    override fun onWebRtcAudioRecordStartError(errorCode: JavaAudioDeviceModule.AudioRecordStartErrorCode?, errorMessage: String?) {
+                        AppLogger.log("WebRTC-Audio", "Record Start Error: $errorMessage")
+                    }
+                    override fun onWebRtcAudioRecordError(errorMessage: String?) {
+                        AppLogger.log("WebRTC-Audio", "Record Error: $errorMessage")
+                    }
+                })
+                .createAudioDeviceModule()
+
             val options = PeerConnectionFactory.Options()
             peerConnectionFactory = PeerConnectionFactory.builder()
                 .setOptions(options)
+                .setAudioDeviceModule(audioDeviceModule)
                 .createPeerConnectionFactory()
 
             createLocalAudioTrack()
-            AppLogger.log("WebRTC", "Factory initialized successfully with Echo Cancellation")
+            AppLogger.log("WebRTC", "Factory initialized with Hardware AEC & NS")
         } catch (e: Throwable) {
             AppLogger.log("WebRTC-ERR", "Factory init failed: ${e.message}")
         }
@@ -52,7 +73,6 @@ class WebRtcAudioClient(
             mandatory.add(MediaConstraints.KeyValuePair("googAutoGainControl", "true"))
             mandatory.add(MediaConstraints.KeyValuePair("googHighpassFilter", "true"))
             mandatory.add(MediaConstraints.KeyValuePair("googNoiseSuppression", "true"))
-            optional.add(MediaConstraints.KeyValuePair("DtlsSrtpKeyAgreement", "true"))
         }
 
         localAudioSource = peerConnectionFactory?.createAudioSource(audioConstraints)
@@ -216,6 +236,9 @@ class WebRtcAudioClient(
                 peerConnection?.close()
                 peerConnection?.dispose()
                 peerConnection = null
+
+                audioDeviceModule?.release()
+                audioDeviceModule = null
 
                 peerConnectionFactory?.dispose()
                 peerConnectionFactory = null

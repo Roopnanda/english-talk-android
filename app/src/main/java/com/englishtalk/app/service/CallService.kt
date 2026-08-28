@@ -10,6 +10,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
@@ -27,7 +31,7 @@ import com.englishtalk.app.webrtc.WebRtcAudioClient
 import org.webrtc.IceCandidate
 import org.webrtc.SessionDescription
 
-class CallService : Service() {
+class CallService : Service(), SensorEventListener {
 
     companion object {
         const val ACTION_START_CALL = "ACTION_START_CALL"
@@ -93,7 +97,12 @@ class CallService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private var isTimerRunning = false
     private var hasFiredWarning = false
+    
     private var wakeLock: PowerManager.WakeLock? = null
+    private var proximityWakeLock: PowerManager.WakeLock? = null
+    private var sensorManager: SensorManager? = null
+    private var proximitySensor: Sensor? = null
+
     private var autoMuteRunnable: Runnable? = null
     private var isAutoMuted = false
     private var audioManager: AudioManager? = null
@@ -107,7 +116,6 @@ class CallService : Service() {
             when (intent?.action) {
                 Intent.ACTION_SCREEN_OFF -> {
                     isScreenOff = true
-                    AppLogger.log("CallService", "Screen OFF -> Mic active")
                     cancelAutoMuteTimer()
                     if (isAutoMuted) {
                         isAutoMuted = false
@@ -149,9 +157,23 @@ class CallService : Service() {
 
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "EnglishTalk:CallWakeLock").apply {
             setReferenceCounted(false)
         }
+
+        // Initialize Proximity WakeLock
+        if (powerManager.isWakeLockLevelSupported(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK)) {
+            proximityWakeLock = powerManager.newWakeLock(
+                PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK,
+                "EnglishTalk:ProximityWakeLock"
+            ).apply {
+                setReferenceCounted(false)
+            }
+        }
+
+        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        proximitySensor = sensorManager?.getDefaultSensor(Sensor.TYPE_PROXIMITY)
 
         val filter = IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_OFF)
@@ -175,7 +197,7 @@ class CallService : Service() {
                 isSpeakerOn = false
 
                 requestCallAudioFocus()
-                acquireWakeLock()
+                acquireWakeLocks()
                 resetAndStartTimer()
                 setupCallConnection(isInitiator)
             }
@@ -187,6 +209,14 @@ class CallService : Service() {
             ACTION_TOGGLE_SPEAKER -> {
                 isSpeakerOn = !isSpeakerOn
                 audioManager?.isSpeakerphoneOn = isSpeakerOn
+                
+                // If speaker is ON, disable proximity screen-off
+                if (isSpeakerOn) {
+                    releaseProximityLock()
+                } else {
+                    acquireProximityLock()
+                }
+                
                 onAudioStateChanged?.invoke(isMuted, isSpeakerOn)
             }
             ACTION_EXTEND -> {
@@ -286,25 +316,63 @@ class CallService : Service() {
         autoMuteRunnable = null
     }
 
-    private fun acquireWakeLock() {
+    private fun acquireWakeLocks() {
         try {
             if (wakeLock?.isHeld == false) {
                 wakeLock?.acquire(35 * 60 * 1000L)
             }
+            if (!isSpeakerOn) {
+                acquireProximityLock()
+            }
         } catch (e: Throwable) {
-            AppLogger.log("CallService-ERR", "WakeLock: ${e.message}")
+            AppLogger.log("CallService-ERR", "WakeLock acquire: ${e.message}")
         }
     }
 
-    private fun releaseWakeLock() {
+    private fun acquireProximityLock() {
+        try {
+            if (proximityWakeLock != null && proximityWakeLock?.isHeld == false) {
+                proximityWakeLock?.acquire()
+            } else if (proximitySensor != null) {
+                sensorManager?.registerListener(this, proximitySensor, SensorManager.SENSOR_DELAY_NORMAL)
+            }
+        } catch (e: Throwable) {
+            AppLogger.log("CallService-ERR", "ProximityLock acquire: ${e.message}")
+        }
+    }
+
+    private fun releaseProximityLock() {
+        try {
+            if (proximityWakeLock?.isHeld == true) {
+                proximityWakeLock?.release()
+            }
+            sensorManager?.unregisterListener(this)
+        } catch (e: Throwable) {
+            AppLogger.log("CallService-ERR", "ProximityLock release: ${e.message}")
+        }
+    }
+
+    private fun releaseWakeLocks() {
         try {
             if (wakeLock?.isHeld == true) {
                 wakeLock?.release()
             }
+            releaseProximityLock()
         } catch (e: Throwable) {
             AppLogger.log("CallService-ERR", "Release WakeLock: ${e.message}")
         }
     }
+
+    override fun onSensorChanged(event: SensorEvent?) {
+        if (event?.sensor?.type == Sensor.TYPE_PROXIMITY) {
+            val distance = event.values[0]
+            val maxRange = proximitySensor?.maximumRange ?: 5f
+            val isNear = distance < maxRange
+            AppLogger.log("Proximity", if (isNear) "Near ear" else "Far from ear")
+        }
+    }
+
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
     private fun safeStartForeground(text: String) {
         try {
@@ -393,7 +461,7 @@ class CallService : Service() {
         isCallActive = false
         cancelAutoMuteTimer()
         stopTimer()
-        releaseWakeLock()
+        releaseWakeLocks()
         abandonCallAudioFocus()
 
         try {

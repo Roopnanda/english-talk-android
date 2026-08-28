@@ -620,6 +620,10 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
 
     private fun showDashboard() {
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        // Reset control button visual alphas to default unmuted & earpiece states
+        btnMute.alpha = 1.0f
+        btnSpeaker.alpha = 0.4f
+
         layoutDashboard.visibility = View.VISIBLE
         layoutSearching.visibility = View.GONE
         layoutConnected.visibility = View.GONE
@@ -634,6 +638,10 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
 
     private fun showConnected(peerLevel: String) {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        // Reset control button visual alphas to default unmuted & earpiece states for fresh call
+        btnMute.alpha = 1.0f
+        btnSpeaker.alpha = 0.4f
+
         layoutDashboard.visibility = View.GONE
         layoutSearching.visibility = View.GONE
         layoutConnected.visibility = View.VISIBLE

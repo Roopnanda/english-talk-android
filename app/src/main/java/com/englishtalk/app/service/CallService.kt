@@ -105,6 +105,7 @@ class CallService : Service(), SensorEventListener {
 
     private var autoMuteRunnable: Runnable? = null
     private var isAutoMuted = false
+    private var isAppInBackground = false
     private var audioManager: AudioManager? = null
     private var audioFocusRequest: AudioFocusRequest? = null
     private var isNearEar = false
@@ -115,7 +116,10 @@ class CallService : Service(), SensorEventListener {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
                 Intent.ACTION_SCREEN_OFF -> {
-                    cancelAutoMuteTimer()
+                    // Only cancel the auto-mute timer if the app was in the foreground when screen turned off
+                    if (!isAppInBackground) {
+                        cancelAutoMuteTimer()
+                    }
                 }
             }
         }
@@ -186,6 +190,7 @@ class CallService : Service(), SensorEventListener {
                 isMuted = false
                 isSpeakerOn = false
                 isAutoMuted = false
+                isAppInBackground = false
 
                 requestCallAudioFocus()
                 enforceAudioHardwareRouting(speaker = false)
@@ -219,11 +224,12 @@ class CallService : Service(), SensorEventListener {
                 updateNotification()
             }
             ACTION_APP_BACKGROUNDED -> {
+                isAppInBackground = true
                 if (isCallActive && !isNearEar) {
                     cancelAutoMuteTimer()
                     AppLogger.log("CallService", "Background detected -> 30s auto-mute timer running")
                     autoMuteRunnable = Runnable {
-                        if (isCallActive) {
+                        if (isCallActive && isAppInBackground) {
                             isAutoMuted = true
                             AppLogger.log("CallService", "30s passed in background -> Mic auto-muted")
                             webRtcClient?.setMicrophoneEnabled(false)
@@ -233,6 +239,7 @@ class CallService : Service(), SensorEventListener {
                 }
             }
             ACTION_APP_FOREGROUNDED -> {
+                isAppInBackground = false
                 cancelAutoMuteTimer()
                 if (isAutoMuted) {
                     isAutoMuted = false
@@ -373,7 +380,7 @@ class CallService : Service(), SensorEventListener {
             val distance = event.values[0]
             val maxRange = proximitySensor?.maximumRange ?: 5f
             isNearEar = distance < maxRange
-            if (isNearEar) {
+            if (isNearEar && !isAppInBackground) {
                 cancelAutoMuteTimer()
             }
         }
@@ -468,6 +475,7 @@ class CallService : Service(), SensorEventListener {
         isCallActive = false
         isMuted = false
         isSpeakerOn = false
+        isAppInBackground = false
         cancelAutoMuteTimer()
         stopTimer()
         releaseWakeLocks()

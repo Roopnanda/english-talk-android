@@ -1,6 +1,7 @@
 package com.englishtalk.app.webrtc
 
 import android.content.Context
+import android.media.MediaRecorder
 import com.englishtalk.app.utils.AppLogger
 import org.webrtc.*
 import org.webrtc.audio.AudioDeviceModule
@@ -37,10 +38,11 @@ class WebRtcAudioClient(
                 .createInitializationOptions()
             PeerConnectionFactory.initialize(initOptions)
 
-            // Hardware Echo Cancellation & Noise Suppression Module
+            // Force Software AEC & Noise Suppression with VOICE_COMMUNICATION source
             audioDeviceModule = JavaAudioDeviceModule.builder(context)
-                .setUseHardwareAcousticEchoCanceler(true)
-                .setUseHardwareNoiseSuppressor(true)
+                .setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
+                .setUseHardwareAcousticEchoCanceler(false)
+                .setUseHardwareNoiseSuppressor(false)
                 .setAudioRecordErrorCallback(object : JavaAudioDeviceModule.AudioRecordErrorCallback {
                     override fun onWebRtcAudioRecordInitError(errorMessage: String?) {
                         AppLogger.log("WebRTC-Audio", "Record Init Error: $errorMessage")
@@ -61,7 +63,7 @@ class WebRtcAudioClient(
                 .createPeerConnectionFactory()
 
             createLocalAudioTrack()
-            AppLogger.log("WebRTC", "Factory initialized with Hardware AEC & NS")
+            AppLogger.log("WebRTC", "Factory initialized with WebRTC Software AEC & Voice Communication Source")
         } catch (e: Throwable) {
             AppLogger.log("WebRTC-ERR", "Factory init failed: ${e.message}")
         }
@@ -70,9 +72,13 @@ class WebRtcAudioClient(
     private fun createLocalAudioTrack() {
         val audioConstraints = MediaConstraints().apply {
             mandatory.add(MediaConstraints.KeyValuePair("googEchoCancellation", "true"))
+            mandatory.add(MediaConstraints.KeyValuePair("googEchoCancellation2", "true"))
+            mandatory.add(MediaConstraints.KeyValuePair("googDAEchoCancellation", "true"))
             mandatory.add(MediaConstraints.KeyValuePair("googAutoGainControl", "true"))
             mandatory.add(MediaConstraints.KeyValuePair("googHighpassFilter", "true"))
             mandatory.add(MediaConstraints.KeyValuePair("googNoiseSuppression", "true"))
+            mandatory.add(MediaConstraints.KeyValuePair("googTypingNoiseDetection", "true"))
+            optional.add(MediaConstraints.KeyValuePair("DtlsSrtpKeyAgreement", "true"))
         }
 
         localAudioSource = peerConnectionFactory?.createAudioSource(audioConstraints)

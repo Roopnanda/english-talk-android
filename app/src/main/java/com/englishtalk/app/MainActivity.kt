@@ -620,7 +620,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
 
     private fun showDashboard() {
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        // Reset control button visual alphas to default unmuted & earpiece states
         btnMute.alpha = 1.0f
         btnSpeaker.alpha = 0.4f
 
@@ -638,7 +637,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
 
     private fun showConnected(peerLevel: String) {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        // Reset control button visual alphas to default unmuted & earpiece states for fresh call
         btnMute.alpha = 1.0f
         btnSpeaker.alpha = 0.4f
 
@@ -694,8 +692,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
         }
     }
 
-    override fun onStart() {
-        super.onStart()
+    override fun onResume() {
+        super.onResume()
         if (CallService.isCallActive) {
             val intent = Intent(this, CallService::class.java).apply {
                 action = CallService.ACTION_APP_FOREGROUNDED
@@ -704,9 +702,9 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
         }
     }
 
-    override fun onStop() {
-        super.onStop()
-        if (CallService.isCallActive) {
+    override fun onPause() {
+        super.onPause()
+        if (CallService.isCallActive && !isFinishing) {
             val intent = Intent(this, CallService::class.java).apply {
                 action = CallService.ACTION_APP_BACKGROUNDED
             }

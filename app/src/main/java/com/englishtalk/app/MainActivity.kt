@@ -5,6 +5,7 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
@@ -33,6 +34,10 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
 
     companion object {
         private const val PERMISSION_REQ_CODE = 2001
+        private const val PREFS_NAME = "EnglishTalkPrefs"
+        private const val KEY_LAST_CALLER_ID = "KEY_LAST_CALLER_ID"
+        private const val KEY_LAST_CALLER_LEVEL = "KEY_LAST_CALLER_LEVEL"
+        private const val KEY_CAN_RECONNECT = "KEY_CAN_RECONNECT"
     }
 
     private lateinit var rootLayout: RelativeLayout
@@ -41,6 +46,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
     private lateinit var layoutConnected: LinearLayout
 
     private lateinit var btnTalkNow: Button
+    private lateinit var btnReconnectLastCaller: Button
     private lateinit var btnCancelSearch: Button
     private lateinit var btnEndCall: ImageView
     private lateinit var btnMute: ImageView
@@ -50,14 +56,20 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
     private lateinit var tvTimer: TextView
     private lateinit var tvPartnerLevel: TextView
     private lateinit var tvDiagnostics: TextView
+    private lateinit var tvSearchingText: TextView
 
     private lateinit var btnBeginner: Button
     private lateinit var btnIntermediate: Button
     private lateinit var btnAdvanced: Button
 
+    private lateinit var prefs: SharedPreferences
+
     private var selectedLevel = "Intermediate"
     private var isVip = false
     private var userGender = "Male"
+    private var isCurrentCallReconnect = false
+    private var currentPeerId: String? = null
+    private var currentPeerLevel: String? = null
 
     private var warningPlayer: MediaPlayer? = null
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -69,6 +81,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
             AppLogger.log("FATAL", "${throwable.javaClass.simpleName}: ${throwable.message}")
         }
 
+        prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
         try {
             MobileAds.initialize(this) {}
         } catch (e: Exception) {
@@ -79,6 +93,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
         setupListeners()
         setupDiagnosticsLogger()
         setupCallServiceCallbacks()
+        refreshReconnectButtonState()
 
         SignalingClient.setListener(this)
         SignalingClient.connect()
@@ -209,7 +224,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                bottomMargin = 30
+                bottomMargin = 25
             }
         }
 
@@ -220,7 +235,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                bottomMargin = 50
+                bottomMargin = 30
             }
         }
 
@@ -235,23 +250,23 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
         val vipRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(30, 25, 30, 25)
+            setPadding(30, 20, 30, 20)
             background = GradientDrawable().apply {
                 setColor(Color.parseColor("#1E293B"))
-                cornerRadius = 24f
+                cornerRadius = 20f
             }
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                bottomMargin = 60
+                bottomMargin = 35
             }
         }
 
         val tvFemaleVip = TextView(this).apply {
             text = "👩 Talk to Female Gender 👑 VIP"
             setTextColor(Color.WHITE)
-            textSize = 15f
+            textSize = 14f
             typeface = Typeface.DEFAULT_BOLD
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
@@ -269,13 +284,34 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
                 shape = GradientDrawable.OVAL
                 setColor(Color.parseColor("#2563EB"))
             }
-            layoutParams = LinearLayout.LayoutParams(400, 400)
+            layoutParams = LinearLayout.LayoutParams(360, 360).apply {
+                bottomMargin = 30
+            }
+        }
+
+        // Reconnect Button (Single-use per last caller)
+        btnReconnectLastCaller = Button(this).apply {
+            text = "🔄 Reconnect to the Last Caller"
+            setTextColor(Color.WHITE)
+            textSize = 14f
+            typeface = Typeface.DEFAULT_BOLD
+            visibility = View.GONE
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#059669"))
+                cornerRadius = 24f
+            }
+            setPadding(30, 20, 30, 20)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
         }
 
         layoutDashboard.addView(tvLevelHeading)
         layoutDashboard.addView(levelRow)
         layoutDashboard.addView(vipRow)
         layoutDashboard.addView(btnTalkNow)
+        layoutDashboard.addView(btnReconnectLastCaller)
         rootLayout.addView(layoutDashboard)
 
         // --- SEARCHING VIEW ---
@@ -297,10 +333,11 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
             layoutParams = LinearLayout.LayoutParams(140, 140).apply { bottomMargin = 40 }
         }
 
-        val tvSearching = TextView(this).apply {
+        tvSearchingText = TextView(this).apply {
             text = "Searching for a conversation partner..."
             setTextColor(Color.WHITE)
             textSize = 18f
+            gravity = Gravity.CENTER
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -323,7 +360,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
         }
 
         layoutSearching.addView(progress)
-        layoutSearching.addView(tvSearching)
+        layoutSearching.addView(tvSearchingText)
         layoutSearching.addView(btnCancelSearch)
         rootLayout.addView(layoutSearching)
 
@@ -456,11 +493,16 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
         }
 
         btnTalkNow.setOnClickListener {
-            checkPermissionsAndStart()
+            checkPermissionsAndStart(isReconnect = false)
+        }
+
+        btnReconnectLastCaller.setOnClickListener {
+            checkPermissionsAndStart(isReconnect = true)
         }
 
         btnCancelSearch.setOnClickListener {
             SignalingClient.leaveQueue()
+            SignalingClient.cancelReconnect()
             showDashboard()
         }
 
@@ -483,6 +525,19 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
         }
     }
 
+    private fun refreshReconnectButtonState() {
+        val lastCallerId = prefs.getString(KEY_LAST_CALLER_ID, null)
+        val lastCallerLevel = prefs.getString(KEY_LAST_CALLER_LEVEL, "Partner")
+        val canReconnect = prefs.getBoolean(KEY_CAN_RECONNECT, false)
+
+        if (!lastCallerId.isNullOrEmpty() && canReconnect) {
+            btnReconnectLastCaller.text = "🔄 Reconnect to the Last Caller ($lastCallerLevel)"
+            btnReconnectLastCaller.visibility = View.VISIBLE
+        } else {
+            btnReconnectLastCaller.visibility = View.GONE
+        }
+    }
+
     private fun selectLevel(level: String) {
         selectedLevel = level
         val activeColor = Color.parseColor("#2563EB")
@@ -493,7 +548,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
         (btnAdvanced.background as? GradientDrawable)?.setColor(if (level == "Advanced") activeColor else idleColor)
     }
 
-    private fun checkPermissionsAndStart() {
+    private fun checkPermissionsAndStart(isReconnect: Boolean) {
         val permissionsToRequest = mutableListOf(Manifest.permission.RECORD_AUDIO)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
@@ -504,9 +559,9 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
         }
 
         if (missingPermissions.isEmpty()) {
-            startSearchFlow()
+            if (isReconnect) startReconnectFlow() else startNormalSearchFlow()
         } else {
-            requestPermissions(missingPermissions.toTypedArray(), PERMISSION_REQ_CODE)
+            requestPermissions(permissionsToRequest.toTypedArray(), PERMISSION_REQ_CODE)
         }
     }
 
@@ -514,15 +569,15 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == PERMISSION_REQ_CODE) {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                startSearchFlow()
+                startNormalSearchFlow()
             } else {
                 Toast.makeText(this, "Microphone permission is required to talk", Toast.LENGTH_LONG).show()
             }
         }
     }
 
-    private fun startSearchFlow() {
-        showSearching()
+    private fun startNormalSearchFlow() {
+        showSearching("Searching for a conversation partner...")
         SignalingClient.joinQueue(
             level = selectedLevel,
             userGender = userGender,
@@ -531,7 +586,18 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
         )
     }
 
+    private fun startReconnectFlow() {
+        val targetPeerId = prefs.getString(KEY_LAST_CALLER_ID, null)
+        if (targetPeerId.isNullOrEmpty()) {
+            Toast.makeText(this, "No previous caller found", Toast.LENGTH_SHORT).show()
+            return
+        }
+        showSearching("Waiting for partner to reconnect...")
+        SignalingClient.requestReconnect(targetPeerId, selectedLevel)
+    }
+
     private fun endCurrentCall() {
+        handleCallTerminationSideEffects()
         val intent = Intent(this, CallService::class.java).apply {
             action = CallService.ACTION_END_CALL
         }
@@ -539,9 +605,33 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
         showDashboard()
     }
 
-    override fun onMatchFound(roomId: String, isInitiator: Boolean, peerLevel: String) {
+    private fun handleCallTerminationSideEffects() {
+        if (isCurrentCallReconnect) {
+            // SINGLE-USE CONSUMED: Disable reconnect until a fresh regular call is completed
+            prefs.edit()
+                .putBoolean(KEY_CAN_RECONNECT, false)
+                .apply()
+            AppLogger.log("Reconnect", "Reconnect token consumed. Button hidden.")
+        } else if (!currentPeerId.isNullOrEmpty()) {
+            // NEW NORMAL CALL: Promotes new last caller
+            prefs.edit()
+                .putString(KEY_LAST_CALLER_ID, currentPeerId)
+                .putString(KEY_LAST_CALLER_LEVEL, currentPeerLevel ?: "Partner")
+                .putBoolean(KEY_CAN_RECONNECT, true)
+                .apply()
+            AppLogger.log("Reconnect", "Saved new last caller: $currentPeerId ($currentPeerLevel)")
+        }
+        refreshReconnectButtonState()
+    }
+
+    override fun onMatchFound(roomId: String, isInitiator: Boolean, peerLevel: String, peerId: String, isReconnect: Boolean) {
         mainHandler.post {
+            isCurrentCallReconnect = isReconnect
+            currentPeerId = peerId
+            currentPeerLevel = peerLevel
+
             showConnected(peerLevel)
+
             val intent = Intent(this, CallService::class.java).apply {
                 action = CallService.ACTION_START_CALL
                 putExtra(CallService.EXTRA_ROOM_ID, roomId)
@@ -553,6 +643,19 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
             } else {
                 startService(intent)
             }
+        }
+    }
+
+    override fun onReconnectWaiting() {
+        mainHandler.post {
+            tvSearchingText.text = "Waiting for partner to also click Reconnect..."
+        }
+    }
+
+    override fun onReconnectFailed(reason: String) {
+        mainHandler.post {
+            Toast.makeText(this, "Partner is currently unavailable.", Toast.LENGTH_SHORT).show()
+            showDashboard()
         }
     }
 
@@ -576,6 +679,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
 
     override fun onCallEnded() {
         mainHandler.post {
+            handleCallTerminationSideEffects()
             val intent = Intent(this, CallService::class.java).apply {
                 action = CallService.ACTION_END_CALL
             }
@@ -602,6 +706,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
 
         CallService.onCallExpired = {
             mainHandler.post {
+                handleCallTerminationSideEffects()
                 Toast.makeText(this, "Call limit reached", Toast.LENGTH_SHORT).show()
                 showDashboard()
             }
@@ -626,13 +731,15 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
         btnSpeaker.alpha = 0.4f
         tvTimer.text = "00:00"
 
+        refreshReconnectButtonState()
         layoutDashboard.visibility = View.VISIBLE
         layoutSearching.visibility = View.GONE
         layoutConnected.visibility = View.GONE
     }
 
-    private fun showSearching() {
+    private fun showSearching(text: String) {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        tvSearchingText.text = text
         layoutDashboard.visibility = View.GONE
         layoutSearching.visibility = View.VISIBLE
         layoutConnected.visibility = View.GONE
@@ -698,6 +805,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
 
     override fun onResume() {
         super.onResume()
+        refreshReconnectButtonState()
         if (CallService.isCallActive) {
             val intent = Intent(this, CallService::class.java).apply {
                 action = CallService.ACTION_APP_FOREGROUNDED
@@ -709,7 +817,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
     override fun onStop() {
         super.onStop()
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
-        // If the screen is still ON when the activity is stopped, the user left the app to home/another app
         if (CallService.isCallActive && !isFinishing && powerManager.isInteractive) {
             val intent = Intent(this, CallService::class.java).apply {
                 action = CallService.ACTION_APP_BACKGROUNDED

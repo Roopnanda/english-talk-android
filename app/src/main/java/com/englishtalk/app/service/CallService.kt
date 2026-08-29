@@ -5,8 +5,10 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -64,7 +66,7 @@ class CallService : Service(), SensorEventListener {
             private set
 
         @Volatile
-        private var elapsedSeconds = 0L
+        private var callStartTimeMs = 0L
 
         @Volatile
         private var callLimitSeconds = BASE_CALL_LIMIT_SECONDS
@@ -75,7 +77,10 @@ class CallService : Service(), SensorEventListener {
 
         private var activeServiceInstance: CallService? = null
 
-        fun getElapsedSeconds(): Long = elapsedSeconds
+        fun getElapsedSeconds(): Long {
+            if (callStartTimeMs == 0L) return 0L
+            return (System.currentTimeMillis() - callStartTimeMs) / 1000L
+        }
 
         fun handleRemoteOffer(sdp: SessionDescription) {
             activeServiceInstance?.webRtcClient?.onRemoteOfferReceived(sdp) { answer ->
@@ -109,22 +114,35 @@ class CallService : Service(), SensorEventListener {
     private var audioFocusRequest: AudioFocusRequest? = null
     private var webRtcClient: WebRtcAudioClient? = null
 
+    private val screenStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                Intent.ACTION_SCREEN_OFF -> {
+                    // Only protect the mic if user was actively on the in-call screen when screen turned off
+                    if (!isAppInBackground) {
+                        cancelAutoMuteTimer()
+                    }
+                }
+            }
+        }
+    }
+
     private val timerRunnable = object : Runnable {
         override fun run() {
-            elapsedSeconds++
+            val elapsed = getElapsedSeconds()
 
-            if (!hasFiredWarning && elapsedSeconds >= (callLimitSeconds - 60L)) {
+            if (!hasFiredWarning && elapsed >= (callLimitSeconds - 60L)) {
                 hasFiredWarning = true
                 onWarningChime?.invoke()
             }
 
-            if (elapsedSeconds >= callLimitSeconds) {
+            if (elapsed >= callLimitSeconds) {
                 onCallExpired?.invoke()
                 terminateService()
                 return
             }
 
-            updateNotification()
+            updateNotification(elapsed)
             handler.postDelayed(this, 1000L)
         }
     }
@@ -153,6 +171,12 @@ class CallService : Service(), SensorEventListener {
 
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         proximitySensor = sensorManager?.getDefaultSensor(Sensor.TYPE_PROXIMITY)
+
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_SCREEN_ON)
+        }
+        registerReceiver(screenStateReceiver, filter)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -169,6 +193,7 @@ class CallService : Service(), SensorEventListener {
                 isSpeakerOn = false
                 isAutoMuted = false
                 isAppInBackground = false
+                callStartTimeMs = 0L
 
                 requestCallAudioFocus()
                 enforceAudioHardwareRouting(speaker = false)
@@ -196,17 +221,17 @@ class CallService : Service(), SensorEventListener {
             ACTION_EXTEND -> {
                 callLimitSeconds += EXTENSION_SECONDS
                 hasFiredWarning = false
-                updateNotification()
+                updateNotification(getElapsedSeconds())
             }
             ACTION_APP_BACKGROUNDED -> {
                 isAppInBackground = true
                 if (isCallActive) {
                     cancelAutoMuteTimer()
-                    AppLogger.log("CallService", "App left foreground -> 30s countdown started")
+                    AppLogger.log("CallService", "Left app -> 30s auto-mute timer started")
                     autoMuteRunnable = Runnable {
                         if (isCallActive && isAppInBackground) {
                             isAutoMuted = true
-                            AppLogger.log("CallService", "30s passed in background -> Mic muted")
+                            AppLogger.log("CallService", "30s background expired -> Auto-muting mic")
                             webRtcClient?.setMicrophoneEnabled(false)
                         }
                     }
@@ -218,7 +243,7 @@ class CallService : Service(), SensorEventListener {
                 cancelAutoMuteTimer()
                 if (isAutoMuted) {
                     isAutoMuted = false
-                    AppLogger.log("CallService", "App returned to screen -> Restoring mic")
+                    AppLogger.log("CallService", "Returned to app -> Restoring mic")
                     webRtcClient?.setMicrophoneEnabled(!isMuted)
                 }
             }
@@ -259,8 +284,11 @@ class CallService : Service(), SensorEventListener {
                     SignalingClient.sendIceCandidate(candidate)
                 },
                 onRemoteStreamActive = {
-                    AppLogger.log("CallService", "Live audio stream active -> Starting synchronized timer")
+                    AppLogger.log("CallService", "Live audio stream active -> Timestamp timer started")
                     handler.post {
+                        if (callStartTimeMs == 0L) {
+                            callStartTimeMs = System.currentTimeMillis()
+                        }
                         resetAndStartTimer()
                     }
                 }
@@ -394,7 +422,6 @@ class CallService : Service(), SensorEventListener {
 
     private fun resetAndStartTimer() {
         if (!isTimerRunning) {
-            elapsedSeconds = 0L
             callLimitSeconds = BASE_CALL_LIMIT_SECONDS
             hasFiredWarning = false
             isTimerRunning = true
@@ -405,13 +432,13 @@ class CallService : Service(), SensorEventListener {
     private fun stopTimer() {
         isTimerRunning = false
         handler.removeCallbacks(timerRunnable)
-        elapsedSeconds = 0L
+        callStartTimeMs = 0L
     }
 
-    private fun updateNotification() {
+    private fun updateNotification(elapsed: Long) {
         try {
-            val minutes = elapsedSeconds / 60
-            val seconds = elapsedSeconds % 60
+            val minutes = elapsed / 60
+            val seconds = elapsed % 60
             val timeFormatted = String.format("%02d:%02d", minutes, seconds)
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.notify(NOTIFICATION_ID, buildNotification("Call Duration: $timeFormatted"))
@@ -489,6 +516,11 @@ class CallService : Service(), SensorEventListener {
     override fun onDestroy() {
         super.onDestroy()
         activeServiceInstance = null
+        try {
+            unregisterReceiver(screenStateReceiver)
+        } catch (e: Throwable) {
+            AppLogger.log("CallService-ERR", "Unregister receiver: ${e.message}")
+        }
         terminateService()
     }
 }

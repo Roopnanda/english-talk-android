@@ -40,8 +40,8 @@ class WebRtcAudioClient(
 
             audioDeviceModule = JavaAudioDeviceModule.builder(context)
                 .setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
-                .setUseHardwareAcousticEchoCanceler(true)
-                .setUseHardwareNoiseSuppressor(true)
+                .setUseHardwareAcousticEchoCanceler(JavaAudioDeviceModule.isBuiltInAcousticEchoCancelerSupported())
+                .setUseHardwareNoiseSuppressor(JavaAudioDeviceModule.isBuiltInNoiseSuppressorSupported())
                 .createAudioDeviceModule()
 
             val options = PeerConnectionFactory.Options()
@@ -51,7 +51,7 @@ class WebRtcAudioClient(
                 .createPeerConnectionFactory()
 
             createLocalAudioTrack()
-            AppLogger.log("WebRTC", "WebRTC Audio Initialized with Hardware AEC & Opus DTX")
+            AppLogger.log("WebRTC", "Audio Factory ready with adaptive AEC/NS")
         } catch (e: Throwable) {
             AppLogger.log("WebRTC-ERR", "Factory init failed: ${e.message}")
         }
@@ -60,9 +60,12 @@ class WebRtcAudioClient(
     private fun createLocalAudioTrack() {
         val audioConstraints = MediaConstraints().apply {
             mandatory.add(MediaConstraints.KeyValuePair("googEchoCancellation", "true"))
+            mandatory.add(MediaConstraints.KeyValuePair("googEchoCancellation2", "true"))
+            mandatory.add(MediaConstraints.KeyValuePair("googDAEchoCancellation", "true"))
             mandatory.add(MediaConstraints.KeyValuePair("googAutoGainControl", "true"))
             mandatory.add(MediaConstraints.KeyValuePair("googHighpassFilter", "true"))
             mandatory.add(MediaConstraints.KeyValuePair("googNoiseSuppression", "true"))
+            mandatory.add(MediaConstraints.KeyValuePair("googTypingNoiseDetection", "true"))
             optional.add(MediaConstraints.KeyValuePair("DtlsSrtpKeyAgreement", "true"))
         }
 
@@ -102,7 +105,7 @@ class WebRtcAudioClient(
                     override fun onRenegotiationNeeded() {}
 
                     override fun onAddTrack(receiver: RtpReceiver?, mediaStreams: Array<out MediaStream>?) {
-                        AppLogger.log("WebRTC", "Remote audio stream active")
+                        AppLogger.log("WebRTC", "Remote audio track active")
                         onRemoteStreamActive()
                     }
                 })
@@ -123,7 +126,7 @@ class WebRtcAudioClient(
     private fun tuneSdpForEchoElimination(sdpDescription: String): String {
         return sdpDescription.replace(
             "useinbandfec=1",
-            "useinbandfec=1;stereo=0;sprop-stereo=0;usedtx=1;maxaveragebitrate=20000"
+            "useinbandfec=1;stereo=0;sprop-stereo=0;usedtx=1;maxaveragebitrate=16000"
         )
     }
 

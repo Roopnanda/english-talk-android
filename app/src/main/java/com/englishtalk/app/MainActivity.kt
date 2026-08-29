@@ -3,6 +3,7 @@ package com.englishtalk.app
 import android.Manifest
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -13,6 +14,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
@@ -704,9 +706,11 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
         }
     }
 
-    override fun onPause() {
-        super.onPause()
-        if (CallService.isCallActive && !isFinishing) {
+    override fun onStop() {
+        super.onStop()
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        // If the screen is still ON when the activity is stopped, the user left the app to home/another app
+        if (CallService.isCallActive && !isFinishing && powerManager.isInteractive) {
             val intent = Intent(this, CallService::class.java).apply {
                 action = CallService.ACTION_APP_BACKGROUNDED
             }

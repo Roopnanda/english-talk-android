@@ -573,7 +573,14 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
     }
 
     override fun onCallEnded() {
-        mainHandler.post { showDashboard() }
+        mainHandler.post {
+            val intent = Intent(this, CallService::class.java).apply {
+                action = CallService.ACTION_END_CALL
+            }
+            startService(intent)
+            Toast.makeText(this, "Call ended by partner", Toast.LENGTH_SHORT).show()
+            showDashboard()
+        }
     }
 
     private fun setupCallServiceCallbacks() {
@@ -581,13 +588,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
             mainHandler.post {
                 btnMute.alpha = if (muted) 0.4f else 1.0f
                 btnSpeaker.alpha = if (speaker) 1.0f else 0.4f
-            }
-        }
-
-        CallService.onCallEndedByRemote = {
-            mainHandler.post {
-                Toast.makeText(this, "Call ended by partner", Toast.LENGTH_SHORT).show()
-                showDashboard()
             }
         }
 
@@ -622,6 +622,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         btnMute.alpha = 1.0f
         btnSpeaker.alpha = 0.4f
+        tvTimer.text = "00:00"
 
         layoutDashboard.visibility = View.VISIBLE
         layoutSearching.visibility = View.GONE
@@ -639,6 +640,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         btnMute.alpha = 1.0f
         btnSpeaker.alpha = 0.4f
+        tvTimer.text = "00:00"
 
         layoutDashboard.visibility = View.GONE
         layoutSearching.visibility = View.GONE

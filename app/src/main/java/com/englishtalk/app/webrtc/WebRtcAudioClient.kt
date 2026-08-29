@@ -38,22 +38,10 @@ class WebRtcAudioClient(
                 .createInitializationOptions()
             PeerConnectionFactory.initialize(initOptions)
 
-            // Re-enable hardware AEC and Noise Suppression with VOICE_COMMUNICATION DSP source
             audioDeviceModule = JavaAudioDeviceModule.builder(context)
                 .setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
                 .setUseHardwareAcousticEchoCanceler(true)
                 .setUseHardwareNoiseSuppressor(true)
-                .setAudioRecordErrorCallback(object : JavaAudioDeviceModule.AudioRecordErrorCallback {
-                    override fun onWebRtcAudioRecordInitError(errorMessage: String?) {
-                        AppLogger.log("WebRTC-Audio", "Record Init Error: $errorMessage")
-                    }
-                    override fun onWebRtcAudioRecordStartError(errorCode: JavaAudioDeviceModule.AudioRecordStartErrorCode?, errorMessage: String?) {
-                        AppLogger.log("WebRTC-Audio", "Record Start Error: $errorMessage")
-                    }
-                    override fun onWebRtcAudioRecordError(errorMessage: String?) {
-                        AppLogger.log("WebRTC-Audio", "Record Error: $errorMessage")
-                    }
-                })
                 .createAudioDeviceModule()
 
             val options = PeerConnectionFactory.Options()
@@ -63,7 +51,7 @@ class WebRtcAudioClient(
                 .createPeerConnectionFactory()
 
             createLocalAudioTrack()
-            AppLogger.log("WebRTC", "Factory initialized with Hardware DSP AEC & NS")
+            AppLogger.log("WebRTC", "WebRTC Audio Initialized with Hardware AEC & Opus DTX")
         } catch (e: Throwable) {
             AppLogger.log("WebRTC-ERR", "Factory init failed: ${e.message}")
         }
@@ -98,33 +86,23 @@ class WebRtcAudioClient(
 
                 peerConnection = peerConnectionFactory?.createPeerConnection(rtcConfig, object : PeerConnection.Observer {
                     override fun onIceCandidate(candidate: IceCandidate?) {
-                        candidate?.let {
-                            onIceCandidateGenerated(it)
-                        }
+                        candidate?.let { onIceCandidateGenerated(it) }
                     }
 
                     override fun onIceCandidatesRemoved(candidates: Array<out IceCandidate>?) {}
-
                     override fun onSignalingChange(state: PeerConnection.SignalingState?) {}
-
                     override fun onIceConnectionChange(state: PeerConnection.IceConnectionState?) {
                         AppLogger.log("WebRTC", "ICE state: $state")
                     }
-
                     override fun onIceConnectionReceivingChange(receiving: Boolean) {}
-
                     override fun onIceGatheringChange(state: PeerConnection.IceGatheringState?) {}
-
                     override fun onAddStream(stream: MediaStream?) {}
-
                     override fun onRemoveStream(stream: MediaStream?) {}
-
                     override fun onDataChannel(channel: DataChannel?) {}
-
                     override fun onRenegotiationNeeded() {}
 
                     override fun onAddTrack(receiver: RtpReceiver?, mediaStreams: Array<out MediaStream>?) {
-                        AppLogger.log("WebRTC", "Remote audio track active")
+                        AppLogger.log("WebRTC", "Remote audio stream active")
                         onRemoteStreamActive()
                     }
                 })
@@ -142,6 +120,13 @@ class WebRtcAudioClient(
         }
     }
 
+    private fun tuneSdpForEchoElimination(sdpDescription: String): String {
+        return sdpDescription.replace(
+            "useinbandfec=1",
+            "useinbandfec=1;stereo=0;sprop-stereo=0;usedtx=1;maxaveragebitrate=20000"
+        )
+    }
+
     private fun createOffer(onOfferReady: (SessionDescription) -> Unit) {
         val sdpConstraints = MediaConstraints().apply {
             mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
@@ -151,11 +136,13 @@ class WebRtcAudioClient(
         peerConnection?.createOffer(object : SdpObserverAdapter() {
             override fun onCreateSuccess(desc: SessionDescription?) {
                 desc?.let { offer ->
+                    val tunedSdp = tuneSdpForEchoElimination(offer.description)
+                    val tunedOffer = SessionDescription(offer.type, tunedSdp)
                     peerConnection?.setLocalDescription(object : SdpObserverAdapter() {
                         override fun onSetSuccess() {
-                            onOfferReady(offer)
+                            onOfferReady(tunedOffer)
                         }
-                    }, offer)
+                    }, tunedOffer)
                 }
             }
         }, sdpConstraints)
@@ -182,11 +169,13 @@ class WebRtcAudioClient(
         peerConnection?.createAnswer(object : SdpObserverAdapter() {
             override fun onCreateSuccess(desc: SessionDescription?) {
                 desc?.let { answer ->
+                    val tunedSdp = tuneSdpForEchoElimination(answer.description)
+                    val tunedAnswer = SessionDescription(answer.type, tunedSdp)
                     peerConnection?.setLocalDescription(object : SdpObserverAdapter() {
                         override fun onSetSuccess() {
-                            onAnswerReady(answer)
+                            onAnswerReady(tunedAnswer)
                         }
-                    }, answer)
+                    }, tunedAnswer)
                 }
             }
         }, sdpConstraints)
@@ -255,7 +244,7 @@ class WebRtcAudioClient(
         override fun onCreateSuccess(p0: SessionDescription?) {}
         override fun onSetSuccess() {}
         override fun onCreateFailure(p0: String?) {
-            AppLogger.log("WebRTC-ERR", "SDP create fail: $p0")
+            AppLogger.log("WebRTC-ERR", "SDP fail: $p0")
         }
         override fun onSetFailure(p0: String?) {
             AppLogger.log("WebRTC-ERR", "SDP set fail: $p0")

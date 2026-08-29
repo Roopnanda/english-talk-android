@@ -118,7 +118,7 @@ class CallService : Service(), SensorEventListener {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
                 Intent.ACTION_SCREEN_OFF -> {
-                    // Only protect the mic if user was actively on the in-call screen when screen turned off
+                    // Locking screen with power button while in app keeps mic fully active
                     if (!isAppInBackground) {
                         cancelAutoMuteTimer()
                     }
@@ -227,7 +227,7 @@ class CallService : Service(), SensorEventListener {
                 isAppInBackground = true
                 if (isCallActive) {
                     cancelAutoMuteTimer()
-                    AppLogger.log("CallService", "Left app -> 30s auto-mute timer started")
+                    AppLogger.log("CallService", "Left app -> 30s auto-mute countdown running")
                     autoMuteRunnable = Runnable {
                         if (isCallActive && isAppInBackground) {
                             isAutoMuted = true
@@ -284,7 +284,7 @@ class CallService : Service(), SensorEventListener {
                     SignalingClient.sendIceCandidate(candidate)
                 },
                 onRemoteStreamActive = {
-                    AppLogger.log("CallService", "Live audio stream active -> Timestamp timer started")
+                    AppLogger.log("CallService", "Live audio stream active -> Starting timestamp timer")
                     handler.post {
                         if (callStartTimeMs == 0L) {
                             callStartTimeMs = System.currentTimeMillis()

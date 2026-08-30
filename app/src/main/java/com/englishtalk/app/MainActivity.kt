@@ -1,6 +1,7 @@
 package com.englishtalk.app
 
 import android.Manifest
+import android.app.Activity
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
@@ -24,7 +25,6 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.Switch
 import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.englishtalk.app.network.SignalingClient
@@ -37,7 +37,7 @@ import com.google.android.gms.ads.AdView
 import org.webrtc.IceCandidate
 import org.webrtc.SessionDescription
 
-class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener, SensorEventListener {
+class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventListener {
 
     private lateinit var layoutDashboard: LinearLayout
     private lateinit var layoutSearching: LinearLayout

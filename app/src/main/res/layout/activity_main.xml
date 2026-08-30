@@ -1,0 +1,285 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout 
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#0F172A">
+
+    <!-- Top Header Bar -->
+    <TextView
+        android:id="@+id/tvAppTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="24dp"
+        android:layout_marginTop="24dp"
+        android:text="English Talk"
+        android:textColor="#FFFFFF"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <Button
+        android:id="@+id/btnVip"
+        android:layout_width="wrap_content"
+        android:layout_height="38dp"
+        android:layout_marginEnd="24dp"
+        android:backgroundTint="#F59E0B"
+        android:text="👑 GO VIP"
+        android:textColor="#FFFFFF"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        app:cornerRadius="19dp"
+        app:layout_constraintBottom_toBottomOf="@id/tvAppTitle"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@id/tvAppTitle" />
+
+    <!-- 1. DASHBOARD VIEW (State: IDLE) -->
+    <LinearLayout
+        android:id="@+id/layoutDashboard"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:paddingHorizontal="24dp"
+        android:visibility="visible"
+        app:layout_constraintBottom_toTopOf="@id/layoutBannerAd"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/tvAppTitle">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="24dp"
+            android:text="Select Level to Start Call"
+            android:textColor="#94A3B8"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <!-- 1-Tap Direct Matchmaking Level Buttons -->
+        <Button
+            android:id="@+id/btnBeginner"
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:layout_marginBottom="16dp"
+            android:backgroundTint="#2563EB"
+            android:drawableStart="@android:drawable/ic_menu_call"
+            android:paddingStart="24dp"
+            android:text="BEGINNER (TAP TO CALL)"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            app:cornerRadius="12dp" />
+
+        <Button
+            android:id="@+id/btnAdvanced"
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:layout_marginBottom="24dp"
+            android:backgroundTint="#1E293B"
+            android:drawableStart="@android:drawable/ic_lock_lock"
+            android:paddingStart="24dp"
+            android:text="🔒 ADVANCED"
+            android:textColor="#94A3B8"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            app:cornerRadius="12dp" />
+
+        <!-- VIP Female Filter Container -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginBottom="20dp"
+            android:background="#1E293B"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="16dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="👩 Talk to Female Gender 👑 VIP"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/switchFemaleFilter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <!-- Single-Use Reconnect Button -->
+        <Button
+            android:id="@+id/btnReconnectLast"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:backgroundTint="#059669"
+            android:text="🔄 Reconnect to the Last Caller"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:visibility="gone"
+            app:cornerRadius="10dp" />
+
+        <!-- Transient Lock Progress Pop-up Alert -->
+        <TextView
+            android:id="@+id/tvLockProgressPopup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:background="#1E293B"
+            android:gravity="center"
+            android:padding="12dp"
+            android:textColor="#38BDF8"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <!-- 2. SEARCHING VIEW (State: SEARCHING) -->
+    <LinearLayout
+        android:id="@+id/layoutSearching"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@id/layoutBannerAd"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/tvAppTitle">
+
+        <ProgressBar
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:indeterminateTint="#38BDF8" />
+
+        <TextView
+            android:id="@+id/tvSearchingStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="Searching for a conversation partner..."
+            android:textColor="#FFFFFF"
+            android:textSize="16sp" />
+
+        <Button
+            android:id="@+id/btnCancelSearch"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:layout_marginTop="32dp"
+            android:backgroundTint="#EF4444"
+            android:text="CANCEL SEARCH"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
+            app:cornerRadius="8dp" />
+    </LinearLayout>
+
+    <!-- 3. ACTIVE CALL VIEW (State: CONNECTED) -->
+    <LinearLayout
+        android:id="@+id/layoutCall"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@id/layoutBannerAd"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/tvAppTitle">
+
+        <ImageView
+            android:layout_width="96dp"
+            android:layout_height="96dp"
+            android:background="@android:drawable/dialog_holo_light_frame"
+            android:padding="20dp"
+            android:src="@android:drawable/ic_menu_call" />
+
+        <TextView
+            android:id="@+id/tvCallPartnerName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Connected"
+            android:textColor="#FFFFFF"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvCallTimer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="15:00"
+            android:textColor="#38BDF8"
+            android:textSize="28sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="32dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnMute"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:layout_marginEnd="16dp"
+                android:backgroundTint="#334155"
+                android:text="🎤"
+                android:textSize="18sp"
+                app:cornerRadius="28dp" />
+
+            <Button
+                android:id="@+id/btnSpeaker"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:layout_marginEnd="16dp"
+                android:backgroundTint="#334155"
+                android:text="🔈"
+                android:textSize="18sp"
+                app:cornerRadius="28dp" />
+
+            <Button
+                android:id="@+id/btnEndCall"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:backgroundTint="#EF4444"
+                android:text="📞"
+                android:textSize="18sp"
+                app:cornerRadius="28dp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Diagnostics Console Box -->
+    <TextView
+        android:id="@+id/tvConsoleLogs"
+        android:layout_width="0dp"
+        android:layout_height="90dp"
+        android:background="#090D16"
+        android:padding="6dp"
+        android:scrollbars="vertical"
+        android:textColor="#38BDF8"
+        android:textSize="10sp"
+        android:fontFamily="monospace"
+        app:layout_constraintBottom_toTopOf="@id/layoutBannerAd"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <!-- Bottom AdMob Banner Container -->
+    <FrameLayout
+        android:id="@+id/layoutBannerAd"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:background="#1E293B"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

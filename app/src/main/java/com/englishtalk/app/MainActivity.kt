@@ -78,6 +78,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private var proximityWakeLock: PowerManager.WakeLock? = null
     private lateinit var audioManager: AudioManager
 
+    private val mainUiHandler = Handler(Looper.getMainLooper())
+
     // Background Auto-Mute Handler
     private val backgroundHandler = Handler(Looper.getMainLooper())
     private var wasMutedBeforeBackground = false
@@ -277,62 +279,74 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     }
 
     private fun startCallView() {
-        layoutSearching.visibility = View.GONE
-        layoutDashboard.visibility = View.GONE
-        layoutCall.visibility = View.VISIBLE
+        mainUiHandler.post {
+            layoutSearching.visibility = View.GONE
+            layoutDashboard.visibility = View.GONE
+            layoutCall.visibility = View.VISIBLE
 
-        tvCallPartnerName.text = "Connected"
-        tvCallTimer.text = "15:00"
+            tvCallPartnerName.text = "Connected"
+            tvCallTimer.text = "15:00"
 
-        isMuted = false
-        isSpeakerOn = false
-        audioManager.isSpeakerphoneOn = false
-        btnMute.text = "🎤"
-        btnSpeaker.text = "🔈"
+            isMuted = false
+            isSpeakerOn = false
+            audioManager.isSpeakerphoneOn = false
+            btnMute.text = "🎤"
+            btnSpeaker.text = "🔈"
 
-        startForegroundService(Intent(this, CallService::class.java))
-        timerHandler.post(timerRunnable)
+            val serviceIntent = Intent(this, CallService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
+            }
 
-        proximityWakeLock?.let {
-            if (!it.isHeld) it.acquire()
+            timerHandler.post(timerRunnable)
+
+            proximityWakeLock?.let {
+                if (!it.isHeld) it.acquire()
+            }
         }
     }
 
     private fun endCallSession() {
-        timerHandler.removeCallbacks(timerRunnable)
+        mainUiHandler.post {
+            timerHandler.removeCallbacks(timerRunnable)
 
-        val elapsed = CallService.getElapsedSeconds()
-        val isAlreadyUnlocked = prefs.getBoolean(PREF_ADVANCED_UNLOCKED, false)
+            val elapsed = CallService.getElapsedSeconds()
+            val isAlreadyUnlocked = prefs.getBoolean(PREF_ADVANCED_UNLOCKED, false)
 
-        if (!isAlreadyUnlocked && activeCallLevel == "Beginner" && elapsed >= 240L) {
-            val current = prefs.getInt(PREF_QUALIFIED_CALLS, 0) + 1
-            prefs.edit().putInt(PREF_QUALIFIED_CALLS, current).apply()
-            if (current >= 20) {
-                prefs.edit().putBoolean(PREF_ADVANCED_UNLOCKED, true).apply()
+            if (!isAlreadyUnlocked && activeCallLevel == "Beginner" && elapsed >= 240L) {
+                val current = prefs.getInt(PREF_QUALIFIED_CALLS, 0) + 1
+                prefs.edit().putInt(PREF_QUALIFIED_CALLS, current).apply()
+                if (current >= 20) {
+                    prefs.edit().putBoolean(PREF_ADVANCED_UNLOCKED, true).apply()
+                }
             }
+
+            SignalingClient.endCall()
+            WebRtcAudioClient.close()
+            stopService(Intent(this, CallService::class.java))
+
+            proximityWakeLock?.let {
+                if (it.isHeld) it.release()
+            }
+
+            showDashboardView()
         }
-
-        SignalingClient.endCall()
-        WebRtcAudioClient.close()
-        stopService(Intent(this, CallService::class.java))
-
-        proximityWakeLock?.let {
-            if (it.isHeld) it.release()
-        }
-
-        showDashboardView()
     }
 
     private fun showDashboardView() {
-        layoutSearching.visibility = View.GONE
-        layoutCall.visibility = View.GONE
-        layoutDashboard.visibility = View.VISIBLE
-        updateLevelDashboardUI()
+        mainUiHandler.post {
+            layoutSearching.visibility = View.GONE
+            layoutCall.visibility = View.GONE
+            layoutDashboard.visibility = View.VISIBLE
+            updateLevelDashboardUI()
 
-        if (canReconnect && lastPeerId != null) {
-            btnReconnectLast.visibility = View.VISIBLE
-        } else {
-            btnReconnectLast.visibility = View.GONE
+            if (canReconnect && lastPeerId != null) {
+                btnReconnectLast.visibility = View.VISIBLE
+            } else {
+                btnReconnectLast.visibility = View.GONE
+            }
         }
     }
 
@@ -402,12 +416,16 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     }
 
     override fun onReconnectWaiting() {
-        tvSearchingStatus.text = "Waiting for partner to accept reconnect..."
+        mainUiHandler.post {
+            tvSearchingStatus.text = "Waiting for partner to accept reconnect..."
+        }
     }
 
     override fun onReconnectFailed(reason: String) {
-        canReconnect = false
-        showDashboardView()
+        mainUiHandler.post {
+            canReconnect = false
+            showDashboardView()
+        }
     }
 
     // --- Lifecycle & Background Auto-Mute ---

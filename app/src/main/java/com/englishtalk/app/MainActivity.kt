@@ -31,6 +31,9 @@ import com.englishtalk.app.network.SignalingClient
 import com.englishtalk.app.service.CallService
 import com.englishtalk.app.utils.AppLogger
 import com.englishtalk.app.webrtc.WebRtcAudioClient
+import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.AdSize
+import com.google.android.gms.ads.AdView
 import org.webrtc.IceCandidate
 import org.webrtc.SessionDescription
 
@@ -60,6 +63,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private var isMuted = false
     private var isSpeakerOn = false
     private var isVip = false
+    private var hasShownWarning = false
 
     // Single-use reconnect properties
     private var lastPeerId: String? = null
@@ -95,25 +99,25 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         tvLockProgressPopup.visibility = View.GONE
     }
 
-    // Call Timer & Check Tracking
+    // Stopwatch Elapsed Timer (Counts UP: 00:00 -> 15:00)
     private val timerHandler = Handler(Looper.getMainLooper())
     private val timerRunnable = object : Runnable {
         override fun run() {
             val elapsedSec = CallService.getElapsedSeconds()
-            val totalSec = CallService.getTotalDurationSeconds()
-            val remainingSec = totalSec - elapsedSec
+            val totalMaxSec = CallService.getTotalDurationSeconds()
 
-            if (remainingSec <= 0) {
-                tvCallTimer.text = "00:00"
+            if (elapsedSec >= totalMaxSec) {
                 endCallSession()
                 return
             }
 
-            val mins = remainingSec / 60
-            val secs = remainingSec % 60
+            val mins = elapsedSec / 60
+            val secs = elapsedSec % 60
             tvCallTimer.text = String.format("%02d:%02d", mins, secs)
 
-            if (remainingSec == 60L) {
+            // 14-minute warning dialog at 840s
+            if (elapsedSec >= 840L && !hasShownWarning) {
+                hasShownWarning = true
                 showExtendDialog()
             }
 
@@ -133,6 +137,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         initViews()
         initSensors()
         setupListeners()
+        loadBannerAd()
 
         SignalingClient.setListener(this)
         SignalingClient.connect()
@@ -152,7 +157,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                     "EnglishTalk:ProximityLock"
                 )
             }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             AppLogger.log("Sensors", "Sensor init note: ${e.message}")
         }
     }
@@ -207,7 +212,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         }
 
         btnCancelSearch.setOnClickListener {
-            AppLogger.log("UI", "Search cancelled")
+            AppLogger.log("UI", "Search cancelled by user")
             SignalingClient.leaveQueue()
             SignalingClient.cancelReconnect()
             showDashboardView()
@@ -219,7 +224,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 layoutDashboard.visibility = View.GONE
                 layoutSearching.visibility = View.VISIBLE
                 tvSearchingStatus.text = "Reconnecting to the last caller..."
-                AppLogger.log("Reconnect", "Requesting reconnect with $targetPeer")
+                AppLogger.log("Reconnect", "Requesting reconnect with peer: $targetPeer")
                 SignalingClient.requestReconnect(targetPeer, activeCallLevel)
             }
         }
@@ -228,18 +233,18 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             isMuted = !isMuted
             WebRtcAudioClient.setMicrophoneMute(isMuted)
             btnMute.text = if (isMuted) "🔇" else "🎤"
-            AppLogger.log("Audio", "Mute: $isMuted")
+            AppLogger.log("Audio", "Mute toggled: $isMuted")
         }
 
         btnSpeaker.setOnClickListener {
             isSpeakerOn = !isSpeakerOn
             audioManager.isSpeakerphoneOn = isSpeakerOn
             btnSpeaker.text = if (isSpeakerOn) "🔊" else "🔈"
-            AppLogger.log("Audio", "Speaker: $isSpeakerOn")
+            AppLogger.log("Audio", "Speaker toggled: $isSpeakerOn")
         }
 
         btnEndCall.setOnClickListener {
-            AppLogger.log("UI", "Ending call")
+            AppLogger.log("UI", "End call clicked")
             endCallSession()
         }
     }
@@ -291,7 +296,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 layoutCall.visibility = View.VISIBLE
 
                 tvCallPartnerName.text = "Connected"
-                tvCallTimer.text = "15:00"
+                tvCallTimer.text = "00:00"
+                hasShownWarning = false
 
                 isMuted = false
                 isSpeakerOn = false
@@ -306,8 +312,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                     } else {
                         startService(serviceIntent)
                     }
-                } catch (e: Exception) {
-                    AppLogger.log("Service-ERR", "FGS start error: ${e.message}")
+                } catch (e: Throwable) {
+                    AppLogger.log("Service-ERR", "FGS start note: ${e.message}")
                 }
 
                 timerHandler.post(timerRunnable)
@@ -316,12 +322,12 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                     proximityWakeLock?.let {
                         if (!it.isHeld) it.acquire(10 * 60 * 1000L)
                     }
-                } catch (e: Exception) {
-                    AppLogger.log("WakeLock-ERR", "WakeLock acquire error: ${e.message}")
+                } catch (e: Throwable) {
+                    AppLogger.log("WakeLock-ERR", "WakeLock acquire note: ${e.message}")
                 }
 
-                AppLogger.log("CallView", "Live call view active")
-            } catch (e: Exception) {
+                AppLogger.log("CallView", "Live call view active at 00:00")
+            } catch (e: Throwable) {
                 AppLogger.log("CallView-ERR", "View transition error: ${e.message}")
             }
         }
@@ -335,10 +341,11 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 val elapsed = CallService.getElapsedSeconds()
                 val isAlreadyUnlocked = prefs.getBoolean(PREF_ADVANCED_UNLOCKED, false)
 
+                // Beginner milestone qualification: 4+ minutes (240s) in Beginner queue
                 if (!isAlreadyUnlocked && activeCallLevel == "Beginner" && elapsed >= 240L) {
                     val current = prefs.getInt(PREF_QUALIFIED_CALLS, 0) + 1
                     prefs.edit().putInt(PREF_QUALIFIED_CALLS, current).apply()
-                    AppLogger.log("Progress", "Beginner milestone: $current/20")
+                    AppLogger.log("Progress", "Beginner milestone updated: $current/20")
                     if (current >= 20) {
                         prefs.edit().putBoolean(PREF_ADVANCED_UNLOCKED, true).apply()
                         AppLogger.log("Progress", "Advanced UNLOCKED")
@@ -350,21 +357,21 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
                 try {
                     stopService(Intent(this, CallService::class.java))
-                } catch (e: Exception) {
-                    // Ignore
+                } catch (e: Throwable) {
+                    // Safe cleanup
                 }
 
                 try {
                     proximityWakeLock?.let {
                         if (it.isHeld) it.release()
                     }
-                } catch (e: Exception) {
-                    // Ignore
+                } catch (e: Throwable) {
+                    // Safe cleanup
                 }
 
                 showDashboardView()
-            } catch (e: Exception) {
-                AppLogger.log("EndCall-ERR", "Error ending session: ${e.message}")
+            } catch (e: Throwable) {
+                AppLogger.log("EndCall-ERR", "Error ending call: ${e.message}")
             }
         }
     }
@@ -387,10 +394,10 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private fun showExtendDialog() {
         AlertDialog.Builder(this)
             .setTitle("Time Warning")
-            .setMessage("1 minute remaining! Would you like to extend this call by 5 minutes?")
+            .setMessage("14 minutes reached! Would you like to extend this call by 5 minutes?")
             .setPositiveButton("Extend +5 Mins") { _, _ ->
                 CallService.extendTime(300L)
-                AppLogger.log("Timer", "Call extended +5m")
+                AppLogger.log("Timer", "Call extended by 5 minutes")
             }
             .setNegativeButton("Dismiss", null)
             .show()
@@ -410,12 +417,12 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
         WebRtcAudioClient.init(applicationContext, object : WebRtcAudioClient.RtcListener {
             override fun onLocalOfferCreated(sdp: SessionDescription) {
-                AppLogger.log("WebRTC", "Offer SDP ready")
+                AppLogger.log("WebRTC", "Local offer SDP ready")
                 SignalingClient.sendOffer(sdp)
             }
 
             override fun onLocalAnswerCreated(sdp: SessionDescription) {
-                AppLogger.log("WebRTC", "Answer SDP ready")
+                AppLogger.log("WebRTC", "Local answer SDP ready")
                 SignalingClient.sendAnswer(sdp)
             }
 
@@ -424,28 +431,29 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             }
 
             override fun onAudioConnected() {
-                AppLogger.log("WebRTC", "Audio connected!")
+                AppLogger.log("WebRTC", "Two-way live audio pipeline connected!")
                 startCallView()
             }
 
             override fun onDisconnected() {
-                AppLogger.log("WebRTC", "Disconnected")
+                AppLogger.log("WebRTC", "Audio pipeline disconnected")
                 endCallSession()
             }
         })
 
         if (isInitiator) {
+            AppLogger.log("WebRTC", "Generating initial SDP Offer...")
             WebRtcAudioClient.createOffer()
         }
     }
 
     override fun onOfferReceived(sdp: SessionDescription) {
-        AppLogger.log("Signaling", "Remote Offer")
+        AppLogger.log("Signaling", "Remote SDP Offer received")
         WebRtcAudioClient.handleRemoteOffer(sdp)
     }
 
     override fun onAnswerReceived(sdp: SessionDescription) {
-        AppLogger.log("Signaling", "Remote Answer")
+        AppLogger.log("Signaling", "Remote SDP Answer received")
         WebRtcAudioClient.handleRemoteAnswer(sdp)
     }
 
@@ -454,21 +462,21 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     }
 
     override fun onCallEnded() {
-        AppLogger.log("Signaling", "Peer ended call")
+        AppLogger.log("Signaling", "Remote peer ended call")
         endCallSession()
     }
 
     override fun onReconnectWaiting() {
         mainUiHandler.post {
             tvSearchingStatus.text = "Waiting for partner to accept reconnect..."
-            AppLogger.log("Reconnect", "Waiting partner")
+            AppLogger.log("Reconnect", "Waiting for partner...")
         }
     }
 
     override fun onReconnectFailed(reason: String) {
         mainUiHandler.post {
             canReconnect = false
-            AppLogger.log("Reconnect", "Failed: $reason")
+            AppLogger.log("Reconnect", "Reconnect failed: $reason")
             showDashboardView()
         }
     }
@@ -483,12 +491,12 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             WebRtcAudioClient.setMicrophoneMute(false)
             btnMute.text = "🎤"
             wasMutedBeforeBackground = false
-            AppLogger.log("AutoMute", "Unmuted")
+            AppLogger.log("AutoMute", "Microphone unmuted upon app foreground")
         }
         try {
             sensorManager?.registerListener(this, proximitySensor, SensorManager.SENSOR_DELAY_NORMAL)
-        } catch (e: Exception) {
-            // Ignore
+        } catch (e: Throwable) {
+            // Safe fallback
         }
     }
 
@@ -497,18 +505,31 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         if (layoutCall.visibility == View.VISIBLE) {
             wasMutedBeforeBackground = !isMuted
             backgroundHandler.postDelayed(autoMuteRunnable, 30000L)
-            AppLogger.log("AutoMute", "30s mute timer started")
+            AppLogger.log("AutoMute", "App backgrounded: 30s auto-mute timer started")
         }
         try {
             sensorManager?.unregisterListener(this)
-        } catch (e: Exception) {
-            // Ignore
+        } catch (e: Throwable) {
+            // Safe fallback
         }
     }
 
     override fun onSensorChanged(event: SensorEvent?) {}
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+
+    private fun loadBannerAd() {
+        try {
+            val adView = AdView(this)
+            adView.adUnitId = "ca-app-pub-3940256099942544/6300978111"
+            adView.setAdSize(AdSize.BANNER)
+            layoutBannerAd.removeAllViews()
+            layoutBannerAd.addView(adView)
+            adView.loadAd(AdRequest.Builder().build())
+        } catch (e: Throwable) {
+            AppLogger.log("AdMob", "Banner ad load note: ${e.message}")
+        }
+    }
 
     private fun checkPermissions() {
         val permissions = mutableListOf(Manifest.permission.RECORD_AUDIO)

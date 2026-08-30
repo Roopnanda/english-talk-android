@@ -23,6 +23,7 @@ import android.view.WindowManager
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.Switch
 import android.widget.TextView
 import androidx.core.app.ActivityCompat
@@ -185,7 +186,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         tvConsoleLogs = findViewById(R.id.tvConsoleLogs)
         layoutBannerAd = findViewById(R.id.layoutBannerAd)
 
-        AppLogger.init(tvConsoleLogs)
+        // Initialize persistent disk logger
+        AppLogger.init(applicationContext, tvConsoleLogs)
         updateLevelDashboardUI()
     }
 
@@ -232,6 +234,11 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             }
         }
 
+        // Tapping on the bottom console opens the complete persistent crash history
+        tvConsoleLogs.setOnClickListener {
+            showSavedLogsDialog()
+        }
+
         btnMute.setOnClickListener {
             isMuted = !isMuted
             WebRtcAudioClient.setMicrophoneMute(isMuted)
@@ -250,6 +257,32 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             AppLogger.log("UI", "End call clicked")
             endCallSession()
         }
+    }
+
+    private fun showSavedLogsDialog() {
+        val logs = AppLogger.getSavedLogs()
+        val scrollView = ScrollView(this)
+        val textView = TextView(this).apply {
+            text = logs
+            setPadding(32, 32, 32, 32)
+            setTextColor(Color.parseColor("#38BDF8"))
+            setBackgroundColor(Color.parseColor("#050811"))
+            textSize = 12f
+            typeface = android.graphics.Typeface.MONOSPACE
+            setTextIsSelectable(true)
+        }
+        scrollView.addView(textView)
+
+        AlertDialog.Builder(this)
+            .setTitle("📜 Complete Saved Crash Logs")
+            .setView(scrollView)
+            .setPositiveButton("Close", null)
+            .setNeutralButton("Clear Logs") { _, _ ->
+                AppLogger.clearLogs()
+                tvConsoleLogs.text = ""
+                AppLogger.log("System", "Logs cleared by user")
+            }
+            .show()
     }
 
     private fun hasAudioPermission(): Boolean {

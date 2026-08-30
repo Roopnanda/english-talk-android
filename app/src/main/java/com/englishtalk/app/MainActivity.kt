@@ -175,7 +175,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         tvConsoleLogs = findViewById(R.id.tvConsoleLogs)
         layoutBannerAd = findViewById(R.id.layoutBannerAd)
 
-        AppLogger.init(tvConsoleLogs)
         updateLevelDashboardUI()
     }
 

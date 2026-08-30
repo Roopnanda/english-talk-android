@@ -1,6 +1,7 @@
 package com.englishtalk.app
 
 import android.Manifest
+import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
@@ -21,10 +22,9 @@ import android.view.WindowManager
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.Switch
 import android.widget.TextView
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.widget.SwitchCompat
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.englishtalk.app.network.SignalingClient
@@ -47,7 +47,7 @@ class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener, Sen
     private lateinit var btnCancelSearch: Button
     private lateinit var btnReconnectLast: Button
     private lateinit var tvLockProgressPopup: TextView
-    private lateinit var switchFemaleFilter: SwitchCompat
+    private lateinit var switchFemaleFilter: Switch
     private lateinit var btnVip: Button
     private lateinit var tvSearchingStatus: TextView
     private lateinit var tvCallPartnerName: TextView
@@ -245,12 +245,10 @@ class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener, Sen
             btnAdvanced.text = "ADVANCED (TAP TO CALL)"
             btnAdvanced.setBackgroundColor(Color.parseColor("#2563EB"))
             btnAdvanced.setTextColor(Color.WHITE)
-            btnAdvanced.setCompoundDrawablesWithIntrinsicBounds(android.R.drawable.ic_menu_call, 0, 0, 0)
         } else {
             btnAdvanced.text = "🔒 ADVANCED"
             btnAdvanced.setBackgroundColor(Color.parseColor("#1E293B"))
             btnAdvanced.setTextColor(Color.parseColor("#94A3B8"))
-            btnAdvanced.setCompoundDrawablesWithIntrinsicBounds(android.R.drawable.ic_lock_lock, 0, 0, 0)
         }
     }
 

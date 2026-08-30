@@ -3,7 +3,6 @@ package com.englishtalk.app.webrtc
 import android.content.Context
 import com.englishtalk.app.utils.AppLogger
 import org.webrtc.*
-import org.webrtc.audio.JavaAudioDeviceModule
 
 object WebRtcAudioClient {
 
@@ -28,28 +27,17 @@ object WebRtcAudioClient {
         try {
             val appContext = context.applicationContext ?: context
 
-            // Initialize WebRTC Android globals safely
-            val initOptions = PeerConnectionFactory.InitializationOptions.builder(appContext)
-                .setEnableInternalTracer(false)
-                .createInitializationOptions()
-            PeerConnectionFactory.initialize(initOptions)
-
-            // Safe Hardware/Software AEC Audio Device Module
-            val admBuilder = JavaAudioDeviceModule.builder(appContext)
-            try {
-                admBuilder.setUseHardwareAcousticEchoCanceler(JavaAudioDeviceModule.isBuiltInAcousticEchoCancelerSupported())
-                admBuilder.setUseHardwareNoiseSuppressor(JavaAudioDeviceModule.isBuiltInNoiseSuppressorSupported())
-            } catch (e: Throwable) {
-                AppLogger.log("WebRTC", "Fallback to software audio processing")
-                admBuilder.setUseHardwareAcousticEchoCanceler(false)
-                admBuilder.setUseHardwareNoiseSuppressor(false)
+            if (!isInitialized) {
+                val initOptions = PeerConnectionFactory.InitializationOptions.builder(appContext)
+                    .setEnableInternalTracer(false)
+                    .createInitializationOptions()
+                PeerConnectionFactory.initialize(initOptions)
+                isInitialized = true
             }
-            val audioDeviceModule = admBuilder.createAudioDeviceModule()
 
             val options = PeerConnectionFactory.Options()
             peerConnectionFactory = PeerConnectionFactory.builder()
                 .setOptions(options)
-                .setAudioDeviceModule(audioDeviceModule)
                 .createPeerConnectionFactory()
 
             val audioConstraints = MediaConstraints().apply {
@@ -64,7 +52,6 @@ object WebRtcAudioClient {
             localAudioTrack?.setEnabled(true)
 
             createPeerConnection()
-            isInitialized = true
             AppLogger.log("WebRTC", "Audio engine ready")
         } catch (e: Throwable) {
             AppLogger.log("WebRTC-ERR", "Engine init error: ${e.message}")
@@ -228,7 +215,6 @@ object WebRtcAudioClient {
             localAudioSource = null
             peerConnectionFactory?.dispose()
             peerConnectionFactory = null
-            isInitialized = false
         } catch (e: Throwable) {
             AppLogger.log("WebRTC-ERR", "Close error: ${e.message}")
         }

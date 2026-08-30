@@ -1,834 +1,460 @@
 package com.englishtalk.app
 
 import android.Manifest
-import android.app.Activity
-import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.graphics.Color
-import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
-import android.media.MediaPlayer
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
+import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
-import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
-import android.widget.*
+import android.widget.Button
+import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.ProgressBar
+import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SwitchCompat
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.englishtalk.app.network.SignalingClient
 import com.englishtalk.app.service.CallService
 import com.englishtalk.app.utils.AppLogger
+import com.englishtalk.app.webrtc.WebRtcAudioClient
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdSize
 import com.google.android.gms.ads.AdView
-import com.google.android.gms.ads.MobileAds
 import org.webrtc.IceCandidate
 import org.webrtc.SessionDescription
 
-class MainActivity : Activity(), SignalingClient.SignalingListener {
+class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener, SensorEventListener {
 
-    companion object {
-        private const val PERMISSION_REQ_CODE = 2001
-        private const val PREFS_NAME = "EnglishTalkPrefs"
-        private const val KEY_LAST_CALLER_ID = "KEY_LAST_CALLER_ID"
-        private const val KEY_LAST_CALLER_LEVEL = "KEY_LAST_CALLER_LEVEL"
-        private const val KEY_CAN_RECONNECT = "KEY_CAN_RECONNECT"
-    }
-
-    private lateinit var rootLayout: RelativeLayout
     private lateinit var layoutDashboard: LinearLayout
     private lateinit var layoutSearching: LinearLayout
-    private lateinit var layoutConnected: LinearLayout
-
-    private lateinit var btnTalkNow: Button
-    private lateinit var btnReconnectLastCaller: Button
-    private lateinit var btnCancelSearch: Button
-    private lateinit var btnEndCall: ImageView
-    private lateinit var btnMute: ImageView
-    private lateinit var btnSpeaker: ImageView
-    private lateinit var btnGoVip: Button
-    private lateinit var switchFemaleOnly: Switch
-    private lateinit var tvTimer: TextView
-    private lateinit var tvPartnerLevel: TextView
-    private lateinit var tvDiagnostics: TextView
-    private lateinit var tvSearchingText: TextView
-
+    private lateinit var layoutCall: LinearLayout
     private lateinit var btnBeginner: Button
-    private lateinit var btnIntermediate: Button
     private lateinit var btnAdvanced: Button
+    private lateinit var btnTalkNow: Button
+    private lateinit var btnCancelSearch: Button
+    private lateinit var btnReconnectLast: Button
+    private lateinit var tvLockProgressPopup: TextView
+    private lateinit var switchFemaleFilter: SwitchCompat
+    private lateinit var btnVip: Button
+    private lateinit var tvSearchingStatus: TextView
+    private lateinit var tvCallPartnerName: TextView
+    private lateinit var tvCallTimer: TextView
+    private lateinit var btnMute: Button
+    private lateinit var btnSpeaker: Button
+    private lateinit var btnEndCall: Button
+    private lateinit var tvConsoleLogs: TextView
+    private lateinit var layoutBannerAd: FrameLayout
 
     private lateinit var prefs: SharedPreferences
-
-    private var selectedLevel = "Intermediate"
+    private var selectedLevel = "Beginner"
+    private var isMuted = false
+    private var isSpeakerOn = false
     private var isVip = false
-    private var userGender = "Male"
-    private var isCurrentCallReconnect = false
-    private var currentPeerId: String? = null
-    private var currentPeerLevel: String? = null
 
-    private var warningPlayer: MediaPlayer? = null
-    private val mainHandler = Handler(Looper.getMainLooper())
+    // Single-use reconnect properties
+    private var lastPeerId: String? = null
+    private var canReconnect = false
+
+    // Progress unlock keys
+    private val PREF_QUALIFIED_CALLS = "pref_qualified_calls"
+    private val PREF_ADVANCED_UNLOCKED = "pref_advanced_unlocked"
+
+    // Sensors & Audio
+    private var sensorManager: SensorManager? = null
+    private var proximitySensor: Sensor? = null
+    private var proximityWakeLock: PowerManager.WakeLock? = null
+    private lateinit var audioManager: AudioManager
+
+    // Background Auto-Mute Handler
+    private val backgroundHandler = Handler(Looper.getMainLooper())
+    private var wasMutedBeforeBackground = false
+    private val autoMuteRunnable = Runnable {
+        if (!isMuted) {
+            isMuted = true
+            WebRtcAudioClient.setMicrophoneMute(true)
+            btnMute.text = "🔇"
+            AppLogger.log("AutoMute", "Hard-muted microphone after 30s in background")
+        }
+    }
+
+    // Lock Progress Pop-up Vanish Handler
+    private val popupHandler = Handler(Looper.getMainLooper())
+    private val hidePopupRunnable = Runnable {
+        tvLockProgressPopup.visibility = View.GONE
+    }
+
+    // Call Timer & Check Tracking
+    private val timerHandler = Handler(Looper.getMainLooper())
+    private val timerRunnable = object : Runnable {
+        override fun run() {
+            val elapsedSec = CallService.getElapsedSeconds()
+            val totalSec = CallService.getTotalDurationSeconds()
+            val remainingSec = totalSec - elapsedSec
+
+            if (remainingSec <= 0) {
+                tvCallTimer.text = "00:00"
+                endCallSession()
+                return
+            }
+
+            val mins = remainingSec / 60
+            val secs = remainingSec % 60
+            tvCallTimer.text = String.format("%02d:%02d", mins, secs)
+
+            if (remainingSec == 60L) {
+                showExtendDialog()
+            }
+
+            timerHandler.postDelayed(this, 1000L)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
 
-        Thread.setDefaultUncaughtExceptionHandler { _, throwable ->
-            AppLogger.log("FATAL", "${throwable.javaClass.simpleName}: ${throwable.message}")
-        }
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs = getSharedPreferences("EnglishTalkPrefs", Context.MODE_PRIVATE)
+        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
-        try {
-            MobileAds.initialize(this) {}
-        } catch (e: Exception) {
-            AppLogger.log("AdMob", "Init error: ${e.message}")
-        }
-
-        buildProgrammaticUI()
+        initSensors()
+        initViews()
         setupListeners()
-        setupDiagnosticsLogger()
-        setupCallServiceCallbacks()
-        refreshReconnectButtonState()
+        loadBannerAd()
 
         SignalingClient.setListener(this)
         SignalingClient.connect()
+
+        checkPermissions()
     }
 
-    private fun buildProgrammaticUI() {
-        rootLayout = RelativeLayout(this).apply {
-            setBackgroundColor(Color.parseColor("#0F172A"))
-            layoutParams = RelativeLayout.LayoutParams(
-                RelativeLayout.LayoutParams.MATCH_PARENT,
-                RelativeLayout.LayoutParams.MATCH_PARENT
+    private fun initSensors() {
+        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        proximitySensor = sensorManager?.getDefaultSensor(Sensor.TYPE_PROXIMITY)
+
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        if (powerManager.isWakeLockLevelSupported(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK)) {
+            proximityWakeLock = powerManager.newWakeLock(
+                PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK,
+                "EnglishTalk:ProximityLock"
             )
         }
-
-        // --- TOP BAR ---
-        val topBar = RelativeLayout(this).apply {
-            id = View.generateViewId()
-            setPadding(40, 40, 40, 20)
-            layoutParams = RelativeLayout.LayoutParams(
-                RelativeLayout.LayoutParams.MATCH_PARENT,
-                RelativeLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                addRule(RelativeLayout.ALIGN_PARENT_TOP)
-            }
-        }
-
-        val appTitle = TextView(this).apply {
-            text = "English Talk"
-            setTextColor(Color.WHITE)
-            textSize = 24f
-            typeface = Typeface.DEFAULT_BOLD
-            layoutParams = RelativeLayout.LayoutParams(
-                RelativeLayout.LayoutParams.WRAP_CONTENT,
-                RelativeLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                addRule(RelativeLayout.ALIGN_PARENT_START)
-                addRule(RelativeLayout.CENTER_VERTICAL)
-            }
-        }
-
-        btnGoVip = Button(this).apply {
-            text = "👑 GO VIP"
-            setTextColor(Color.BLACK)
-            textSize = 13f
-            typeface = Typeface.DEFAULT_BOLD
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#F59E0B"))
-                cornerRadius = 20f
-            }
-            layoutParams = RelativeLayout.LayoutParams(
-                RelativeLayout.LayoutParams.WRAP_CONTENT,
-                110
-            ).apply {
-                addRule(RelativeLayout.ALIGN_PARENT_END)
-                addRule(RelativeLayout.CENTER_VERTICAL)
-            }
-        }
-
-        topBar.addView(appTitle)
-        topBar.addView(btnGoVip)
-        rootLayout.addView(topBar)
-
-        // --- BOTTOM CONTAINER ---
-        val bottomContainer = LinearLayout(this).apply {
-            id = View.generateViewId()
-            orientation = LinearLayout.VERTICAL
-            layoutParams = RelativeLayout.LayoutParams(
-                RelativeLayout.LayoutParams.MATCH_PARENT,
-                RelativeLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                addRule(RelativeLayout.ALIGN_PARENT_BOTTOM)
-            }
-        }
-
-        tvDiagnostics = TextView(this).apply {
-            setBackgroundColor(Color.parseColor("#050B14"))
-            setTextColor(Color.parseColor("#38BDF8"))
-            textSize = 10f
-            typeface = Typeface.MONOSPACE
-            setPadding(20, 20, 20, 20)
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                260
-            )
-        }
-
-        val adView = AdView(this).apply {
-            setAdSize(AdSize.BANNER)
-            adUnitId = "ca-app-pub-3940256099942544/6300978111"
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                gravity = Gravity.CENTER_HORIZONTAL
-            }
-        }
-
-        bottomContainer.addView(tvDiagnostics)
-        bottomContainer.addView(adView)
-        rootLayout.addView(bottomContainer)
-
-        try {
-            adView.loadAd(AdRequest.Builder().build())
-        } catch (e: Exception) {
-            AppLogger.log("AdView", "Ad load error: ${e.message}")
-        }
-
-        // --- DASHBOARD VIEW ---
-        layoutDashboard = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(40, 20, 40, 20)
-            visibility = View.VISIBLE
-            layoutParams = RelativeLayout.LayoutParams(
-                RelativeLayout.LayoutParams.MATCH_PARENT,
-                RelativeLayout.LayoutParams.MATCH_PARENT
-            ).apply {
-                addRule(RelativeLayout.BELOW, topBar.id)
-                addRule(RelativeLayout.ABOVE, bottomContainer.id)
-            }
-        }
-
-        val tvLevelHeading = TextView(this).apply {
-            text = "Choose Your English Level"
-            setTextColor(Color.parseColor("#94A3B8"))
-            textSize = 16f
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                bottomMargin = 25
-            }
-        }
-
-        val levelRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                bottomMargin = 30
-            }
-        }
-
-        btnBeginner = createLevelButton("Beginner")
-        btnIntermediate = createLevelButton("Intermediate")
-        btnAdvanced = createLevelButton("Advanced")
-
-        levelRow.addView(btnBeginner)
-        levelRow.addView(btnIntermediate)
-        levelRow.addView(btnAdvanced)
-
-        val vipRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(30, 20, 30, 20)
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#1E293B"))
-                cornerRadius = 20f
-            }
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                bottomMargin = 35
-            }
-        }
-
-        val tvFemaleVip = TextView(this).apply {
-            text = "👩 Talk to Female Gender 👑 VIP"
-            setTextColor(Color.WHITE)
-            textSize = 14f
-            typeface = Typeface.DEFAULT_BOLD
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-        }
-
-        switchFemaleOnly = Switch(this)
-        vipRow.addView(tvFemaleVip)
-        vipRow.addView(switchFemaleOnly)
-
-        btnTalkNow = Button(this).apply {
-            text = "📞\n\nTALK NOW"
-            setTextColor(Color.WHITE)
-            textSize = 18f
-            typeface = Typeface.DEFAULT_BOLD
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#2563EB"))
-            }
-            layoutParams = LinearLayout.LayoutParams(360, 360).apply {
-                bottomMargin = 30
-            }
-        }
-
-        // Reconnect Button (Single-use per last caller)
-        btnReconnectLastCaller = Button(this).apply {
-            text = "🔄 Reconnect to the Last Caller"
-            setTextColor(Color.WHITE)
-            textSize = 14f
-            typeface = Typeface.DEFAULT_BOLD
-            visibility = View.GONE
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#059669"))
-                cornerRadius = 24f
-            }
-            setPadding(30, 20, 30, 20)
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        }
-
-        layoutDashboard.addView(tvLevelHeading)
-        layoutDashboard.addView(levelRow)
-        layoutDashboard.addView(vipRow)
-        layoutDashboard.addView(btnTalkNow)
-        layoutDashboard.addView(btnReconnectLastCaller)
-        rootLayout.addView(layoutDashboard)
-
-        // --- SEARCHING VIEW ---
-        layoutSearching = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(40, 20, 40, 20)
-            visibility = View.GONE
-            layoutParams = RelativeLayout.LayoutParams(
-                RelativeLayout.LayoutParams.MATCH_PARENT,
-                RelativeLayout.LayoutParams.MATCH_PARENT
-            ).apply {
-                addRule(RelativeLayout.BELOW, topBar.id)
-                addRule(RelativeLayout.ABOVE, bottomContainer.id)
-            }
-        }
-
-        val progress = ProgressBar(this).apply {
-            layoutParams = LinearLayout.LayoutParams(140, 140).apply { bottomMargin = 40 }
-        }
-
-        tvSearchingText = TextView(this).apply {
-            text = "Searching for a conversation partner..."
-            setTextColor(Color.WHITE)
-            textSize = 18f
-            gravity = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                bottomMargin = 60
-            }
-        }
-
-        btnCancelSearch = Button(this).apply {
-            text = "Cancel Search"
-            setTextColor(Color.WHITE)
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#EF4444"))
-                cornerRadius = 24f
-            }
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        }
-
-        layoutSearching.addView(progress)
-        layoutSearching.addView(tvSearchingText)
-        layoutSearching.addView(btnCancelSearch)
-        rootLayout.addView(layoutSearching)
-
-        // --- CONNECTED VIEW ---
-        layoutConnected = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(40, 20, 40, 20)
-            visibility = View.GONE
-            layoutParams = RelativeLayout.LayoutParams(
-                RelativeLayout.LayoutParams.MATCH_PARENT,
-                RelativeLayout.LayoutParams.MATCH_PARENT
-            ).apply {
-                addRule(RelativeLayout.BELOW, topBar.id)
-                addRule(RelativeLayout.ABOVE, bottomContainer.id)
-            }
-        }
-
-        val ivUser = ImageView(this).apply {
-            setImageResource(android.R.drawable.ic_menu_call)
-            layoutParams = LinearLayout.LayoutParams(180, 180).apply { bottomMargin = 30 }
-        }
-
-        tvPartnerLevel = TextView(this).apply {
-            text = "Connected (Intermediate Partner)"
-            setTextColor(Color.parseColor("#38BDF8"))
-            textSize = 18f
-            typeface = Typeface.DEFAULT_BOLD
-        }
-
-        tvTimer = TextView(this).apply {
-            text = "00:00"
-            setTextColor(Color.WHITE)
-            textSize = 36f
-            typeface = Typeface.DEFAULT_BOLD
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                topMargin = 20
-                bottomMargin = 40
-            }
-        }
-
-        val callControlRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        }
-
-        btnMute = ImageView(this).apply {
-            setImageResource(android.R.drawable.ic_lock_silent_mode_off)
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#334155"))
-            }
-            setPadding(25, 25, 25, 25)
-            layoutParams = LinearLayout.LayoutParams(130, 130).apply { rightMargin = 40 }
-        }
-
-        btnEndCall = ImageView(this).apply {
-            setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#EF4444"))
-            }
-            setPadding(30, 30, 30, 30)
-            layoutParams = LinearLayout.LayoutParams(160, 160).apply { rightMargin = 40 }
-        }
-
-        btnSpeaker = ImageView(this).apply {
-            setImageResource(android.R.drawable.ic_lock_silent_mode)
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#334155"))
-            }
-            setPadding(25, 25, 25, 25)
-            layoutParams = LinearLayout.LayoutParams(130, 130)
-        }
-
-        callControlRow.addView(btnMute)
-        callControlRow.addView(btnEndCall)
-        callControlRow.addView(btnSpeaker)
-
-        layoutConnected.addView(ivUser)
-        layoutConnected.addView(tvPartnerLevel)
-        layoutConnected.addView(tvTimer)
-        layoutConnected.addView(callControlRow)
-        rootLayout.addView(layoutConnected)
-
-        setContentView(rootLayout)
-        selectLevel("Intermediate")
     }
 
-    private fun createLevelButton(levelName: String): Button {
-        return Button(this).apply {
-            text = levelName
-            setTextColor(Color.WHITE)
-            textSize = 12f
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#1E293B"))
-                cornerRadius = 16f
-            }
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
-                leftMargin = 8
-                rightMargin = 8
-            }
-        }
+    private fun initViews() {
+        layoutDashboard = findViewById(R.id.layoutDashboard)
+        layoutSearching = findViewById(R.id.layoutSearching)
+        layoutCall = findViewById(R.id.layoutCall)
+        btnBeginner = findViewById(R.id.btnBeginner)
+        btnAdvanced = findViewById(R.id.btnAdvanced)
+        btnTalkNow = findViewById(R.id.btnTalkNow)
+        btnCancelSearch = findViewById(R.id.btnCancelSearch)
+        btnReconnectLast = findViewById(R.id.btnReconnectLast)
+        tvLockProgressPopup = findViewById(R.id.tvLockProgressPopup)
+        switchFemaleFilter = findViewById(R.id.switchFemaleFilter)
+        btnVip = findViewById(R.id.btnVip)
+        tvSearchingStatus = findViewById(R.id.tvSearchingStatus)
+        tvCallPartnerName = findViewById(R.id.tvCallPartnerName)
+        tvCallTimer = findViewById(R.id.tvCallTimer)
+        btnMute = findViewById(R.id.btnMute)
+        btnSpeaker = findViewById(R.id.btnSpeaker)
+        btnEndCall = findViewById(R.id.btnEndCall)
+        tvConsoleLogs = findViewById(R.id.tvConsoleLogs)
+        layoutBannerAd = findViewById(R.id.layoutBannerAd)
+
+        AppLogger.init(tvConsoleLogs)
+        updateLevelSelectionUI()
     }
 
     private fun setupListeners() {
-        btnBeginner.setOnClickListener { selectLevel("Beginner") }
-        btnIntermediate.setOnClickListener { selectLevel("Intermediate") }
-        btnAdvanced.setOnClickListener { selectLevel("Advanced") }
-
-        btnGoVip.setOnClickListener {
-            isVip = true
-            Toast.makeText(this, "VIP Access Granted! Unlimited calls & unlocked filters.", Toast.LENGTH_SHORT).show()
-            AppLogger.log("VIP", "VIP status active")
+        btnBeginner.setOnClickListener {
+            selectedLevel = "Beginner"
+            updateLevelSelectionUI()
         }
 
-        switchFemaleOnly.setOnCheckedChangeListener { _, isChecked ->
-            if (isChecked && !isVip) {
-                switchFemaleOnly.isChecked = false
-                showVipRequiredDialog("Talk to Female Gender is a VIP feature.")
+        btnAdvanced.setOnClickListener {
+            val isUnlocked = prefs.getBoolean(PREF_ADVANCED_UNLOCKED, false)
+            if (isUnlocked) {
+                selectedLevel = "Advanced"
+                updateLevelSelectionUI()
+            } else {
+                val count = prefs.getInt(PREF_QUALIFIED_CALLS, 0)
+                showLockProgressPopup(count)
             }
         }
 
         btnTalkNow.setOnClickListener {
-            checkPermissionsAndStart(isReconnect = false)
-        }
-
-        btnReconnectLastCaller.setOnClickListener {
-            checkPermissionsAndStart(isReconnect = true)
+            startMatchingSearch()
         }
 
         btnCancelSearch.setOnClickListener {
             SignalingClient.leaveQueue()
             SignalingClient.cancelReconnect()
-            showDashboard()
+            showDashboardView()
         }
 
-        btnEndCall.setOnClickListener {
-            endCurrentCall()
+        btnReconnectLast.setOnClickListener {
+            val targetPeer = lastPeerId
+            if (targetPeer != null && canReconnect) {
+                layoutDashboard.visibility = View.GONE
+                layoutSearching.visibility = View.VISIBLE
+                tvSearchingStatus.text = "Reconnecting to the last caller..."
+                SignalingClient.requestReconnect(targetPeer, selectedLevel)
+            }
         }
 
         btnMute.setOnClickListener {
-            val intent = Intent(this, CallService::class.java).apply {
-                action = CallService.ACTION_TOGGLE_MUTE
-            }
-            startService(intent)
+            isMuted = !isMuted
+            WebRtcAudioClient.setMicrophoneMute(isMuted)
+            btnMute.text = if (isMuted) "🔇" else "🎤"
         }
 
         btnSpeaker.setOnClickListener {
-            val intent = Intent(this, CallService::class.java).apply {
-                action = CallService.ACTION_TOGGLE_SPEAKER
-            }
-            startService(intent)
+            isSpeakerOn = !isSpeakerOn
+            audioManager.isSpeakerphoneOn = isSpeakerOn
+            btnSpeaker.text = if (isSpeakerOn) "🔊" else "🔈"
+        }
+
+        btnEndCall.setOnClickListener {
+            endCallSession()
         }
     }
 
-    private fun refreshReconnectButtonState() {
-        val lastCallerId = prefs.getString(KEY_LAST_CALLER_ID, null)
-        val lastCallerLevel = prefs.getString(KEY_LAST_CALLER_LEVEL, "Partner")
-        val canReconnect = prefs.getBoolean(KEY_CAN_RECONNECT, false)
+    private fun showLockProgressPopup(currentCount: Int) {
+        popupHandler.removeCallbacks(hidePopupRunnable)
+        tvLockProgressPopup.text = "Complete 20 calls (4+ mins each in Beginner) to unlock Advanced.\nProgress: $currentCount / 20"
+        tvLockProgressPopup.visibility = View.VISIBLE
+        popupHandler.postDelayed(hidePopupRunnable, 3000L)
+    }
 
-        if (!lastCallerId.isNullOrEmpty() && canReconnect) {
-            btnReconnectLastCaller.text = "🔄 Reconnect to the Last Caller ($lastCallerLevel)"
-            btnReconnectLastCaller.visibility = View.VISIBLE
+    private fun updateLevelSelectionUI() {
+        val isAdvancedUnlocked = prefs.getBoolean(PREF_ADVANCED_UNLOCKED, false)
+
+        if (selectedLevel == "Beginner") {
+            btnBeginner.setBackgroundColor(Color.parseColor("#2563EB"))
+            btnBeginner.setTextColor(Color.WHITE)
+            btnAdvanced.setBackgroundColor(Color.parseColor("#1E293B"))
+            btnAdvanced.setTextColor(Color.parseColor("#94A3B8"))
         } else {
-            btnReconnectLastCaller.visibility = View.GONE
+            btnAdvanced.setBackgroundColor(Color.parseColor("#2563EB"))
+            btnAdvanced.setTextColor(Color.WHITE)
+            btnBeginner.setBackgroundColor(Color.parseColor("#1E293B"))
+            btnBeginner.setTextColor(Color.parseColor("#94A3B8"))
         }
+
+        btnAdvanced.text = if (isAdvancedUnlocked) "ADVANCED" else "🔒 ADVANCED"
     }
 
-    private fun selectLevel(level: String) {
-        selectedLevel = level
-        val activeColor = Color.parseColor("#2563EB")
-        val idleColor = Color.parseColor("#1E293B")
+    private fun startMatchingSearch() {
+        layoutDashboard.visibility = View.GONE
+        layoutSearching.visibility = View.VISIBLE
+        tvSearchingStatus.text = "Searching for a conversation partner..."
 
-        (btnBeginner.background as? GradientDrawable)?.setColor(if (level == "Beginner") activeColor else idleColor)
-        (btnIntermediate.background as? GradientDrawable)?.setColor(if (level == "Intermediate") activeColor else idleColor)
-        (btnAdvanced.background as? GradientDrawable)?.setColor(if (level == "Advanced") activeColor else idleColor)
-    }
-
-    private fun checkPermissionsAndStart(isReconnect: Boolean) {
-        val permissionsToRequest = mutableListOf(Manifest.permission.RECORD_AUDIO)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
-        }
-
-        val missingPermissions = permissionsToRequest.filter {
-            checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED
-        }
-
-        if (missingPermissions.isEmpty()) {
-            if (isReconnect) startReconnectFlow() else startNormalSearchFlow()
-        } else {
-            requestPermissions(permissionsToRequest.toTypedArray(), PERMISSION_REQ_CODE)
-        }
-    }
-
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == PERMISSION_REQ_CODE) {
-            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                startNormalSearchFlow()
-            } else {
-                Toast.makeText(this, "Microphone permission is required to talk", Toast.LENGTH_LONG).show()
-            }
-        }
-    }
-
-    private fun startNormalSearchFlow() {
-        showSearching("Searching for a conversation partner...")
         SignalingClient.joinQueue(
             level = selectedLevel,
-            userGender = userGender,
-            talkToFemaleOnly = switchFemaleOnly.isChecked,
+            userGender = "Unknown",
+            talkToFemaleOnly = switchFemaleFilter.isChecked,
             isVip = isVip
         )
     }
 
-    private fun startReconnectFlow() {
-        val targetPeerId = prefs.getString(KEY_LAST_CALLER_ID, null)
-        if (targetPeerId.isNullOrEmpty()) {
-            Toast.makeText(this, "No previous caller found", Toast.LENGTH_SHORT).show()
-            return
-        }
-        showSearching("Waiting for partner to reconnect...")
-        SignalingClient.requestReconnect(targetPeerId, selectedLevel)
-    }
+    private fun startCallView() {
+        layoutSearching.visibility = View.GONE
+        layoutDashboard.visibility = View.GONE
+        layoutCall.visibility = View.VISIBLE
 
-    private fun endCurrentCall() {
-        handleCallTerminationSideEffects()
-        val intent = Intent(this, CallService::class.java).apply {
-            action = CallService.ACTION_END_CALL
-        }
-        startService(intent)
-        showDashboard()
-    }
+        tvCallPartnerName.text = "Connected"
+        tvCallTimer.text = "15:00"
 
-    private fun handleCallTerminationSideEffects() {
-        if (isCurrentCallReconnect) {
-            // SINGLE-USE CONSUMED: Disable reconnect until a fresh regular call is completed
-            prefs.edit()
-                .putBoolean(KEY_CAN_RECONNECT, false)
-                .apply()
-            AppLogger.log("Reconnect", "Reconnect token consumed. Button hidden.")
-        } else if (!currentPeerId.isNullOrEmpty()) {
-            // NEW NORMAL CALL: Promotes new last caller
-            prefs.edit()
-                .putString(KEY_LAST_CALLER_ID, currentPeerId)
-                .putString(KEY_LAST_CALLER_LEVEL, currentPeerLevel ?: "Partner")
-                .putBoolean(KEY_CAN_RECONNECT, true)
-                .apply()
-            AppLogger.log("Reconnect", "Saved new last caller: $currentPeerId ($currentPeerLevel)")
-        }
-        refreshReconnectButtonState()
-    }
+        // Baseline initialization
+        isMuted = false
+        isSpeakerOn = false
+        audioManager.isSpeakerphoneOn = false
+        btnMute.text = "🎤"
+        btnSpeaker.text = "🔈"
 
-    override fun onMatchFound(roomId: String, isInitiator: Boolean, peerLevel: String, peerId: String, isReconnect: Boolean) {
-        mainHandler.post {
-            isCurrentCallReconnect = isReconnect
-            currentPeerId = peerId
-            currentPeerLevel = peerLevel
+        startForegroundService(Intent(this, CallService::class.java))
+        timerHandler.post(timerRunnable)
 
-            showConnected(peerLevel)
-
-            val intent = Intent(this, CallService::class.java).apply {
-                action = CallService.ACTION_START_CALL
-                putExtra(CallService.EXTRA_ROOM_ID, roomId)
-                putExtra(CallService.EXTRA_IS_INITIATOR, isInitiator)
-                putExtra(CallService.EXTRA_PEER_LEVEL, peerLevel)
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(intent)
-            } else {
-                startService(intent)
-            }
+        proximityWakeLock?.let {
+            if (!it.isHeld) it.acquire()
         }
     }
 
-    override fun onReconnectWaiting() {
-        mainHandler.post {
-            tvSearchingText.text = "Waiting for partner to also click Reconnect..."
-        }
-    }
+    private fun endCallSession() {
+        timerHandler.removeCallbacks(timerRunnable)
 
-    override fun onReconnectFailed(reason: String) {
-        mainHandler.post {
-            Toast.makeText(this, "Partner is currently unavailable.", Toast.LENGTH_SHORT).show()
-            showDashboard()
-        }
-    }
+        // Evaluate ONLY Beginner calls lasting 4+ minutes (240 seconds)
+        val elapsed = CallService.getElapsedSeconds()
+        val isAlreadyUnlocked = prefs.getBoolean(PREF_ADVANCED_UNLOCKED, false)
 
-    override fun onOfferReceived(sdp: SessionDescription) {
-        mainHandler.post {
-            CallService.handleRemoteOffer(sdp)
-        }
-    }
-
-    override fun onAnswerReceived(sdp: SessionDescription) {
-        mainHandler.post {
-            CallService.handleRemoteAnswer(sdp)
-        }
-    }
-
-    override fun onIceCandidateReceived(candidate: IceCandidate) {
-        mainHandler.post {
-            CallService.handleRemoteIceCandidate(candidate)
-        }
-    }
-
-    override fun onCallEnded() {
-        mainHandler.post {
-            handleCallTerminationSideEffects()
-            val intent = Intent(this, CallService::class.java).apply {
-                action = CallService.ACTION_END_CALL
-            }
-            startService(intent)
-            Toast.makeText(this, "Call ended by partner", Toast.LENGTH_SHORT).show()
-            showDashboard()
-        }
-    }
-
-    private fun setupCallServiceCallbacks() {
-        CallService.onAudioStateChanged = { muted, speaker ->
-            mainHandler.post {
-                btnMute.alpha = if (muted) 0.4f else 1.0f
-                btnSpeaker.alpha = if (speaker) 1.0f else 0.4f
+        if (!isAlreadyUnlocked && selectedLevel == "Beginner" && elapsed >= 240L) {
+            val current = prefs.getInt(PREF_QUALIFIED_CALLS, 0) + 1
+            prefs.edit().putInt(PREF_QUALIFIED_CALLS, current).apply()
+            if (current >= 20) {
+                prefs.edit().putBoolean(PREF_ADVANCED_UNLOCKED, true).apply()
             }
         }
 
-        CallService.onWarningChime = {
-            mainHandler.post {
-                playWarningChime()
-                showExtendCallDialog()
-            }
+        SignalingClient.endCall()
+        WebRtcAudioClient.close()
+        stopService(Intent(this, CallService::class.java))
+
+        proximityWakeLock?.let {
+            if (it.isHeld) it.release()
         }
 
-        CallService.onCallExpired = {
-            mainHandler.post {
-                handleCallTerminationSideEffects()
-                Toast.makeText(this, "Call limit reached", Toast.LENGTH_SHORT).show()
-                showDashboard()
-            }
-        }
-
-        mainHandler.post(object : Runnable {
-            override fun run() {
-                if (CallService.isCallActive) {
-                    val sec = CallService.getElapsedSeconds()
-                    val m = sec / 60
-                    val s = sec % 60
-                    tvTimer.text = String.format("%02d:%02d", m, s)
-                }
-                mainHandler.postDelayed(this, 500L)
-            }
-        })
+        showDashboardView()
     }
 
-    private fun showDashboard() {
-        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        btnMute.alpha = 1.0f
-        btnSpeaker.alpha = 0.4f
-        tvTimer.text = "00:00"
-
-        refreshReconnectButtonState()
+    private fun showDashboardView() {
+        layoutSearching.visibility = View.GONE
+        layoutCall.visibility = View.GONE
         layoutDashboard.visibility = View.VISIBLE
-        layoutSearching.visibility = View.GONE
-        layoutConnected.visibility = View.GONE
-    }
+        updateLevelSelectionUI()
 
-    private fun showSearching(text: String) {
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        tvSearchingText.text = text
-        layoutDashboard.visibility = View.GONE
-        layoutSearching.visibility = View.VISIBLE
-        layoutConnected.visibility = View.GONE
-    }
-
-    private fun showConnected(peerLevel: String) {
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        btnMute.alpha = 1.0f
-        btnSpeaker.alpha = 0.4f
-        tvTimer.text = "00:00"
-
-        layoutDashboard.visibility = View.GONE
-        layoutSearching.visibility = View.GONE
-        layoutConnected.visibility = View.VISIBLE
-        tvPartnerLevel.text = "Connected ($peerLevel Partner)"
-    }
-
-    private fun playWarningChime() {
-        try {
-            warningPlayer?.release()
-            warningPlayer = MediaPlayer.create(this, android.provider.Settings.System.DEFAULT_NOTIFICATION_URI)
-            warningPlayer?.start()
-        } catch (e: Exception) {
-            AppLogger.log("MainActivity-ERR", "Chime error: ${e.message}")
+        if (canReconnect && lastPeerId != null) {
+            btnReconnectLast.visibility = View.VISIBLE
+        } else {
+            btnReconnectLast.visibility = View.GONE
         }
     }
 
-    private fun showExtendCallDialog() {
+    private fun showExtendDialog() {
         AlertDialog.Builder(this)
-            .setTitle("1 Minute Remaining")
-            .setMessage("Would you like to extend your conversation by 5 minutes?")
+            .setTitle("Time Warning")
+            .setMessage("1 minute remaining! Would you like to extend this call by 5 minutes?")
             .setPositiveButton("Extend +5 Mins") { _, _ ->
-                val intent = Intent(this, CallService::class.java).apply {
-                    action = CallService.ACTION_EXTEND
-                }
-                startService(intent)
-                Toast.makeText(this, "Call extended +5 minutes!", Toast.LENGTH_SHORT).show()
+                CallService.extendTime(300L)
             }
             .setNegativeButton("Dismiss", null)
             .show()
     }
 
-    private fun showVipRequiredDialog(message: String) {
-        AlertDialog.Builder(this)
-            .setTitle("VIP Feature")
-            .setMessage(message)
-            .setPositiveButton("Unlock VIP") { _, _ ->
-                isVip = true
-                switchFemaleOnly.isChecked = true
-                Toast.makeText(this, "VIP Unlocked!", Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
+    // --- Signaling Listener Handlers ---
 
-    private fun setupDiagnosticsLogger() {
-        AppLogger.onLogUpdated = { logs ->
-            mainHandler.post {
-                tvDiagnostics.text = logs
+    override fun onMatchFound(roomId: String, isInitiator: Boolean, peerLevel: String, peerId: String, isReconnect: Boolean) {
+        if (isReconnect) {
+            canReconnect = false
+            lastPeerId = null
+        } else {
+            lastPeerId = peerId
+            canReconnect = true
+        }
+
+        WebRtcAudioClient.init(applicationContext, object : WebRtcAudioClient.RtcListener {
+            override fun onLocalOfferCreated(sdp: SessionDescription) {
+                SignalingClient.sendOffer(sdp)
             }
+
+            override fun onLocalAnswerCreated(sdp: SessionDescription) {
+                SignalingClient.sendAnswer(sdp)
+            }
+
+            override fun onIceCandidateGenerated(candidate: IceCandidate) {
+                SignalingClient.sendIceCandidate(candidate)
+            }
+
+            override fun onAudioConnected() {
+                startCallView()
+            }
+
+            override fun onDisconnected() {
+                endCallSession()
+            }
+        })
+
+        if (isInitiator) {
+            WebRtcAudioClient.createOffer()
         }
     }
+
+    override fun onOfferReceived(sdp: SessionDescription) {
+        WebRtcAudioClient.handleRemoteOffer(sdp)
+    }
+
+    override fun onAnswerReceived(sdp: SessionDescription) {
+        WebRtcAudioClient.handleRemoteAnswer(sdp)
+    }
+
+    override fun onIceCandidateReceived(candidate: IceCandidate) {
+        WebRtcAudioClient.addIceCandidate(candidate)
+    }
+
+    override fun onCallEnded() {
+        endCallSession()
+    }
+
+    override fun onReconnectWaiting() {
+        tvSearchingStatus.text = "Waiting for partner to accept reconnect..."
+    }
+
+    override fun onReconnectFailed(reason: String) {
+        canReconnect = false
+        showDashboardView()
+    }
+
+    // --- Lifecycle & Background Auto-Mute ---
 
     override fun onResume() {
         super.onResume()
-        refreshReconnectButtonState()
-        if (CallService.isCallActive) {
-            val intent = Intent(this, CallService::class.java).apply {
-                action = CallService.ACTION_APP_FOREGROUNDED
-            }
-            startService(intent)
+        backgroundHandler.removeCallbacks(autoMuteRunnable)
+        if (wasMutedBeforeBackground && isMuted) {
+            isMuted = false
+            WebRtcAudioClient.setMicrophoneMute(false)
+            btnMute.text = "🎤"
+            wasMutedBeforeBackground = false
         }
+        sensorManager?.registerListener(this, proximitySensor, SensorManager.SENSOR_DELAY_NORMAL)
     }
 
-    override fun onStop() {
-        super.onStop()
-        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
-        if (CallService.isCallActive && !isFinishing && powerManager.isInteractive) {
-            val intent = Intent(this, CallService::class.java).apply {
-                action = CallService.ACTION_APP_BACKGROUNDED
-            }
-            startService(intent)
+    override fun onPause() {
+        super.onPause()
+        if (layoutCall.visibility == View.VISIBLE) {
+            wasMutedBeforeBackground = !isMuted
+            backgroundHandler.postDelayed(autoMuteRunnable, 30000L)
         }
+        sensorManager?.unregisterListener(this)
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        warningPlayer?.release()
-        warningPlayer = null
+    override fun onSensorChanged(event: SensorEvent?) {}
+
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+
+    private fun loadBannerAd() {
+        val adView = AdView(this)
+        adView.adUnitId = "ca-app-pub-3940256099942544/6300978111"
+        adView.setAdSize(AdSize.BANNER)
+        layoutBannerAd.addView(adView)
+        adView.loadAd(AdRequest.Builder().build())
+    }
+
+    private fun checkPermissions() {
+        val permissions = mutableListOf(Manifest.permission.RECORD_AUDIO)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        val missing = permissions.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+        if (missing.isNotEmpty()) {
+            ActivityCompat.requestPermissions(this, missing.toTypedArray(), 101)
+        }
     }
 }

@@ -21,13 +21,13 @@ import android.view.WindowManager
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
-import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.englishtalk.app.R
 import com.englishtalk.app.network.SignalingClient
 import com.englishtalk.app.service.CallService
 import com.englishtalk.app.utils.AppLogger
@@ -45,7 +45,6 @@ class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener, Sen
     private lateinit var layoutCall: LinearLayout
     private lateinit var btnBeginner: Button
     private lateinit var btnAdvanced: Button
-    private lateinit var btnTalkNow: Button
     private lateinit var btnCancelSearch: Button
     private lateinit var btnReconnectLast: Button
     private lateinit var tvLockProgressPopup: TextView
@@ -61,7 +60,7 @@ class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener, Sen
     private lateinit var layoutBannerAd: FrameLayout
 
     private lateinit var prefs: SharedPreferences
-    private var selectedLevel = "Beginner"
+    private var activeCallLevel = "Beginner"
     private var isMuted = false
     private var isSpeakerOn = false
     private var isVip = false
@@ -163,7 +162,6 @@ class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener, Sen
         layoutCall = findViewById(R.id.layoutCall)
         btnBeginner = findViewById(R.id.btnBeginner)
         btnAdvanced = findViewById(R.id.btnAdvanced)
-        btnTalkNow = findViewById(R.id.btnTalkNow)
         btnCancelSearch = findViewById(R.id.btnCancelSearch)
         btnReconnectLast = findViewById(R.id.btnReconnectLast)
         tvLockProgressPopup = findViewById(R.id.tvLockProgressPopup)
@@ -179,28 +177,26 @@ class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener, Sen
         layoutBannerAd = findViewById(R.id.layoutBannerAd)
 
         AppLogger.init(tvConsoleLogs)
-        updateLevelSelectionUI()
+        updateLevelDashboardUI()
     }
 
     private fun setupListeners() {
+        // Direct 1-Tap Calling for Beginner
         btnBeginner.setOnClickListener {
-            selectedLevel = "Beginner"
-            updateLevelSelectionUI()
+            activeCallLevel = "Beginner"
+            startMatchingSearch("Beginner")
         }
 
+        // Direct 1-Tap Calling for Advanced (or Unlock Pop-up if Locked)
         btnAdvanced.setOnClickListener {
             val isUnlocked = prefs.getBoolean(PREF_ADVANCED_UNLOCKED, false)
             if (isUnlocked) {
-                selectedLevel = "Advanced"
-                updateLevelSelectionUI()
+                activeCallLevel = "Advanced"
+                startMatchingSearch("Advanced")
             } else {
                 val count = prefs.getInt(PREF_QUALIFIED_CALLS, 0)
                 showLockProgressPopup(count)
             }
-        }
-
-        btnTalkNow.setOnClickListener {
-            startMatchingSearch()
         }
 
         btnCancelSearch.setOnClickListener {
@@ -215,7 +211,7 @@ class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener, Sen
                 layoutDashboard.visibility = View.GONE
                 layoutSearching.visibility = View.VISIBLE
                 tvSearchingStatus.text = "Reconnecting to the last caller..."
-                SignalingClient.requestReconnect(targetPeer, selectedLevel)
+                SignalingClient.requestReconnect(targetPeer, activeCallLevel)
             }
         }
 
@@ -243,31 +239,29 @@ class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener, Sen
         popupHandler.postDelayed(hidePopupRunnable, 3000L)
     }
 
-    private fun updateLevelSelectionUI() {
+    private fun updateLevelDashboardUI() {
         val isAdvancedUnlocked = prefs.getBoolean(PREF_ADVANCED_UNLOCKED, false)
 
-        if (selectedLevel == "Beginner") {
-            btnBeginner.setBackgroundColor(Color.parseColor("#2563EB"))
-            btnBeginner.setTextColor(Color.WHITE)
-            btnAdvanced.setBackgroundColor(Color.parseColor("#1E293B"))
-            btnAdvanced.setTextColor(Color.parseColor("#94A3B8"))
-        } else {
+        if (isAdvancedUnlocked) {
+            btnAdvanced.text = "ADVANCED (TAP TO CALL)"
             btnAdvanced.setBackgroundColor(Color.parseColor("#2563EB"))
             btnAdvanced.setTextColor(Color.WHITE)
-            btnBeginner.setBackgroundColor(Color.parseColor("#1E293B"))
-            btnBeginner.setTextColor(Color.parseColor("#94A3B8"))
+            btnAdvanced.setCompoundDrawablesWithIntrinsicBounds(android.R.drawable.ic_menu_call, 0, 0, 0)
+        } else {
+            btnAdvanced.text = "🔒 ADVANCED"
+            btnAdvanced.setBackgroundColor(Color.parseColor("#1E293B"))
+            btnAdvanced.setTextColor(Color.parseColor("#94A3B8"))
+            btnAdvanced.setCompoundDrawablesWithIntrinsicBounds(android.R.drawable.ic_lock_lock, 0, 0, 0)
         }
-
-        btnAdvanced.text = if (isAdvancedUnlocked) "ADVANCED" else "🔒 ADVANCED"
     }
 
-    private fun startMatchingSearch() {
+    private fun startMatchingSearch(level: String) {
         layoutDashboard.visibility = View.GONE
         layoutSearching.visibility = View.VISIBLE
-        tvSearchingStatus.text = "Searching for a conversation partner..."
+        tvSearchingStatus.text = "Searching for a $level conversation partner..."
 
         SignalingClient.joinQueue(
-            level = selectedLevel,
+            level = level,
             userGender = "Unknown",
             talkToFemaleOnly = switchFemaleFilter.isChecked,
             isVip = isVip
@@ -304,7 +298,7 @@ class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener, Sen
         val elapsed = CallService.getElapsedSeconds()
         val isAlreadyUnlocked = prefs.getBoolean(PREF_ADVANCED_UNLOCKED, false)
 
-        if (!isAlreadyUnlocked && selectedLevel == "Beginner" && elapsed >= 240L) {
+        if (!isAlreadyUnlocked && activeCallLevel == "Beginner" && elapsed >= 240L) {
             val current = prefs.getInt(PREF_QUALIFIED_CALLS, 0) + 1
             prefs.edit().putInt(PREF_QUALIFIED_CALLS, current).apply()
             if (current >= 20) {
@@ -327,7 +321,7 @@ class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener, Sen
         layoutSearching.visibility = View.GONE
         layoutCall.visibility = View.GONE
         layoutDashboard.visibility = View.VISIBLE
-        updateLevelSelectionUI()
+        updateLevelDashboardUI()
 
         if (canReconnect && lastPeerId != null) {
             btnReconnectLast.visibility = View.VISIBLE

@@ -11,7 +11,6 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.englishtalk.app.MainActivity
-import com.englishtalk.app.R
 
 class CallService : Service() {
 
@@ -20,7 +19,7 @@ class CallService : Service() {
         private const val NOTIFICATION_ID = 1001
 
         private var callStartTimeMs: Long = 0L
-        private var totalDurationSeconds: Long = 900L // Default 15 minutes
+        private var totalDurationSeconds: Long = 900L // 15 minutes
 
         fun getElapsedSeconds(): Long {
             if (callStartTimeMs == 0L) return 0L
@@ -80,7 +79,7 @@ class CallService : Service() {
                 "Ongoing Call Notification Channel",
                 NotificationManager.IMPORTANCE_LOW
             )
-            val manager = getSystemService(NotificationManager::class.java)
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
             manager?.createNotificationChannel(serviceChannel)
         }
     }

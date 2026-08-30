@@ -31,8 +31,8 @@ object SignalingClient {
         fun onAnswerReceived(sdp: SessionDescription)
         fun onIceCandidateReceived(candidate: IceCandidate)
         fun onCallEnded()
-        fun onReconnectWaiting() {}
-        fun onReconnectFailed(reason: String) {}
+        fun onReconnectWaiting()
+        fun onReconnectFailed(reason: String)
     }
 
     private var listener: SignalingListener? = null
@@ -64,7 +64,7 @@ object SignalingClient {
                             "match_found" -> {
                                 val roomId = data.optString("roomId")
                                 val isInitiator = data.optBoolean("isInitiator", false)
-                                val peerLevel = data.optString("peerLevel", "Intermediate")
+                                val peerLevel = data.optString("peerLevel", "Beginner")
                                 val peerId = data.optString("peerId", "")
                                 val isReconnect = data.optBoolean("isReconnect", false)
 

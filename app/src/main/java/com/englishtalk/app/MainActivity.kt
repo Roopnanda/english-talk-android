@@ -139,7 +139,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         setupListeners()
         loadBannerAd()
 
-        // Initialize WebRTC engine once at startup
+        // Initialize WebRTC factory at startup
         WebRtcAudioClient.init(applicationContext)
 
         SignalingClient.setListener(this)
@@ -418,7 +418,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             canReconnect = true
         }
 
-        // Start session on the pre-initialized engine
+        // Lazy session startup with safe audio track allocation
         WebRtcAudioClient.startSession(object : WebRtcAudioClient.RtcListener {
             override fun onLocalOfferCreated(sdp: SessionDescription) {
                 AppLogger.log("WebRTC", "Local offer SDP ready")

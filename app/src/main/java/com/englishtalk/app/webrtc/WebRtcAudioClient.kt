@@ -19,10 +19,10 @@ object WebRtcAudioClient {
     private var localAudioSource: AudioSource? = null
     private var localAudioTrack: AudioTrack? = null
     private var rtcListener: RtcListener? = null
-    private var isInitialized = false
+    private var isFactoryInitialized = false
 
     fun init(context: Context) {
-        if (isInitialized) return
+        if (isFactoryInitialized) return
 
         try {
             val appContext = context.applicationContext ?: context
@@ -36,6 +36,24 @@ object WebRtcAudioClient {
                 .setOptions(options)
                 .createPeerConnectionFactory()
 
+            isFactoryInitialized = true
+            AppLogger.log("WebRTC", "Native Factory initialized")
+        } catch (e: Throwable) {
+            AppLogger.log("WebRTC-ERR", "Factory init failure: ${e.message}")
+        }
+    }
+
+    fun startSession(listener: RtcListener) {
+        this.rtcListener = listener
+
+        try {
+            val factory = peerConnectionFactory
+            if (factory == null) {
+                AppLogger.log("WebRTC-ERR", "Factory is null on startSession")
+                return
+            }
+
+            // Create Audio Source and Track lazily per session
             val audioConstraints = MediaConstraints().apply {
                 mandatory.add(MediaConstraints.KeyValuePair("googEchoCancellation", "true"))
                 mandatory.add(MediaConstraints.KeyValuePair("googAutoGainControl", "true"))
@@ -43,20 +61,15 @@ object WebRtcAudioClient {
                 mandatory.add(MediaConstraints.KeyValuePair("googNoiseSuppression", "true"))
             }
 
-            localAudioSource = peerConnectionFactory?.createAudioSource(audioConstraints)
-            localAudioTrack = peerConnectionFactory?.createAudioTrack("ARDAMSa0", localAudioSource)
+            localAudioSource = factory.createAudioSource(audioConstraints)
+            localAudioTrack = factory.createAudioTrack("ARDAMSa0", localAudioSource)
             localAudioTrack?.setEnabled(true)
 
-            isInitialized = true
-            AppLogger.log("WebRTC", "Audio engine initialized at startup")
+            createPeerConnection()
+            AppLogger.log("WebRTC", "Session audio tracks initialized")
         } catch (e: Throwable) {
-            AppLogger.log("WebRTC-ERR", "Startup init failure: ${e.message}")
+            AppLogger.log("WebRTC-ERR", "Session start failure: ${e.message}")
         }
-    }
-
-    fun startSession(listener: RtcListener) {
-        this.rtcListener = listener
-        createPeerConnection()
     }
 
     private fun createPeerConnection() {
@@ -210,6 +223,11 @@ object WebRtcAudioClient {
         try {
             peerConnection?.close()
             peerConnection = null
+            localAudioTrack?.dispose()
+            localAudioTrack = null
+            localAudioSource?.dispose()
+            localAudioSource = null
+            AppLogger.log("WebRTC", "Session audio cleaned")
         } catch (e: Throwable) {
             AppLogger.log("WebRTC-ERR", "Close cleanup error: ${e.message}")
         }

@@ -1,256 +1,204 @@
 package com.englishtalk.app.webrtc
 
 import android.content.Context
-import android.media.MediaRecorder
 import com.englishtalk.app.utils.AppLogger
 import org.webrtc.*
-import org.webrtc.audio.AudioDeviceModule
-import org.webrtc.audio.JavaAudioDeviceModule
-import java.util.concurrent.Executors
 
-class WebRtcAudioClient(
-    private val context: Context,
-    private val onIceCandidateGenerated: (IceCandidate) -> Unit,
-    private val onRemoteStreamActive: () -> Unit
-) {
+object WebRtcAudioClient {
 
-    private val executor = Executors.newSingleThreadExecutor()
+    interface RtcListener {
+        fun onLocalOfferCreated(sdp: SessionDescription)
+        fun onLocalAnswerCreated(sdp: SessionDescription)
+        fun onIceCandidateGenerated(candidate: IceCandidate)
+        fun onAudioConnected()
+        fun onDisconnected()
+    }
 
     private var peerConnectionFactory: PeerConnectionFactory? = null
     private var peerConnection: PeerConnection? = null
-    private var audioDeviceModule: AudioDeviceModule? = null
     private var localAudioSource: AudioSource? = null
     private var localAudioTrack: AudioTrack? = null
+    private var rtcListener: RtcListener? = null
 
-    private val pendingRemoteCandidates = mutableListOf<IceCandidate>()
-    private var isRemoteDescriptionSet = false
+    fun init(context: Context, listener: RtcListener) {
+        this.rtcListener = listener
 
-    init {
-        executor.execute {
-            initializeFactory()
-        }
-    }
-
-    private fun initializeFactory() {
-        try {
-            val initOptions = PeerConnectionFactory.InitializationOptions.builder(context)
+        PeerConnectionFactory.initialize(
+            PeerConnectionFactory.InitializationOptions.builder(context)
                 .setEnableInternalTracer(false)
                 .createInitializationOptions()
-            PeerConnectionFactory.initialize(initOptions)
+        )
 
-            audioDeviceModule = JavaAudioDeviceModule.builder(context)
-                .setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
-                .setUseHardwareAcousticEchoCanceler(JavaAudioDeviceModule.isBuiltInAcousticEchoCancelerSupported())
-                .setUseHardwareNoiseSuppressor(JavaAudioDeviceModule.isBuiltInNoiseSuppressorSupported())
-                .createAudioDeviceModule()
+        val options = PeerConnectionFactory.Options()
+        val audioDeviceModule = JavaAudioDeviceModule.builder(context)
+            .setUseHardwareAcousticEchoCanceler(true)
+            .setUseHardwareNoiseSuppressor(true)
+            .createAudioDeviceModule()
 
-            val options = PeerConnectionFactory.Options()
-            peerConnectionFactory = PeerConnectionFactory.builder()
-                .setOptions(options)
-                .setAudioDeviceModule(audioDeviceModule)
-                .createPeerConnectionFactory()
+        peerConnectionFactory = PeerConnectionFactory.builder()
+            .setOptions(options)
+            .setAudioDeviceModule(audioDeviceModule)
+            .createPeerConnectionFactory()
 
-            createLocalAudioTrack()
-            AppLogger.log("WebRTC", "Audio Factory ready with adaptive AEC/NS")
-        } catch (e: Throwable) {
-            AppLogger.log("WebRTC-ERR", "Factory init failed: ${e.message}")
-        }
-    }
-
-    private fun createLocalAudioTrack() {
         val audioConstraints = MediaConstraints().apply {
             mandatory.add(MediaConstraints.KeyValuePair("googEchoCancellation", "true"))
-            mandatory.add(MediaConstraints.KeyValuePair("googEchoCancellation2", "true"))
-            mandatory.add(MediaConstraints.KeyValuePair("googDAEchoCancellation", "true"))
             mandatory.add(MediaConstraints.KeyValuePair("googAutoGainControl", "true"))
             mandatory.add(MediaConstraints.KeyValuePair("googHighpassFilter", "true"))
             mandatory.add(MediaConstraints.KeyValuePair("googNoiseSuppression", "true"))
-            mandatory.add(MediaConstraints.KeyValuePair("googTypingNoiseDetection", "true"))
-            optional.add(MediaConstraints.KeyValuePair("DtlsSrtpKeyAgreement", "true"))
         }
 
         localAudioSource = peerConnectionFactory?.createAudioSource(audioConstraints)
         localAudioTrack = peerConnectionFactory?.createAudioTrack("ARDAMSa0", localAudioSource)
         localAudioTrack?.setEnabled(true)
+
+        createPeerConnection()
     }
 
-    fun initPeerConnection(isInitiator: Boolean, onOfferReady: (SessionDescription) -> Unit) {
-        executor.execute {
-            try {
-                val iceServers = listOf(
-                    PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer(),
-                    PeerConnection.IceServer.builder("stun:stun1.l.google.com:19302").createIceServer()
-                )
+    private fun createPeerConnection() {
+        val iceServers = listOf(
+            PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer(),
+            PeerConnection.IceServer.builder("stun:stun1.l.google.com:19302").createIceServer()
+        )
 
-                val rtcConfig = PeerConnection.RTCConfiguration(iceServers).apply {
-                    sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
-                    continualGatheringPolicy = PeerConnection.ContinualGatheringPolicy.GATHER_CONTINUALLY
-                }
+        val rtcConfig = PeerConnection.RTCConfiguration(iceServers).apply {
+            sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
+            continualGatheringPolicy = PeerConnection.ContinualGatheringPolicy.GATHER_CONTINUALLY
+        }
 
-                peerConnection = peerConnectionFactory?.createPeerConnection(rtcConfig, object : PeerConnection.Observer {
-                    override fun onIceCandidate(candidate: IceCandidate?) {
-                        candidate?.let { onIceCandidateGenerated(it) }
-                    }
-
-                    override fun onIceCandidatesRemoved(candidates: Array<out IceCandidate>?) {}
-                    override fun onSignalingChange(state: PeerConnection.SignalingState?) {}
-                    override fun onIceConnectionChange(state: PeerConnection.IceConnectionState?) {
-                        AppLogger.log("WebRTC", "ICE state: $state")
-                    }
-                    override fun onIceConnectionReceivingChange(receiving: Boolean) {}
-                    override fun onIceGatheringChange(state: PeerConnection.IceGatheringState?) {}
-                    override fun onAddStream(stream: MediaStream?) {}
-                    override fun onRemoveStream(stream: MediaStream?) {}
-                    override fun onDataChannel(channel: DataChannel?) {}
-                    override fun onRenegotiationNeeded() {}
-
-                    override fun onAddTrack(receiver: RtpReceiver?, mediaStreams: Array<out MediaStream>?) {
-                        AppLogger.log("WebRTC", "Remote audio track active")
-                        onRemoteStreamActive()
-                    }
-                })
-
-                localAudioTrack?.let {
-                    peerConnection?.addTrack(it, listOf("ARDAMS"))
-                }
-
-                if (isInitiator) {
-                    createOffer(onOfferReady)
-                }
-            } catch (e: Throwable) {
-                AppLogger.log("WebRTC-ERR", "PeerConnection init fail: ${e.message}")
+        peerConnection = peerConnectionFactory?.createPeerConnection(rtcConfig, object : PeerConnection.Observer {
+            override fun onIceCandidate(candidate: IceCandidate?) {
+                candidate?.let { rtcListener?.onIceCandidateGenerated(it) }
             }
+
+            override fun onIceCandidatesRemoved(candidates: Array<out IceCandidate>?) {}
+
+            override fun onIceConnectionChange(newState: PeerConnection.IceConnectionState?) {
+                AppLogger.log("WebRTC", "ICE state: $newState")
+                if (newState == PeerConnection.IceConnectionState.CONNECTED) {
+                    rtcListener?.onAudioConnected()
+                } else if (newState == PeerConnection.IceConnectionState.DISCONNECTED ||
+                           newState == PeerConnection.IceConnectionState.FAILED ||
+                           newState == PeerConnection.IceConnectionState.CLOSED) {
+                    rtcListener?.onDisconnected()
+                }
+            }
+
+            override fun onSignalingChange(newState: PeerConnection.SignalingState?) {}
+            override fun onIceConnectionReceivingChange(receiving: Boolean) {}
+            override fun onIceGatheringChange(newState: PeerConnection.IceGatheringState?) {}
+            override fun onAddStream(stream: MediaStream?) {}
+            override fun onRemoveStream(stream: MediaStream?) {}
+            override fun onDataChannel(dataChannel: DataChannel?) {}
+            override fun onRenegotiationNeeded() {}
+            override fun onAddTrack(receiver: RtpReceiver?, streams: Array<out MediaStream>?) {}
+        })
+
+        localAudioTrack?.let {
+            peerConnection?.addTrack(it, listOf("ARDAMS"))
         }
     }
 
-    private fun tuneSdpForEchoElimination(sdpDescription: String): String {
-        return sdpDescription.replace(
+    fun createOffer() {
+        val constraints = MediaConstraints().apply {
+            mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
+            mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "false"))
+        }
+
+        peerConnection?.createOffer(object : SdpObserver {
+            override fun onCreateSuccess(desc: SessionDescription?) {
+                desc?.let {
+                    val mungedSdp = mungeOpusDtx(it.description)
+                    val sdp = SessionDescription(it.type, mungedSdp)
+                    peerConnection?.setLocalDescription(object : SdpObserver {
+                        override fun onCreateSuccess(p0: SessionDescription?) {}
+                        override fun onSetSuccess() {
+                            rtcListener?.onLocalOfferCreated(sdp)
+                        }
+                        override fun onCreateFailure(p0: String?) {}
+                        override fun onSetFailure(p0: String?) {}
+                    }, sdp)
+                }
+            }
+            override fun onSetSuccess() {}
+            override fun onCreateFailure(p0: String?) {}
+            override fun onSetFailure(p0: String?) {}
+        }, constraints)
+    }
+
+    fun handleRemoteOffer(sdp: SessionDescription) {
+        peerConnection?.setRemoteDescription(object : SdpObserver {
+            override fun onCreateSuccess(p0: SessionDescription?) {}
+            override fun onSetSuccess() {
+                createAnswer()
+            }
+            override fun onCreateFailure(p0: String?) {}
+            override fun onSetFailure(p0: String?) {}
+        }, sdp)
+    }
+
+    private fun createAnswer() {
+        val constraints = MediaConstraints().apply {
+            mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
+            mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "false"))
+        }
+
+        peerConnection?.createAnswer(object : SdpObserver {
+            override fun onCreateSuccess(desc: SessionDescription?) {
+                desc?.let {
+                    val mungedSdp = mungeOpusDtx(it.description)
+                    val sdp = SessionDescription(it.type, mungedSdp)
+                    peerConnection?.setLocalDescription(object : SdpObserver {
+                        override fun onCreateSuccess(p0: SessionDescription?) {}
+                        override fun onSetSuccess() {
+                            rtcListener?.onLocalAnswerCreated(sdp)
+                        }
+                        override fun onCreateFailure(p0: String?) {}
+                        override fun onSetFailure(p0: String?) {}
+                    }, sdp)
+                }
+            }
+            override fun onSetSuccess() {}
+            override fun onCreateFailure(p0: String?) {}
+            override fun onSetFailure(p0: String?) {}
+        }, constraints)
+    }
+
+    fun handleRemoteAnswer(sdp: SessionDescription) {
+        peerConnection?.setRemoteDescription(object : SdpObserver {
+            override fun onCreateSuccess(p0: SessionDescription?) {}
+            override fun onSetSuccess() {}
+            override fun onCreateFailure(p0: String?) {}
+            override fun onSetFailure(p0: String?) {}
+        }, sdp)
+    }
+
+    fun addIceCandidate(candidate: IceCandidate) {
+        peerConnection?.addIceCandidate(candidate)
+    }
+
+    fun setMicrophoneMute(isMuted: Boolean) {
+        localAudioTrack?.setEnabled(!isMuted)
+    }
+
+    private fun mungeOpusDtx(sdp: String): String {
+        return sdp.replace(
             "useinbandfec=1",
-            "useinbandfec=1;stereo=0;sprop-stereo=0;usedtx=1;maxaveragebitrate=16000"
+            "useinbandfec=1;usedtx=1;stereo=0;sprop-stereo=0;maxaveragebitrate=16000"
         )
     }
 
-    private fun createOffer(onOfferReady: (SessionDescription) -> Unit) {
-        val sdpConstraints = MediaConstraints().apply {
-            mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
-            mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "false"))
-        }
-
-        peerConnection?.createOffer(object : SdpObserverAdapter() {
-            override fun onCreateSuccess(desc: SessionDescription?) {
-                desc?.let { offer ->
-                    val tunedSdp = tuneSdpForEchoElimination(offer.description)
-                    val tunedOffer = SessionDescription(offer.type, tunedSdp)
-                    peerConnection?.setLocalDescription(object : SdpObserverAdapter() {
-                        override fun onSetSuccess() {
-                            onOfferReady(tunedOffer)
-                        }
-                    }, tunedOffer)
-                }
-            }
-        }, sdpConstraints)
-    }
-
-    fun onRemoteOfferReceived(sdp: SessionDescription, onAnswerReady: (SessionDescription) -> Unit) {
-        executor.execute {
-            peerConnection?.setRemoteDescription(object : SdpObserverAdapter() {
-                override fun onSetSuccess() {
-                    isRemoteDescriptionSet = true
-                    drainPendingCandidates()
-                    createAnswer(onAnswerReady)
-                }
-            }, sdp)
-        }
-    }
-
-    private fun createAnswer(onAnswerReady: (SessionDescription) -> Unit) {
-        val sdpConstraints = MediaConstraints().apply {
-            mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
-            mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "false"))
-        }
-
-        peerConnection?.createAnswer(object : SdpObserverAdapter() {
-            override fun onCreateSuccess(desc: SessionDescription?) {
-                desc?.let { answer ->
-                    val tunedSdp = tuneSdpForEchoElimination(answer.description)
-                    val tunedAnswer = SessionDescription(answer.type, tunedSdp)
-                    peerConnection?.setLocalDescription(object : SdpObserverAdapter() {
-                        override fun onSetSuccess() {
-                            onAnswerReady(tunedAnswer)
-                        }
-                    }, tunedAnswer)
-                }
-            }
-        }, sdpConstraints)
-    }
-
-    fun onRemoteAnswerReceived(sdp: SessionDescription) {
-        executor.execute {
-            peerConnection?.setRemoteDescription(object : SdpObserverAdapter() {
-                override fun onSetSuccess() {
-                    isRemoteDescriptionSet = true
-                    drainPendingCandidates()
-                }
-            }, sdp)
-        }
-    }
-
-    fun addRemoteIceCandidate(candidate: IceCandidate) {
-        executor.execute {
-            if (isRemoteDescriptionSet) {
-                peerConnection?.addIceCandidate(candidate)
-            } else {
-                pendingRemoteCandidates.add(candidate)
-            }
-        }
-    }
-
-    private fun drainPendingCandidates() {
-        for (candidate in pendingRemoteCandidates) {
-            peerConnection?.addIceCandidate(candidate)
-        }
-        pendingRemoteCandidates.clear()
-    }
-
-    fun setMicrophoneEnabled(enabled: Boolean) {
-        executor.execute {
-            localAudioTrack?.setEnabled(enabled)
-        }
-    }
-
-    fun disconnect() {
-        executor.execute {
-            try {
-                localAudioTrack?.setEnabled(false)
-                localAudioTrack?.dispose()
-                localAudioTrack = null
-
-                localAudioSource?.dispose()
-                localAudioSource = null
-
-                peerConnection?.close()
-                peerConnection?.dispose()
-                peerConnection = null
-
-                audioDeviceModule?.release()
-                audioDeviceModule = null
-
-                peerConnectionFactory?.dispose()
-                peerConnectionFactory = null
-            } catch (e: Throwable) {
-                AppLogger.log("WebRTC-ERR", "Disconnect error: ${e.message}")
-            }
-        }
-    }
-
-    open class SdpObserverAdapter : SdpObserver {
-        override fun onCreateSuccess(p0: SessionDescription?) {}
-        override fun onSetSuccess() {}
-        override fun onCreateFailure(p0: String?) {
-            AppLogger.log("WebRTC-ERR", "SDP fail: $p0")
-        }
-        override fun onSetFailure(p0: String?) {
-            AppLogger.log("WebRTC-ERR", "SDP set fail: $p0")
+    fun close() {
+        try {
+            peerConnection?.close()
+            peerConnection = null
+            localAudioTrack?.dispose()
+            localAudioTrack = null
+            localAudioSource?.dispose()
+            localAudioSource = null
+            peerConnectionFactory?.dispose()
+            peerConnectionFactory = null
+        } catch (e: Exception) {
+            AppLogger.log("WebRTC-ERR", "Close error: ${e.message}")
         }
     }
 }

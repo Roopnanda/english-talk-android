@@ -31,9 +31,6 @@ import com.englishtalk.app.network.SignalingClient
 import com.englishtalk.app.service.CallService
 import com.englishtalk.app.utils.AppLogger
 import com.englishtalk.app.webrtc.WebRtcAudioClient
-import com.google.android.gms.ads.AdRequest
-import com.google.android.gms.ads.AdSize
-import com.google.android.gms.ads.AdView
 import org.webrtc.IceCandidate
 import org.webrtc.SessionDescription
 
@@ -126,6 +123,22 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Install Crash Trapper to prevent silent closures and show dialog
+        Thread.setDefaultUncaughtExceptionHandler { _, throwable ->
+            mainUiHandler.post {
+                try {
+                    AlertDialog.Builder(this)
+                        .setTitle("Application Diagnostic")
+                        .setMessage("Error encountered:\n${throwable.localizedMessage}\n\nCause: ${throwable.cause}")
+                        .setPositiveButton("Dismiss", null)
+                        .show()
+                } catch (e: Exception) {
+                    // Fallback
+                }
+            }
+        }
+
         setContentView(R.layout.activity_main)
 
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -136,7 +149,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         initSensors()
         initViews()
         setupListeners()
-        loadBannerAd()
 
         SignalingClient.setListener(this)
         SignalingClient.connect()
@@ -145,15 +157,19 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     }
 
     private fun initSensors() {
-        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
-        proximitySensor = sensorManager?.getDefaultSensor(Sensor.TYPE_PROXIMITY)
+        try {
+            sensorManager = getSystemService(Context.SENSOR_SERVICE) as? SensorManager
+            proximitySensor = sensorManager?.getDefaultSensor(Sensor.TYPE_PROXIMITY)
 
-        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
-        if (powerManager.isWakeLockLevelSupported(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK)) {
-            proximityWakeLock = powerManager.newWakeLock(
-                PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK,
-                "EnglishTalk:ProximityLock"
-            )
+            val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
+            if (powerManager != null && powerManager.isWakeLockLevelSupported(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK)) {
+                proximityWakeLock = powerManager.newWakeLock(
+                    PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK,
+                    "EnglishTalk:ProximityLock"
+                )
+            }
+        } catch (e: Exception) {
+            AppLogger.log("Sensors", "Sensor init note: ${e.message}")
         }
     }
 
@@ -280,58 +296,83 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
     private fun startCallView() {
         mainUiHandler.post {
-            layoutSearching.visibility = View.GONE
-            layoutDashboard.visibility = View.GONE
-            layoutCall.visibility = View.VISIBLE
+            try {
+                layoutSearching.visibility = View.GONE
+                layoutDashboard.visibility = View.GONE
+                layoutCall.visibility = View.VISIBLE
 
-            tvCallPartnerName.text = "Connected"
-            tvCallTimer.text = "15:00"
+                tvCallPartnerName.text = "Connected"
+                tvCallTimer.text = "15:00"
 
-            isMuted = false
-            isSpeakerOn = false
-            audioManager.isSpeakerphoneOn = false
-            btnMute.text = "🎤"
-            btnSpeaker.text = "🔈"
+                isMuted = false
+                isSpeakerOn = false
+                audioManager.isSpeakerphoneOn = false
+                btnMute.text = "🎤"
+                btnSpeaker.text = "🔈"
 
-            val serviceIntent = Intent(this, CallService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(serviceIntent)
-            } else {
-                startService(serviceIntent)
-            }
+                try {
+                    val serviceIntent = Intent(this, CallService::class.java)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        startForegroundService(serviceIntent)
+                    } else {
+                        startService(serviceIntent)
+                    }
+                } catch (e: Exception) {
+                    AppLogger.log("Service", "FGS Start note: ${e.message}")
+                }
 
-            timerHandler.post(timerRunnable)
+                timerHandler.post(timerRunnable)
 
-            proximityWakeLock?.let {
-                if (!it.isHeld) it.acquire()
+                try {
+                    proximityWakeLock?.let {
+                        if (!it.isHeld) it.acquire(10 * 60 * 1000L /* 10 mins */)
+                    }
+                } catch (e: Exception) {
+                    AppLogger.log("WakeLock", "Acquire note: ${e.message}")
+                }
+            } catch (e: Exception) {
+                AppLogger.log("CallView-ERR", "Error entering call view: ${e.message}")
             }
         }
     }
 
     private fun endCallSession() {
         mainUiHandler.post {
-            timerHandler.removeCallbacks(timerRunnable)
+            try {
+                timerHandler.removeCallbacks(timerRunnable)
 
-            val elapsed = CallService.getElapsedSeconds()
-            val isAlreadyUnlocked = prefs.getBoolean(PREF_ADVANCED_UNLOCKED, false)
+                val elapsed = CallService.getElapsedSeconds()
+                val isAlreadyUnlocked = prefs.getBoolean(PREF_ADVANCED_UNLOCKED, false)
 
-            if (!isAlreadyUnlocked && activeCallLevel == "Beginner" && elapsed >= 240L) {
-                val current = prefs.getInt(PREF_QUALIFIED_CALLS, 0) + 1
-                prefs.edit().putInt(PREF_QUALIFIED_CALLS, current).apply()
-                if (current >= 20) {
-                    prefs.edit().putBoolean(PREF_ADVANCED_UNLOCKED, true).apply()
+                if (!isAlreadyUnlocked && activeCallLevel == "Beginner" && elapsed >= 240L) {
+                    val current = prefs.getInt(PREF_QUALIFIED_CALLS, 0) + 1
+                    prefs.edit().putInt(PREF_QUALIFIED_CALLS, current).apply()
+                    if (current >= 20) {
+                        prefs.edit().putBoolean(PREF_ADVANCED_UNLOCKED, true).apply()
+                    }
                 }
+
+                SignalingClient.endCall()
+                WebRtcAudioClient.close()
+
+                try {
+                    stopService(Intent(this, CallService::class.java))
+                } catch (e: Exception) {
+                    // Ignore
+                }
+
+                try {
+                    proximityWakeLock?.let {
+                        if (it.isHeld) it.release()
+                    }
+                } catch (e: Exception) {
+                    // Ignore
+                }
+
+                showDashboardView()
+            } catch (e: Exception) {
+                AppLogger.log("EndCall-ERR", "Error ending call: ${e.message}")
             }
-
-            SignalingClient.endCall()
-            WebRtcAudioClient.close()
-            stopService(Intent(this, CallService::class.java))
-
-            proximityWakeLock?.let {
-                if (it.isHeld) it.release()
-            }
-
-            showDashboardView()
         }
     }
 
@@ -439,7 +480,11 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             btnMute.text = "🎤"
             wasMutedBeforeBackground = false
         }
-        sensorManager?.registerListener(this, proximitySensor, SensorManager.SENSOR_DELAY_NORMAL)
+        try {
+            sensorManager?.registerListener(this, proximitySensor, SensorManager.SENSOR_DELAY_NORMAL)
+        } catch (e: Exception) {
+            // Ignore
+        }
     }
 
     override fun onPause() {
@@ -448,20 +493,16 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             wasMutedBeforeBackground = !isMuted
             backgroundHandler.postDelayed(autoMuteRunnable, 30000L)
         }
-        sensorManager?.unregisterListener(this)
+        try {
+            sensorManager?.unregisterListener(this)
+        } catch (e: Exception) {
+            // Ignore
+        }
     }
 
     override fun onSensorChanged(event: SensorEvent?) {}
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
-
-    private fun loadBannerAd() {
-        val adView = AdView(this)
-        adView.adUnitId = "ca-app-pub-3940256099942544/6300978111"
-        adView.setAdSize(AdSize.BANNER)
-        layoutBannerAd.addView(adView)
-        adView.loadAd(AdRequest.Builder().build())
-    }
 
     private fun checkPermissions() {
         val permissions = mutableListOf(Manifest.permission.RECORD_AUDIO)

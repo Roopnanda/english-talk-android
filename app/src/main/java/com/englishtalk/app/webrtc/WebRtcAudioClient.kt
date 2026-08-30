@@ -21,19 +21,15 @@ object WebRtcAudioClient {
     private var rtcListener: RtcListener? = null
     private var isInitialized = false
 
-    fun init(context: Context, listener: RtcListener) {
-        this.rtcListener = listener
+    fun init(context: Context) {
+        if (isInitialized) return
 
         try {
             val appContext = context.applicationContext ?: context
-
-            if (!isInitialized) {
-                val initOptions = PeerConnectionFactory.InitializationOptions.builder(appContext)
-                    .setEnableInternalTracer(false)
-                    .createInitializationOptions()
-                PeerConnectionFactory.initialize(initOptions)
-                isInitialized = true
-            }
+            val initOptions = PeerConnectionFactory.InitializationOptions.builder(appContext)
+                .setEnableInternalTracer(false)
+                .createInitializationOptions()
+            PeerConnectionFactory.initialize(initOptions)
 
             val options = PeerConnectionFactory.Options()
             peerConnectionFactory = PeerConnectionFactory.builder()
@@ -51,11 +47,16 @@ object WebRtcAudioClient {
             localAudioTrack = peerConnectionFactory?.createAudioTrack("ARDAMSa0", localAudioSource)
             localAudioTrack?.setEnabled(true)
 
-            createPeerConnection()
-            AppLogger.log("WebRTC", "Audio engine ready")
+            isInitialized = true
+            AppLogger.log("WebRTC", "Audio engine initialized at startup")
         } catch (e: Throwable) {
-            AppLogger.log("WebRTC-ERR", "Engine init error: ${e.message}")
+            AppLogger.log("WebRTC-ERR", "Startup init failure: ${e.message}")
         }
+    }
+
+    fun startSession(listener: RtcListener) {
+        this.rtcListener = listener
+        createPeerConnection()
     }
 
     private fun createPeerConnection() {
@@ -209,14 +210,8 @@ object WebRtcAudioClient {
         try {
             peerConnection?.close()
             peerConnection = null
-            localAudioTrack?.dispose()
-            localAudioTrack = null
-            localAudioSource?.dispose()
-            localAudioSource = null
-            peerConnectionFactory?.dispose()
-            peerConnectionFactory = null
         } catch (e: Throwable) {
-            AppLogger.log("WebRTC-ERR", "Close error: ${e.message}")
+            AppLogger.log("WebRTC-ERR", "Close cleanup error: ${e.message}")
         }
     }
 }

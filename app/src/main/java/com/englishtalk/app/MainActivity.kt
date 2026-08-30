@@ -1,6 +1,8 @@
 package com.englishtalk.app
 
 import android.Manifest
+import android.app.Activity
+import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
@@ -23,8 +25,6 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.Switch
 import android.widget.TextView
-import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.englishtalk.app.network.SignalingClient
@@ -37,7 +37,7 @@ import com.google.android.gms.ads.AdView
 import org.webrtc.IceCandidate
 import org.webrtc.SessionDescription
 
-class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener, SensorEventListener {
+class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventListener {
 
     private lateinit var layoutDashboard: LinearLayout
     private lateinit var layoutSearching: LinearLayout
@@ -181,16 +181,24 @@ class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener, Sen
     private fun setupListeners() {
         // Direct 1-Tap Calling for Beginner
         btnBeginner.setOnClickListener {
-            activeCallLevel = "Beginner"
-            startMatchingSearch("Beginner")
+            if (hasAudioPermission()) {
+                activeCallLevel = "Beginner"
+                startMatchingSearch("Beginner")
+            } else {
+                checkPermissions()
+            }
         }
 
         // Direct 1-Tap Calling for Advanced (or Unlock Pop-up if Locked)
         btnAdvanced.setOnClickListener {
             val isUnlocked = prefs.getBoolean(PREF_ADVANCED_UNLOCKED, false)
             if (isUnlocked) {
-                activeCallLevel = "Advanced"
-                startMatchingSearch("Advanced")
+                if (hasAudioPermission()) {
+                    activeCallLevel = "Advanced"
+                    startMatchingSearch("Advanced")
+                } else {
+                    checkPermissions()
+                }
             } else {
                 val count = prefs.getInt(PREF_QUALIFIED_CALLS, 0)
                 showLockProgressPopup(count)
@@ -228,6 +236,10 @@ class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener, Sen
         btnEndCall.setOnClickListener {
             endCallSession()
         }
+    }
+
+    private fun hasAudioPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
     }
 
     private fun showLockProgressPopup(currentCount: Int) {

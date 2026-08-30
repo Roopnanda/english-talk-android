@@ -1,53 +1,74 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout 
+<RelativeLayout 
     xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#0F172A">
 
     <!-- Top Header Bar -->
-    <TextView
-        android:id="@+id/tvAppTitle"
-        android:layout_width="wrap_content"
+    <RelativeLayout
+        android:id="@+id/layoutHeader"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginStart="24dp"
-        android:layout_marginTop="24dp"
-        android:text="English Talk"
-        android:textColor="#FFFFFF"
-        android:textSize="24sp"
-        android:textStyle="bold"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        android:layout_alignParentTop="true"
+        android:padding="20dp">
 
-    <Button
-        android:id="@+id/btnVip"
-        android:layout_width="wrap_content"
-        android:layout_height="38dp"
-        android:layout_marginEnd="24dp"
-        android:backgroundTint="#F59E0B"
-        android:text="👑 GO VIP"
-        android:textColor="#FFFFFF"
-        android:textSize="12sp"
-        android:textStyle="bold"
-        app:cornerRadius="19dp"
-        app:layout_constraintBottom_toBottomOf="@id/tvAppTitle"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="@id/tvAppTitle" />
+        <TextView
+            android:id="@+id/tvAppTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_centerVertical="true"
+            android:text="English Talk"
+            android:textColor="#FFFFFF"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btnVip"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:background="#F59E0B"
+            android:text="👑 GO VIP"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+    </RelativeLayout>
+
+    <!-- Bottom AdMob Banner Container -->
+    <FrameLayout
+        android:id="@+id/layoutBannerAd"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:layout_alignParentBottom="true"
+        android:background="#1E293B" />
+
+    <!-- Diagnostics Console Box -->
+    <TextView
+        android:id="@+id/tvConsoleLogs"
+        android:layout_width="match_parent"
+        android:layout_height="80dp"
+        android:layout_above="@id/layoutBannerAd"
+        android:background="#090D16"
+        android:fontFamily="monospace"
+        android:padding="6dp"
+        android:scrollbars="vertical"
+        android:textColor="#38BDF8"
+        android:textSize="10sp" />
 
     <!-- 1. DASHBOARD VIEW -->
     <LinearLayout
         android:id="@+id/layoutDashboard"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_above="@id/tvConsoleLogs"
+        android:layout_below="@id/layoutHeader"
         android:gravity="center"
         android:orientation="vertical"
         android:paddingHorizontal="24dp"
-        android:visibility="visible"
-        app:layout_constraintBottom_toTopOf="@id/layoutBannerAd"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/tvAppTitle">
+        android:visibility="visible">
 
         <TextView
             android:layout_width="wrap_content"
@@ -61,35 +82,29 @@
         <Button
             android:id="@+id/btnBeginner"
             android:layout_width="match_parent"
-            android:layout_height="64dp"
+            android:layout_height="60dp"
             android:layout_marginBottom="16dp"
-            android:backgroundTint="#2563EB"
-            android:drawableStart="@android:drawable/ic_menu_call"
-            android:paddingStart="24dp"
+            android:background="#2563EB"
             android:text="BEGINNER (TAP TO CALL)"
             android:textColor="#FFFFFF"
             android:textSize="15sp"
-            android:textStyle="bold"
-            app:cornerRadius="12dp" />
+            android:textStyle="bold" />
 
         <Button
             android:id="@+id/btnAdvanced"
             android:layout_width="match_parent"
-            android:layout_height="64dp"
-            android:layout_marginBottom="24dp"
-            android:backgroundTint="#1E293B"
-            android:drawableStart="@android:drawable/ic_lock_lock"
-            android:paddingStart="24dp"
+            android:layout_height="60dp"
+            android:layout_marginBottom="20dp"
+            android:background="#1E293B"
             android:text="🔒 ADVANCED"
             android:textColor="#94A3B8"
             android:textSize="15sp"
-            android:textStyle="bold"
-            app:cornerRadius="12dp" />
+            android:textStyle="bold" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="52dp"
-            android:layout_marginBottom="20dp"
+            android:layout_marginBottom="16dp"
             android:background="#1E293B"
             android:gravity="center_vertical"
             android:orientation="horizontal"
@@ -104,7 +119,7 @@
                 android:textSize="14sp"
                 android:textStyle="bold" />
 
-            <androidx.appcompat.widget.SwitchCompat
+            <Switch
                 android:id="@+id/switchFemaleFilter"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content" />
@@ -114,13 +129,12 @@
             android:id="@+id/btnReconnectLast"
             android:layout_width="match_parent"
             android:layout_height="52dp"
-            android:backgroundTint="#059669"
+            android:background="#059669"
             android:text="🔄 Reconnect to the Last Caller"
             android:textColor="#FFFFFF"
             android:textSize="14sp"
             android:textStyle="bold"
-            android:visibility="gone"
-            app:cornerRadius="10dp" />
+            android:visibility="gone" />
 
         <TextView
             android:id="@+id/tvLockProgressPopup"
@@ -139,20 +153,17 @@
     <!-- 2. SEARCHING VIEW -->
     <LinearLayout
         android:id="@+id/layoutSearching"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_above="@id/tvConsoleLogs"
+        android:layout_below="@id/layoutHeader"
         android:gravity="center"
         android:orientation="vertical"
-        android:visibility="gone"
-        app:layout_constraintBottom_toTopOf="@id/layoutBannerAd"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/tvAppTitle">
+        android:visibility="gone">
 
         <ProgressBar
             android:layout_width="64dp"
-            android:layout_height="64dp"
-            android:indeterminateTint="#38BDF8" />
+            android:layout_height="64dp" />
 
         <TextView
             android:id="@+id/tvSearchingStatus"
@@ -168,41 +179,30 @@
             android:layout_width="wrap_content"
             android:layout_height="48dp"
             android:layout_marginTop="32dp"
-            android:backgroundTint="#EF4444"
+            android:background="#EF4444"
             android:text="CANCEL SEARCH"
             android:textColor="#FFFFFF"
-            android:textStyle="bold"
-            app:cornerRadius="8dp" />
+            android:textStyle="bold" />
     </LinearLayout>
 
     <!-- 3. ACTIVE CALL VIEW -->
     <LinearLayout
         android:id="@+id/layoutCall"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_above="@id/tvConsoleLogs"
+        android:layout_below="@id/layoutHeader"
         android:gravity="center"
         android:orientation="vertical"
-        android:visibility="gone"
-        app:layout_constraintBottom_toTopOf="@id/layoutBannerAd"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/tvAppTitle">
-
-        <ImageView
-            android:layout_width="96dp"
-            android:layout_height="96dp"
-            android:background="@android:drawable/dialog_holo_light_frame"
-            android:padding="20dp"
-            android:src="@android:drawable/ic_menu_call" />
+        android:visibility="gone">
 
         <TextView
             android:id="@+id/tvCallPartnerName"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
             android:text="Connected"
             android:textColor="#FFFFFF"
-            android:textSize="20sp"
+            android:textSize="22sp"
             android:textStyle="bold" />
 
         <TextView
@@ -212,69 +212,41 @@
             android:layout_marginTop="8dp"
             android:text="15:00"
             android:textColor="#38BDF8"
-            android:textSize="28sp"
+            android:textSize="32sp"
             android:textStyle="bold" />
 
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="32dp"
+            android:layout_marginTop="36dp"
             android:orientation="horizontal">
 
             <Button
                 android:id="@+id/btnMute"
-                android:layout_width="56dp"
-                android:layout_height="56dp"
+                android:layout_width="60dp"
+                android:layout_height="60dp"
                 android:layout_marginEnd="16dp"
-                android:backgroundTint="#334155"
+                android:background="#334155"
                 android:text="🎤"
-                android:textSize="18sp"
-                app:cornerRadius="28dp" />
+                android:textSize="18sp" />
 
             <Button
                 android:id="@+id/btnSpeaker"
-                android:layout_width="56dp"
-                android:layout_height="56dp"
+                android:layout_width="60dp"
+                android:layout_height="60dp"
                 android:layout_marginEnd="16dp"
-                android:backgroundTint="#334155"
+                android:background="#334155"
                 android:text="🔈"
-                android:textSize="18sp"
-                app:cornerRadius="28dp" />
+                android:textSize="18sp" />
 
             <Button
                 android:id="@+id/btnEndCall"
-                android:layout_width="56dp"
-                android:layout_height="56dp"
-                android:backgroundTint="#EF4444"
+                android:layout_width="60dp"
+                android:layout_height="60dp"
+                android:background="#EF4444"
                 android:text="📞"
-                android:textSize="18sp"
-                app:cornerRadius="28dp" />
+                android:textSize="18sp" />
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Diagnostics Console Box -->
-    <TextView
-        android:id="@+id/tvConsoleLogs"
-        android:layout_width="0dp"
-        android:layout_height="90dp"
-        android:background="#090D16"
-        android:padding="6dp"
-        android:scrollbars="vertical"
-        android:textColor="#38BDF8"
-        android:textSize="10sp"
-        android:fontFamily="monospace"
-        app:layout_constraintBottom_toTopOf="@id/layoutBannerAd"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
-
-    <!-- Bottom AdMob Banner Container -->
-    <FrameLayout
-        android:id="@+id/layoutBannerAd"
-        android:layout_width="match_parent"
-        android:layout_height="50dp"
-        android:background="#1E293B"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
-
-</androidx.constraintlayout.widget.ConstraintLayout>
+</RelativeLayout>

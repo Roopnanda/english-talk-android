@@ -180,13 +180,11 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     }
 
     private fun setupListeners() {
-        // Direct 1-Tap Calling for Beginner
         btnBeginner.setOnClickListener {
             activeCallLevel = "Beginner"
             startMatchingSearch("Beginner")
         }
 
-        // Direct 1-Tap Calling for Advanced (or Unlock Pop-up if Locked)
         btnAdvanced.setOnClickListener {
             val isUnlocked = prefs.getBoolean(PREF_ADVANCED_UNLOCKED, false)
             if (isUnlocked) {
@@ -273,7 +271,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         tvCallPartnerName.text = "Connected"
         tvCallTimer.text = "15:00"
 
-        // Baseline initialization
         isMuted = false
         isSpeakerOn = false
         audioManager.isSpeakerphoneOn = false
@@ -291,7 +288,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private fun endCallSession() {
         timerHandler.removeCallbacks(timerRunnable)
 
-        // Evaluate ONLY Beginner calls lasting 4+ minutes (240 seconds)
         val elapsed = CallService.getElapsedSeconds()
         val isAlreadyUnlocked = prefs.getBoolean(PREF_ADVANCED_UNLOCKED, false)
 

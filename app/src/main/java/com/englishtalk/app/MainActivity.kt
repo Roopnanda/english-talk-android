@@ -26,6 +26,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Switch
 import android.widget.TextView
+import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.englishtalk.app.network.SignalingClient
@@ -62,6 +63,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private lateinit var btnEndCall: Button
     private lateinit var tvConsoleLogs: TextView
     private lateinit var layoutBannerAd: FrameLayout
+    private lateinit var tvTalkCoinsBadge: TextView
 
     // Regional language buttons
     private lateinit var btnLangHindi: Button
@@ -84,14 +86,16 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private var isSpeakerOn = false
     private var isVip = false
     private var hasShownWarning = false
+    private var coinDeductedForCurrentSearch = false
 
     // Single-use reconnect properties
     private var lastPeerId: String? = null
     private var canReconnect = false
 
-    // Progress unlock keys
+    // Progress unlock keys & Coin Economy
     private val PREF_QUALIFIED_CALLS = "pref_qualified_calls"
     private val PREF_ADVANCED_UNLOCKED = "pref_advanced_unlocked"
+    private val PREF_TALK_COINS = "pref_talk_coins"
 
     // Sensors & Audio
     private var sensorManager: SensorManager? = null
@@ -235,6 +239,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         btnEndCall = findViewById(R.id.btnEndCall)
         tvConsoleLogs = findViewById(R.id.tvConsoleLogs)
         layoutBannerAd = findViewById(R.id.layoutBannerAd)
+        tvTalkCoinsBadge = findViewById(R.id.tvTalkCoinsBadge)
 
         // Bind Language Buttons
         btnLangHindi = findViewById(R.id.btnLangHindi)
@@ -253,6 +258,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         // Initialize persistent disk logger
         AppLogger.init(applicationContext, tvConsoleLogs)
         updateLevelDashboardUI()
+        updateCoinsUI()
     }
 
     private fun setupListeners() {
@@ -261,6 +267,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             if (hasAudioPermission()) {
                 activeCallLevel = "Beginner"
                 activeCallLanguage = "ENGLISH"
+                coinDeductedForCurrentSearch = false
                 startMatchingSearch(level = "Beginner", language = "ENGLISH", label = "Beginner English")
             } else {
                 checkPermissions()
@@ -274,6 +281,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 if (hasAudioPermission()) {
                     activeCallLevel = "Advanced"
                     activeCallLanguage = "ENGLISH"
+                    coinDeductedForCurrentSearch = false
                     startMatchingSearch(level = "Advanced", language = "ENGLISH", label = "Advanced English")
                 } else {
                     checkPermissions()
@@ -294,12 +302,12 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             showDashboardView()
         }
 
-        // Regional Language Button Handlers (Strictly isolated matchmaking)
+        // Regional Language Button Handlers (Strictly isolated matchmaking with 1 Coin requirement)
         setupLanguageButton(btnLangHindi, "HINDI", "Hindi")
         setupLanguageButton(btnLangPunjabi, "PUNJABI", "Punjabi")
         setupLanguageButton(btnLangMarathi, "MARATHI", "Marathi")
         setupLanguageButton(btnLangBengali, "BENGALI", "Bengali")
-        setupLanguageButton(btnLangBhojpuri, "BHOJPURI", "BHOJPURI")
+        setupLanguageButton(btnLangBhojpuri, "BHOJPURI", "Bhojpuri")
         setupLanguageButton(btnLangGujarati, "GUJARATI", "Gujarati")
         setupLanguageButton(btnLangKannada, "KANNADA", "Kannada")
         setupLanguageButton(btnLangMalayalam, "MALAYALAM", "Malayalam")
@@ -312,6 +320,16 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             AppLogger.log("UI", "Search cancelled by user")
             SignalingClient.leaveQueue()
             SignalingClient.cancelReconnect()
+
+            // Refund Talk Coin if user cancelled a regional language search before matching
+            if (coinDeductedForCurrentSearch) {
+                val currentCoins = prefs.getInt(PREF_TALK_COINS, 0) + 1
+                prefs.edit().putInt(PREF_TALK_COINS, currentCoins).apply()
+                coinDeductedForCurrentSearch = false
+                updateCoinsUI()
+                AppLogger.log("Coins", "1 Talk Coin refunded after search cancellation")
+            }
+
             showDashboardView()
         }
 
@@ -353,14 +371,43 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
     private fun setupLanguageButton(button: Button, langCode: String, langDisplayName: String) {
         button.setOnClickListener {
-            if (hasAudioPermission()) {
-                activeCallLevel = "Native"
-                activeCallLanguage = langCode
-                startMatchingSearch(level = "Native", language = langCode, label = langDisplayName)
-            } else {
+            if (!hasAudioPermission()) {
                 checkPermissions()
+                return@setOnClickListener
             }
+
+            val currentCoins = prefs.getInt(PREF_TALK_COINS, 0)
+            if (currentCoins < 1) {
+                showNoCoinsDialog()
+                return@setOnClickListener
+            }
+
+            // Deduct 1 Talk Coin to enter regional pool
+            prefs.edit().putInt(PREF_TALK_COINS, currentCoins - 1).apply()
+            coinDeductedForCurrentSearch = true
+            updateCoinsUI()
+            AppLogger.log("Coins", "1 Talk Coin deducted for $langDisplayName pool")
+
+            activeCallLevel = "Native"
+            activeCallLanguage = langCode
+            startMatchingSearch(level = "Native", language = langCode, label = langDisplayName)
         }
+    }
+
+    private fun showNoCoinsDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("🪙 Need Talk Coins")
+            .setMessage("You need at least 1 Talk Coin to connect in regional languages.\n\nPractice English for 1+ minute in Beginner or Advanced to earn Talk Coins!")
+            .setPositiveButton("Practice English") { _, _ ->
+                showDashboardView()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun updateCoinsUI() {
+        val count = prefs.getInt(PREF_TALK_COINS, 0)
+        tvTalkCoinsBadge.text = "🪙 Talk Coins: $count"
     }
 
     private fun showSavedLogsDialog() {
@@ -433,6 +480,9 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private fun startCallView() {
         mainUiHandler.post {
             try {
+                // Match confirmed: lock in the coin deduction so it is not refunded
+                coinDeductedForCurrentSearch = false
+
                 layoutSearching.visibility = View.GONE
                 layoutLanguages.visibility = View.GONE
                 layoutDashboard.visibility = View.GONE
@@ -484,7 +534,15 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 val elapsed = CallService.getElapsedSeconds()
                 val isAlreadyUnlocked = prefs.getBoolean(PREF_ADVANCED_UNLOCKED, false)
 
-                // Beginner milestone qualification: ONLY English Beginner calls >= 4 minutes (240s) count
+                // 1. Talk Coin Reward: Every English call (Beginner or Advanced) >= 60s awards +1 Coin
+                if (activeCallLanguage == "ENGLISH" && elapsed >= 60L) {
+                    val currentCoins = prefs.getInt(PREF_TALK_COINS, 0) + 1
+                    prefs.edit().putInt(PREF_TALK_COINS, currentCoins).apply()
+                    AppLogger.log("Coins", "Earned 1 Talk Coin! Total: $currentCoins")
+                    Toast.makeText(this, "🎉 Earned 1 Talk Coin!", Toast.LENGTH_SHORT).show()
+                }
+
+                // 2. Beginner Milestone: ONLY English Beginner calls >= 4 mins (240s) count toward 20
                 if (!isAlreadyUnlocked && activeCallLanguage == "ENGLISH" && activeCallLevel == "Beginner" && elapsed >= 240L) {
                     val current = prefs.getInt(PREF_QUALIFIED_CALLS, 0) + 1
                     prefs.edit().putInt(PREF_QUALIFIED_CALLS, current).apply()
@@ -526,6 +584,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             layoutCall.visibility = View.GONE
             layoutDashboard.visibility = View.VISIBLE
             updateLevelDashboardUI()
+            updateCoinsUI()
 
             if (canReconnect && lastPeerId != null) {
                 btnReconnectLast.visibility = View.VISIBLE
@@ -630,6 +689,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
     override fun onResume() {
         super.onResume()
+        updateCoinsUI()
         backgroundHandler.removeCallbacks(autoMuteRunnable)
         if (wasMutedBeforeBackground && isMuted) {
             isMuted = false
@@ -650,7 +710,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         if (layoutCall.visibility == View.VISIBLE) {
             val isScreenOff = powerManager?.isInteractive == false
             if (isScreenOff) {
-                // Screen turned off via hardware power button: Keep mic 100% active and streaming
+                // Screen locked via power button: Keep mic 100% active and streaming
                 AppLogger.log("PowerKey", "Screen locked via power button - keeping microphone active")
             } else {
                 // App minimized to background with screen ON: Start 30s auto-mute timer

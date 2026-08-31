@@ -41,10 +41,14 @@ import org.webrtc.SessionDescription
 class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventListener {
 
     private lateinit var layoutDashboard: LinearLayout
+    private lateinit var layoutLanguages: ScrollView
     private lateinit var layoutSearching: LinearLayout
     private lateinit var layoutCall: LinearLayout
+
     private lateinit var btnBeginner: Button
     private lateinit var btnAdvanced: Button
+    private lateinit var btnOtherLanguages: Button
+    private lateinit var btnBackFromLanguages: Button
     private lateinit var btnCancelSearch: Button
     private lateinit var btnReconnectLast: Button
     private lateinit var tvLockProgressPopup: TextView
@@ -59,8 +63,23 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private lateinit var tvConsoleLogs: TextView
     private lateinit var layoutBannerAd: FrameLayout
 
+    // Regional language buttons
+    private lateinit var btnLangHindi: Button
+    private lateinit var btnLangPunjabi: Button
+    private lateinit var btnLangMarathi: Button
+    private lateinit var btnLangBengali: Button
+    private lateinit var btnLangBhojpuri: Button
+    private lateinit var btnLangGujarati: Button
+    private lateinit var btnLangKannada: Button
+    private lateinit var btnLangMalayalam: Button
+    private lateinit var btnLangTamil: Button
+    private lateinit var btnLangTelugu: Button
+    private lateinit var btnLangUrdu: Button
+    private lateinit var btnLangArabic: Button
+
     private lateinit var prefs: SharedPreferences
     private var activeCallLevel = "Beginner"
+    private var activeCallLanguage = "ENGLISH"
     private var isMuted = false
     private var isSpeakerOn = false
     private var isVip = false
@@ -154,18 +173,24 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
         setIntent(intent)
-        // If an active call is running, ensure the call view remains prominently displayed
+        // Resume active in-call screen cleanly when coming from notification
         if (CallService.getElapsedSeconds() > 0L) {
             layoutDashboard.visibility = View.GONE
+            layoutLanguages.visibility = View.GONE
             layoutSearching.visibility = View.GONE
             layoutCall.visibility = View.VISIBLE
         }
     }
 
     override fun onBackPressed() {
-        // Intercept back gesture: Do NOT leave searching or active calling screen on Back key/swipe
+        // Prevent accidental exits while in call or queue
         if (layoutCall.visibility == View.VISIBLE || layoutSearching.visibility == View.VISIBLE) {
-            AppLogger.log("UI", "Back gesture intercepted - remaining on current screen")
+            AppLogger.log("UI", "Back gesture intercepted - remaining on active screen")
+            return
+        }
+        // If on the languages selection screen, back takes user to dashboard
+        if (layoutLanguages.visibility == View.VISIBLE) {
+            showDashboardView()
             return
         }
         super.onBackPressed()
@@ -189,10 +214,14 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
     private fun initViews() {
         layoutDashboard = findViewById(R.id.layoutDashboard)
+        layoutLanguages = findViewById(R.id.layoutLanguages)
         layoutSearching = findViewById(R.id.layoutSearching)
         layoutCall = findViewById(R.id.layoutCall)
+
         btnBeginner = findViewById(R.id.btnBeginner)
         btnAdvanced = findViewById(R.id.btnAdvanced)
+        btnOtherLanguages = findViewById(R.id.btnOtherLanguages)
+        btnBackFromLanguages = findViewById(R.id.btnBackFromLanguages)
         btnCancelSearch = findViewById(R.id.btnCancelSearch)
         btnReconnectLast = findViewById(R.id.btnReconnectLast)
         tvLockProgressPopup = findViewById(R.id.tvLockProgressPopup)
@@ -207,27 +236,45 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         tvConsoleLogs = findViewById(R.id.tvConsoleLogs)
         layoutBannerAd = findViewById(R.id.layoutBannerAd)
 
+        // Bind Language Buttons
+        btnLangHindi = findViewById(R.id.btnLangHindi)
+        btnLangPunjabi = findViewById(R.id.btnLangPunjabi)
+        btnLangMarathi = findViewById(R.id.btnLangMarathi)
+        btnLangBengali = findViewById(R.id.btnLangBengali)
+        btnLangBhojpuri = findViewById(R.id.btnLangBhojpuri)
+        btnLangGujarati = findViewById(R.id.btnLangGujarati)
+        btnLangKannada = findViewById(R.id.btnLangKannada)
+        btnLangMalayalam = findViewById(R.id.btnLangMalayalam)
+        btnLangTamil = findViewById(R.id.btnLangTamil)
+        btnLangTelugu = findViewById(R.id.btnLangTelugu)
+        btnLangUrdu = findViewById(R.id.btnLangUrdu)
+        btnLangArabic = findViewById(R.id.btnLangArabic)
+
         // Initialize persistent disk logger
         AppLogger.init(applicationContext, tvConsoleLogs)
         updateLevelDashboardUI()
     }
 
     private fun setupListeners() {
+        // 1-Tap Beginner Call
         btnBeginner.setOnClickListener {
             if (hasAudioPermission()) {
                 activeCallLevel = "Beginner"
-                startMatchingSearch("Beginner")
+                activeCallLanguage = "ENGLISH"
+                startMatchingSearch(level = "Beginner", language = "ENGLISH", label = "Beginner English")
             } else {
                 checkPermissions()
             }
         }
 
+        // 1-Tap Advanced Call (with 20-call unlock gatekeeper)
         btnAdvanced.setOnClickListener {
             val isUnlocked = prefs.getBoolean(PREF_ADVANCED_UNLOCKED, false)
             if (isUnlocked) {
                 if (hasAudioPermission()) {
                     activeCallLevel = "Advanced"
-                    startMatchingSearch("Advanced")
+                    activeCallLanguage = "ENGLISH"
+                    startMatchingSearch(level = "Advanced", language = "ENGLISH", label = "Advanced English")
                 } else {
                     checkPermissions()
                 }
@@ -236,6 +283,30 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 showLockProgressPopup(count)
             }
         }
+
+        // Open Other Languages Screen
+        btnOtherLanguages.setOnClickListener {
+            layoutDashboard.visibility = View.GONE
+            layoutLanguages.visibility = View.VISIBLE
+        }
+
+        btnBackFromLanguages.setOnClickListener {
+            showDashboardView()
+        }
+
+        // Regional Language Button Handlers (Strictly isolated matchmaking)
+        setupLanguageButton(btnLangHindi, "HINDI", "Hindi")
+        setupLanguageButton(btnLangPunjabi, "PUNJABI", "Punjabi")
+        setupLanguageButton(btnLangMarathi, "MARATHI", "Marathi")
+        setupLanguageButton(btnLangBengali, "BENGALI", "Bengali")
+        setupLanguageButton(btnLangBhojpuri, "BHOJPURI", "BHOJPURI")
+        setupLanguageButton(btnLangGujarati, "GUJARATI", "Gujarati")
+        setupLanguageButton(btnLangKannada, "KANNADA", "Kannada")
+        setupLanguageButton(btnLangMalayalam, "MALAYALAM", "Malayalam")
+        setupLanguageButton(btnLangTamil, "TAMIL", "Tamil")
+        setupLanguageButton(btnLangTelugu, "TELUGU", "Telugu")
+        setupLanguageButton(btnLangUrdu, "URDU", "Urdu")
+        setupLanguageButton(btnLangArabic, "ARABIC", "Arabic")
 
         btnCancelSearch.setOnClickListener {
             AppLogger.log("UI", "Search cancelled by user")
@@ -248,6 +319,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             val targetPeer = lastPeerId
             if (targetPeer != null && canReconnect) {
                 layoutDashboard.visibility = View.GONE
+                layoutLanguages.visibility = View.GONE
                 layoutSearching.visibility = View.VISIBLE
                 tvSearchingStatus.text = "Reconnecting to the last caller..."
                 AppLogger.log("Reconnect", "Requesting reconnect with peer: $targetPeer")
@@ -276,6 +348,18 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         btnEndCall.setOnClickListener {
             AppLogger.log("UI", "End call clicked")
             endCallSession()
+        }
+    }
+
+    private fun setupLanguageButton(button: Button, langCode: String, langDisplayName: String) {
+        button.setOnClickListener {
+            if (hasAudioPermission()) {
+                activeCallLevel = "Native"
+                activeCallLanguage = langCode
+                startMatchingSearch(level = "Native", language = langCode, label = langDisplayName)
+            } else {
+                checkPermissions()
+            }
         }
     }
 
@@ -330,14 +414,16 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         }
     }
 
-    private fun startMatchingSearch(level: String) {
+    private fun startMatchingSearch(level: String, language: String, label: String) {
         layoutDashboard.visibility = View.GONE
+        layoutLanguages.visibility = View.GONE
         layoutSearching.visibility = View.VISIBLE
-        tvSearchingStatus.text = "Searching for a $level conversation partner..."
-        AppLogger.log("Queue", "Joined $level search queue")
+        tvSearchingStatus.text = "Searching for a $label conversation partner..."
+        AppLogger.log("Queue", "Joined $level search queue in language: $language")
 
         SignalingClient.joinQueue(
             level = level,
+            language = language,
             userGender = "Unknown",
             talkToFemaleOnly = switchFemaleFilter.isChecked,
             isVip = isVip
@@ -348,6 +434,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         mainUiHandler.post {
             try {
                 layoutSearching.visibility = View.GONE
+                layoutLanguages.visibility = View.GONE
                 layoutDashboard.visibility = View.GONE
                 layoutCall.visibility = View.VISIBLE
 
@@ -397,8 +484,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 val elapsed = CallService.getElapsedSeconds()
                 val isAlreadyUnlocked = prefs.getBoolean(PREF_ADVANCED_UNLOCKED, false)
 
-                // Beginner milestone qualification: 4+ minutes (240s) in Beginner queue
-                if (!isAlreadyUnlocked && activeCallLevel == "Beginner" && elapsed >= 240L) {
+                // Beginner milestone qualification: ONLY English Beginner calls >= 4 minutes (240s) count
+                if (!isAlreadyUnlocked && activeCallLanguage == "ENGLISH" && activeCallLevel == "Beginner" && elapsed >= 240L) {
                     val current = prefs.getInt(PREF_QUALIFIED_CALLS, 0) + 1
                     prefs.edit().putInt(PREF_QUALIFIED_CALLS, current).apply()
                     AppLogger.log("Progress", "Beginner milestone updated: $current/20")
@@ -435,6 +522,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private fun showDashboardView() {
         mainUiHandler.post {
             layoutSearching.visibility = View.GONE
+            layoutLanguages.visibility = View.GONE
             layoutCall.visibility = View.GONE
             layoutDashboard.visibility = View.VISIBLE
             updateLevelDashboardUI()

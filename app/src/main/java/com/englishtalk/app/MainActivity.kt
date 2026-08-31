@@ -154,7 +154,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        // Clear keep-screen-on on create so dashboard follows device auto-screen-off timer
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         prefs = getSharedPreferences("EnglishTalkPrefs", Context.MODE_PRIVATE)
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -179,6 +180,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         setIntent(intent)
         // Resume active in-call screen cleanly when coming from notification
         if (CallService.getElapsedSeconds() > 0L) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             layoutDashboard.visibility = View.GONE
             layoutLanguages.visibility = View.GONE
             layoutSearching.visibility = View.GONE
@@ -192,7 +194,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             AppLogger.log("UI", "Back gesture intercepted - remaining on active screen")
             return
         }
-        // If on the languages selection screen, back takes user to dashboard
+        // If on the languages selection screen, back cleanly takes user to dashboard
         if (layoutLanguages.visibility == View.VISIBLE) {
             showDashboardView()
             return
@@ -294,8 +296,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
         // Open Other Languages Screen
         btnOtherLanguages.setOnClickListener {
-            layoutDashboard.visibility = View.GONE
-            layoutLanguages.visibility = View.VISIBLE
+            showLanguagesView()
         }
 
         btnBackFromLanguages.setOnClickListener {
@@ -321,6 +322,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             SignalingClient.leaveQueue()
             SignalingClient.cancelReconnect()
 
+            val wasRegional = coinDeductedForCurrentSearch
+
             // Refund Talk Coin if user cancelled a regional language search before matching
             if (coinDeductedForCurrentSearch) {
                 val currentCoins = prefs.getInt(PREF_TALK_COINS, 0) + 1
@@ -330,12 +333,17 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 AppLogger.log("Coins", "1 Talk Coin refunded after search cancellation")
             }
 
-            showDashboardView()
+            if (wasRegional) {
+                showLanguagesView()
+            } else {
+                showDashboardView()
+            }
         }
 
         btnReconnectLast.setOnClickListener {
             val targetPeer = lastPeerId
             if (targetPeer != null && canReconnect) {
+                window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 layoutDashboard.visibility = View.GONE
                 layoutLanguages.visibility = View.GONE
                 layoutSearching.visibility = View.VISIBLE
@@ -462,6 +470,9 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     }
 
     private fun startMatchingSearch(level: String, language: String, label: String) {
+        // Keep screen awake during queue searching
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
         layoutDashboard.visibility = View.GONE
         layoutLanguages.visibility = View.GONE
         layoutSearching.visibility = View.VISIBLE
@@ -482,6 +493,9 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             try {
                 // Match confirmed: lock in the coin deduction so it is not refunded
                 coinDeductedForCurrentSearch = false
+
+                // Keep screen awake during active call
+                window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
                 layoutSearching.visibility = View.GONE
                 layoutLanguages.visibility = View.GONE
@@ -533,9 +547,10 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
                 val elapsed = CallService.getElapsedSeconds()
                 val isAlreadyUnlocked = prefs.getBoolean(PREF_ADVANCED_UNLOCKED, false)
+                val completedLanguage = activeCallLanguage
 
                 // 1. Talk Coin Reward: Every English call (Beginner or Advanced) >= 60s awards +1 Coin
-                if (activeCallLanguage == "ENGLISH" && elapsed >= 60L) {
+                if (completedLanguage == "ENGLISH" && elapsed >= 60L) {
                     val currentCoins = prefs.getInt(PREF_TALK_COINS, 0) + 1
                     prefs.edit().putInt(PREF_TALK_COINS, currentCoins).apply()
                     AppLogger.log("Coins", "Earned 1 Talk Coin! Total: $currentCoins")
@@ -543,7 +558,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 }
 
                 // 2. Beginner Milestone: ONLY English Beginner calls >= 4 mins (240s) count toward 20
-                if (!isAlreadyUnlocked && activeCallLanguage == "ENGLISH" && activeCallLevel == "Beginner" && elapsed >= 240L) {
+                if (!isAlreadyUnlocked && completedLanguage == "ENGLISH" && activeCallLevel == "Beginner" && elapsed >= 240L) {
                     val current = prefs.getInt(PREF_QUALIFIED_CALLS, 0) + 1
                     prefs.edit().putInt(PREF_QUALIFIED_CALLS, current).apply()
                     AppLogger.log("Progress", "Beginner milestone updated: $current/20")
@@ -570,7 +585,12 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                     // Safe cleanup
                 }
 
-                showDashboardView()
+                // Route back to Languages Screen if user was in a regional call; otherwise to Dashboard
+                if (completedLanguage != "ENGLISH") {
+                    showLanguagesView()
+                } else {
+                    showDashboardView()
+                }
             } catch (e: Throwable) {
                 AppLogger.log("EndCall-ERR", "Error ending call: ${e.message}")
             }
@@ -579,6 +599,9 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
     private fun showDashboardView() {
         mainUiHandler.post {
+            // Restore device's standard auto screen-off timer on dashboard
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
             layoutSearching.visibility = View.GONE
             layoutLanguages.visibility = View.GONE
             layoutCall.visibility = View.GONE
@@ -591,6 +614,19 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             } else {
                 btnReconnectLast.visibility = View.GONE
             }
+        }
+    }
+
+    private fun showLanguagesView() {
+        mainUiHandler.post {
+            // Restore device's standard auto screen-off timer on languages selection screen
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+            layoutSearching.visibility = View.GONE
+            layoutCall.visibility = View.GONE
+            layoutDashboard.visibility = View.GONE
+            layoutLanguages.visibility = View.VISIBLE
+            updateCoinsUI()
         }
     }
 

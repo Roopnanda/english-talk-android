@@ -102,6 +102,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private var isVip = false
     private var hasShownWarning = false
     private var coinDeductedForCurrentSearch = false
+    private var isCallInProgress = false
+    private var isReconnectingSession = false
 
     // Single-use reconnect properties
     private var lastPeerId: String? = null
@@ -300,6 +302,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             if (hasAudioPermission()) {
                 activeCallLevel = "Beginner"
                 activeCallLanguage = "ENGLISH"
+                isReconnectingSession = false
                 coinDeductedForCurrentSearch = false
                 startMatchingSearch(level = "Beginner", language = "ENGLISH", label = "Beginner English")
             } else {
@@ -314,6 +317,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 if (hasAudioPermission()) {
                     activeCallLevel = "Advanced"
                     activeCallLanguage = "ENGLISH"
+                    isReconnectingSession = false
                     coinDeductedForCurrentSearch = false
                     startMatchingSearch(level = "Advanced", language = "ENGLISH", label = "Advanced English")
                 } else {
@@ -394,6 +398,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         btnReconnectLast.setOnClickListener {
             val targetPeer = lastPeerId
             if (targetPeer != null && canReconnect) {
+                isReconnectingSession = true
                 window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 layoutDashboard.visibility = View.GONE
                 layoutLanguages.visibility = View.GONE
@@ -444,6 +449,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             // Deduct 1 Talk Coin to enter regional pool
             prefs.edit().putInt(PREF_TALK_COINS, currentCoins - 1).apply()
             coinDeductedForCurrentSearch = true
+            isReconnectingSession = false
             updateCoinsUI()
             AppLogger.log("Coins", "1 Talk Coin deducted for $langDisplayName pool")
 
@@ -483,7 +489,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     }
 
     private fun updateStreakAndStats(callDurationSecs: Long) {
-        // Increment lifetime totals
+        // Increment lifetime totals strictly once per call session
         val newTotalSecs = prefs.getLong(PREF_TOTAL_TALK_SECONDS, 0L) + callDurationSecs
         val newTotalCalls = prefs.getInt(PREF_TOTAL_COMPLETED_CALLS, 0) + 1
         val editor = prefs.edit()
@@ -527,7 +533,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         if (isAdLoading || rewardedAd != null) return
         isAdLoading = true
 
-        // Official Google AdMob Test Rewarded Ad Unit ID
         val adRequest = AdRequest.Builder().build()
         RewardedAd.load(
             this,
@@ -564,7 +569,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             }
 
             rewardedAd?.show(this) { _ ->
-                // Reward Granted: +2 Talk Coins
                 val current = prefs.getInt(PREF_TALK_COINS, 0) + 2
                 prefs.edit().putInt(PREF_TALK_COINS, current).apply()
                 updateCoinsUI()
@@ -629,7 +633,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     }
 
     private fun startMatchingSearch(level: String, language: String, label: String) {
-        // Keep screen awake during queue searching
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         layoutDashboard.visibility = View.GONE
@@ -650,10 +653,9 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private fun startCallView() {
         mainUiHandler.post {
             try {
-                // Match confirmed: lock in the coin deduction so it is not refunded
+                isCallInProgress = true
                 coinDeductedForCurrentSearch = false
 
-                // Keep screen awake during active call
                 window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
                 layoutSearching.visibility = View.GONE
@@ -701,14 +703,21 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
     private fun endCallSession() {
         mainUiHandler.post {
+            // Guard: ensure teardown logic and counters run strictly ONCE per call
+            if (!isCallInProgress && layoutCall.visibility != View.VISIBLE) {
+                return@post
+            }
+            isCallInProgress = false
+
             try {
                 timerHandler.removeCallbacks(timerRunnable)
 
                 val elapsed = CallService.getElapsedSeconds()
                 val isAlreadyUnlocked = prefs.getBoolean(PREF_ADVANCED_UNLOCKED, false)
                 val completedLanguage = activeCallLanguage
+                val wasReconnecting = isReconnectingSession
 
-                // Update Lifetime Stats & Streak
+                // Update Lifetime Stats & Streak strictly once
                 updateStreakAndStats(elapsed)
 
                 // 1. Talk Coin Reward: Every English call (Beginner or Advanced) >= 60s awards +1 Coin
@@ -747,8 +756,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                     // Safe cleanup
                 }
 
-                // Route back to Languages Screen if user was in a regional call; otherwise to Dashboard
-                if (completedLanguage != "ENGLISH") {
+                // Reconnect calls or English calls return to Home Dashboard; Regional calls return to Languages screen
+                if (!wasReconnecting && completedLanguage != "ENGLISH") {
                     showLanguagesView()
                 } else {
                     showDashboardView()
@@ -761,7 +770,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
     private fun showDashboardView() {
         mainUiHandler.post {
-            // Restore device's standard auto screen-off timer on dashboard
             window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
             layoutSearching.visibility = View.GONE
@@ -782,7 +790,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
     private fun showLanguagesView() {
         mainUiHandler.post {
-            // Restore device's standard auto screen-off timer on languages selection screen
             window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
             layoutSearching.visibility = View.GONE
@@ -817,7 +824,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             canReconnect = true
         }
 
-        // Start session on the pre-initialized engine
         WebRtcAudioClient.startSession(object : WebRtcAudioClient.RtcListener {
             override fun onLocalOfferCreated(sdp: SessionDescription) {
                 AppLogger.log("WebRTC", "Local offer SDP ready")
@@ -910,10 +916,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         if (layoutCall.visibility == View.VISIBLE) {
             val isScreenOff = powerManager?.isInteractive == false
             if (isScreenOff) {
-                // Screen locked via power button: Keep mic 100% active and streaming
                 AppLogger.log("PowerKey", "Screen locked via power button - keeping microphone active")
             } else {
-                // App minimized to background with screen ON: Start 30s auto-mute timer
                 wasMutedBeforeBackground = !isMuted
                 backgroundHandler.postDelayed(autoMuteRunnable, 30000L)
                 AppLogger.log("AutoMute", "App minimized to background: 30s auto-mute timer started")

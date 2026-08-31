@@ -79,6 +79,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private var proximitySensor: Sensor? = null
     private var proximityWakeLock: PowerManager.WakeLock? = null
     private lateinit var audioManager: AudioManager
+    private var powerManager: PowerManager? = null
 
     private val mainUiHandler = Handler(Looper.getMainLooper())
 
@@ -134,6 +135,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
         prefs = getSharedPreferences("EnglishTalkPrefs", Context.MODE_PRIVATE)
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
 
         initViews()
         initSensors()
@@ -149,14 +151,33 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         checkPermissions()
     }
 
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        // If an active call is running, ensure the call view remains prominently displayed
+        if (CallService.getElapsedSeconds() > 0L) {
+            layoutDashboard.visibility = View.GONE
+            layoutSearching.visibility = View.GONE
+            layoutCall.visibility = View.VISIBLE
+        }
+    }
+
+    override fun onBackPressed() {
+        // Intercept back gesture: Do NOT leave searching or active calling screen on Back key/swipe
+        if (layoutCall.visibility == View.VISIBLE || layoutSearching.visibility == View.VISIBLE) {
+            AppLogger.log("UI", "Back gesture intercepted - remaining on current screen")
+            return
+        }
+        super.onBackPressed()
+    }
+
     private fun initSensors() {
         try {
             sensorManager = getSystemService(Context.SENSOR_SERVICE) as? SensorManager
             proximitySensor = sensorManager?.getDefaultSensor(Sensor.TYPE_PROXIMITY)
 
-            val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
-            if (powerManager != null && powerManager.isWakeLockLevelSupported(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK)) {
-                proximityWakeLock = powerManager.newWakeLock(
+            if (powerManager != null && powerManager!!.isWakeLockLevelSupported(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK)) {
+                proximityWakeLock = powerManager!!.newWakeLock(
                     PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK,
                     "EnglishTalk:ProximityLock"
                 )
@@ -234,7 +255,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             }
         }
 
-        // Tapping on the bottom console opens the complete persistent crash history
         tvConsoleLogs.setOnClickListener {
             showSavedLogsDialog()
         }
@@ -540,9 +560,16 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     override fun onPause() {
         super.onPause()
         if (layoutCall.visibility == View.VISIBLE) {
-            wasMutedBeforeBackground = !isMuted
-            backgroundHandler.postDelayed(autoMuteRunnable, 30000L)
-            AppLogger.log("AutoMute", "App backgrounded: 30s auto-mute timer started")
+            val isScreenOff = powerManager?.isInteractive == false
+            if (isScreenOff) {
+                // Screen turned off via hardware power button: Keep mic 100% active and streaming
+                AppLogger.log("PowerKey", "Screen locked via power button - keeping microphone active")
+            } else {
+                // App minimized to background with screen ON: Start 30s auto-mute timer
+                wasMutedBeforeBackground = !isMuted
+                backgroundHandler.postDelayed(autoMuteRunnable, 30000L)
+                AppLogger.log("AutoMute", "App minimized to background: 30s auto-mute timer started")
+            }
         }
         try {
             sensorManager?.unregisterListener(this)

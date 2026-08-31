@@ -73,7 +73,94 @@
                 android:layout_height="wrap_content"
                 android:gravity="center_horizontal"
                 android:orientation="vertical"
-                android:padding="20dp">
+                android:padding="16dp">
+
+                <!-- User Stats & Habit Card -->
+                <LinearLayout
+                    android:id="@+id/cardUserStats"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="16dp"
+                    android:background="#111827"
+                    android:orientation="horizontal"
+                    android:padding="12dp"
+                    android:weightSum="3">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/tvStreakVal"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="🔥 0"
+                            android:textColor="#F97316"
+                            android:textSize="16sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Day Streak"
+                            android:textColor="#94A3B8"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/tvTotalMinutesVal"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="⏱️ 0m"
+                            android:textColor="#38BDF8"
+                            android:textSize="16sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Practiced"
+                            android:textColor="#94A3B8"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/tvTotalCallsVal"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="📞 0"
+                            android:textColor="#4ADE80"
+                            android:textSize="16sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Total Calls"
+                            android:textColor="#94A3B8"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+                </LinearLayout>
 
                 <TextView
                     android:id="@+id/tvLockProgressPopup"
@@ -94,7 +181,7 @@
                     android:id="@+id/btnBeginner"
                     android:layout_width="match_parent"
                     android:layout_height="56dp"
-                    android:layout_marginBottom="14dp"
+                    android:layout_marginBottom="12dp"
                     android:background="#16A34A"
                     android:text="BEGINNER (TAP TO CALL)"
                     android:textColor="#FFFFFF"
@@ -105,7 +192,7 @@
                     android:id="@+id/btnAdvanced"
                     android:layout_width="match_parent"
                     android:layout_height="56dp"
-                    android:layout_marginBottom="14dp"
+                    android:layout_marginBottom="12dp"
                     android:background="#1E293B"
                     android:text="🔒 ADVANCED"
                     android:textColor="#94A3B8"
@@ -117,11 +204,23 @@
                     android:id="@+id/btnOtherLanguages"
                     android:layout_width="match_parent"
                     android:layout_height="56dp"
-                    android:layout_marginBottom="14dp"
+                    android:layout_marginBottom="12dp"
                     android:background="#9333EA"
                     android:text="🌐 OTHER LANGUAGES"
                     android:textColor="#FFFFFF"
                     android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <!-- Share App Button -->
+                <Button
+                    android:id="@+id/btnShareApp"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginBottom="12dp"
+                    android:background="#059669"
+                    android:text="📢 SHARE APP WITH FRIENDS"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp"
                     android:textStyle="bold" />
 
                 <!-- Single-Use Reconnect Button -->
@@ -129,7 +228,7 @@
                     android:id="@+id/btnReconnectLast"
                     android:layout_width="match_parent"
                     android:layout_height="50dp"
-                    android:layout_marginBottom="16dp"
+                    android:layout_marginBottom="14dp"
                     android:background="#0284C7"
                     android:text="🔄 Reconnect to the Last Caller"
                     android:textColor="#FFFFFF"
@@ -141,7 +240,7 @@
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
+                    android:layout_marginTop="4dp"
                     android:background="#111827"
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
@@ -165,8 +264,8 @@
                 <TextView
                     android:id="@+id/tvConsoleLogs"
                     android:layout_width="match_parent"
-                    android:layout_height="80dp"
-                    android:layout_marginTop="20dp"
+                    android:layout_height="70dp"
+                    android:layout_marginTop="16dp"
                     android:background="#050811"
                     android:fontFamily="monospace"
                     android:padding="8dp"
@@ -193,7 +292,7 @@
                 <RelativeLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="16dp">
+                    android:layout_marginBottom="12dp">
 
                     <Button
                         android:id="@+id/btnBackFromLanguages"
@@ -208,18 +307,30 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_centerInParent="true"
-                        android:text="Select Language (Cost: 1 Coin)"
+                        android:text="Select Language"
                         android:textColor="#FFFFFF"
                         android:textSize="16sp"
                         android:textStyle="bold" />
                 </RelativeLayout>
 
+                <!-- Rewarded Ad Coin Booster Button -->
+                <Button
+                    android:id="@+id/btnWatchAdReward"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginBottom="14dp"
+                    android:background="#D97706"
+                    android:text="🎬 WATCH AD FOR +2 TALK COINS"
+                    android:textColor="#FFFFFF"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
                 <!-- Grid of 12 Regional Languages -->
                 <Button
                     android:id="@+id/btnLangHindi"
                     android:layout_width="match_parent"
-                    android:layout_height="50dp"
-                    android:layout_marginBottom="10dp"
+                    android:layout_height="48dp"
+                    android:layout_marginBottom="8dp"
                     android:background="#1E293B"
                     android:text="🇮🇳 HINDI"
                     android:textColor="#FFFFFF"
@@ -229,8 +340,8 @@
                 <Button
                     android:id="@+id/btnLangPunjabi"
                     android:layout_width="match_parent"
-                    android:layout_height="50dp"
-                    android:layout_marginBottom="10dp"
+                    android:layout_height="48dp"
+                    android:layout_marginBottom="8dp"
                     android:background="#1E293B"
                     android:text="🇮🇳 PUNJABI"
                     android:textColor="#FFFFFF"
@@ -240,8 +351,8 @@
                 <Button
                     android:id="@+id/btnLangMarathi"
                     android:layout_width="match_parent"
-                    android:layout_height="50dp"
-                    android:layout_marginBottom="10dp"
+                    android:layout_height="48dp"
+                    android:layout_marginBottom="8dp"
                     android:background="#1E293B"
                     android:text="🇮🇳 MARATHI"
                     android:textColor="#FFFFFF"
@@ -251,8 +362,8 @@
                 <Button
                     android:id="@+id/btnLangBengali"
                     android:layout_width="match_parent"
-                    android:layout_height="50dp"
-                    android:layout_marginBottom="10dp"
+                    android:layout_height="48dp"
+                    android:layout_marginBottom="8dp"
                     android:background="#1E293B"
                     android:text="🇮🇳 BENGALI"
                     android:textColor="#FFFFFF"
@@ -262,8 +373,8 @@
                 <Button
                     android:id="@+id/btnLangBhojpuri"
                     android:layout_width="match_parent"
-                    android:layout_height="50dp"
-                    android:layout_marginBottom="10dp"
+                    android:layout_height="48dp"
+                    android:layout_marginBottom="8dp"
                     android:background="#1E293B"
                     android:text="🇮🇳 BHOJPURI"
                     android:textColor="#FFFFFF"
@@ -273,8 +384,8 @@
                 <Button
                     android:id="@+id/btnLangGujarati"
                     android:layout_width="match_parent"
-                    android:layout_height="50dp"
-                    android:layout_marginBottom="10dp"
+                    android:layout_height="48dp"
+                    android:layout_marginBottom="8dp"
                     android:background="#1E293B"
                     android:text="🇮🇳 GUJARATI"
                     android:textColor="#FFFFFF"
@@ -284,8 +395,8 @@
                 <Button
                     android:id="@+id/btnLangKannada"
                     android:layout_width="match_parent"
-                    android:layout_height="50dp"
-                    android:layout_marginBottom="10dp"
+                    android:layout_height="48dp"
+                    android:layout_marginBottom="8dp"
                     android:background="#1E293B"
                     android:text="🇮🇳 KANNADA"
                     android:textColor="#FFFFFF"
@@ -295,8 +406,8 @@
                 <Button
                     android:id="@+id/btnLangMalayalam"
                     android:layout_width="match_parent"
-                    android:layout_height="50dp"
-                    android:layout_marginBottom="10dp"
+                    android:layout_height="48dp"
+                    android:layout_marginBottom="8dp"
                     android:background="#1E293B"
                     android:text="🇮🇳 MALAYALAM"
                     android:textColor="#FFFFFF"
@@ -306,8 +417,8 @@
                 <Button
                     android:id="@+id/btnLangTamil"
                     android:layout_width="match_parent"
-                    android:layout_height="50dp"
-                    android:layout_marginBottom="10dp"
+                    android:layout_height="48dp"
+                    android:layout_marginBottom="8dp"
                     android:background="#1E293B"
                     android:text="🇮🇳 TAMIL"
                     android:textColor="#FFFFFF"
@@ -317,8 +428,8 @@
                 <Button
                     android:id="@+id/btnLangTelugu"
                     android:layout_width="match_parent"
-                    android:layout_height="50dp"
-                    android:layout_marginBottom="10dp"
+                    android:layout_height="48dp"
+                    android:layout_marginBottom="8dp"
                     android:background="#1E293B"
                     android:text="🇮🇳 TELUGU"
                     android:textColor="#FFFFFF"
@@ -328,8 +439,8 @@
                 <Button
                     android:id="@+id/btnLangUrdu"
                     android:layout_width="match_parent"
-                    android:layout_height="50dp"
-                    android:layout_marginBottom="10dp"
+                    android:layout_height="48dp"
+                    android:layout_marginBottom="8dp"
                     android:background="#1E293B"
                     android:text="🇮🇳 URDU"
                     android:textColor="#FFFFFF"
@@ -339,7 +450,7 @@
                 <Button
                     android:id="@+id/btnLangArabic"
                     android:layout_width="match_parent"
-                    android:layout_height="50dp"
+                    android:layout_height="48dp"
                     android:layout_marginBottom="16dp"
                     android:background="#1E293B"
                     android:text="🇦🇪 ARABIC"

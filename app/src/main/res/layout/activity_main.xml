@@ -20,16 +20,37 @@
             android:textSize="20sp"
             android:textStyle="bold" />
 
-        <Button
-            android:id="@+id/btnVip"
+        <LinearLayout
             android:layout_width="wrap_content"
-            android:layout_height="36dp"
+            android:layout_height="wrap_content"
             android:layout_alignParentEnd="true"
             android:layout_centerVertical="true"
-            android:background="#EAB308"
-            android:text="👑 GO VIP"
-            android:textColor="#000000"
-            android:textStyle="bold" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <!-- Talk Coins Badge -->
+            <TextView
+                android:id="@+id/tvTalkCoinsBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="12dp"
+                android:background="#1E293B"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="6dp"
+                android:text="🪙 Talk Coins: 0"
+                android:textColor="#FBBF24"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/btnVip"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:background="#EAB308"
+                android:text="👑 GO VIP"
+                android:textColor="#000000"
+                android:textStyle="bold" />
+        </LinearLayout>
     </RelativeLayout>
 
     <!-- Content Area -->
@@ -187,9 +208,9 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_centerInParent="true"
-                        android:text="Select Language"
+                        android:text="Select Language (Cost: 1 Coin)"
                         android:textColor="#FFFFFF"
-                        android:textSize="18sp"
+                        android:textSize="16sp"
                         android:textStyle="bold" />
                 </RelativeLayout>
 

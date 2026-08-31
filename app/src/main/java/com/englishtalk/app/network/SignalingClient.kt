@@ -11,6 +11,8 @@ import java.util.concurrent.TimeUnit
 
 object SignalingClient {
 
+    private const val SERVER_URL = "wss://englishtalk-signaling.onrender.com" // Replace with your exact Render WSS URL if customized
+
     interface SignalingListener {
         fun onMatchFound(roomId: String, isInitiator: Boolean, peerLevel: String, peerId: String, isReconnect: Boolean)
         fun onOfferReceived(sdp: SessionDescription)
@@ -21,189 +23,173 @@ object SignalingClient {
         fun onReconnectFailed(reason: String)
     }
 
-    private const val SERVER_URL = "wss://english-talk-server-5pm7.onrender.com"
     private var webSocket: WebSocket? = null
     private var listener: SignalingListener? = null
-    private val mainHandler = Handler(Looper.getMainLooper())
-
     private val client = OkHttpClient.Builder()
         .readTimeout(0, TimeUnit.MILLISECONDS)
         .pingInterval(15, TimeUnit.SECONDS)
         .build()
+
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var isConnected = false
 
     fun setListener(listener: SignalingListener) {
         this.listener = listener
     }
 
     fun connect() {
-        if (webSocket != null) return
+        if (isConnected) return
 
-        val request = Request.Builder()
-            .url(SERVER_URL)
-            .build()
-
+        val request = Request.Builder().url(SERVER_URL).build()
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(ws: WebSocket, response: Response) {
+                isConnected = true
                 AppLogger.log("Signaling", "WebSocket connection opened")
             }
 
             override fun onMessage(ws: WebSocket, text: String) {
-                try {
-                    val json = JSONObject(text)
-                    val event = json.optString("event")
-                    val data = json.optJSONObject("data") ?: JSONObject()
-
-                    mainHandler.post {
-                        when (event) {
-                            "match_found" -> {
-                                val roomId = data.optString("roomId")
-                                val isInitiator = data.optBoolean("isInitiator", false)
-                                val peerLevel = data.optString("peerLevel", "Beginner")
-                                val peerId = data.optString("peerId", "")
-                                val isReconnect = data.optBoolean("isReconnect", false)
-                                AppLogger.log("Signaling", "Match found! Room: $roomId, Initiator: $isInitiator")
-                                listener?.onMatchFound(roomId, isInitiator, peerLevel, peerId, isReconnect)
-                            }
-                            "offer" -> {
-                                val sdpStr = data.optString("sdp")
-                                if (sdpStr.isNotEmpty()) {
-                                    AppLogger.log("Signaling", "Offer received")
-                                    listener?.onOfferReceived(SessionDescription(SessionDescription.Type.OFFER, sdpStr))
-                                }
-                            }
-                            "answer" -> {
-                                val sdpStr = data.optString("sdp")
-                                if (sdpStr.isNotEmpty()) {
-                                    AppLogger.log("Signaling", "Answer received")
-                                    listener?.onAnswerReceived(SessionDescription(SessionDescription.Type.ANSWER, sdpStr))
-                                }
-                            }
-                            "ice_candidate" -> {
-                                val sdpMid = data.optString("sdpMid")
-                                val sdpMLineIndex = data.optInt("sdpMLineIndex", 0)
-                                val candidate = data.optString("candidate")
-                                if (candidate.isNotEmpty()) {
-                                    listener?.onIceCandidateReceived(IceCandidate(sdpMid, sdpMLineIndex, candidate))
-                                }
-                            }
-                            "call_ended" -> {
-                                AppLogger.log("Signaling", "Call ended by peer")
-                                listener?.onCallEnded()
-                            }
-                            "reconnect_waiting" -> {
-                                AppLogger.log("Signaling", "Awaiting reconnect partner")
-                                listener?.onReconnectWaiting()
-                            }
-                            "reconnect_failed" -> {
-                                val reason = data.optString("reason", "Unknown")
-                                AppLogger.log("Signaling", "Reconnect failed: $reason")
-                                listener?.onReconnectFailed(reason)
-                            }
-                        }
-                    }
-                } catch (e: Exception) {
-                    AppLogger.log("Signaling-ERR", "Msg parse error: ${e.message}")
-                }
-            }
-
-            override fun onClosing(ws: WebSocket, code: Int, reason: String) {
-                AppLogger.log("Signaling", "WebSocket closing: $reason")
+                handleIncomingMessage(text)
             }
 
             override fun onClosed(ws: WebSocket, code: Int, reason: String) {
-                AppLogger.log("Signaling", "WebSocket closed")
-                webSocket = null
+                isConnected = false
+                AppLogger.log("Signaling", "WebSocket closed: $reason ($code)")
             }
 
             override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
+                isConnected = false
                 AppLogger.log("Signaling-ERR", "WebSocket failure: ${t.message}")
-                webSocket = null
-                mainHandler.postDelayed({ connect() }, 5000L)
+                // Attempt automatic reconnect after 3 seconds
+                mainHandler.postDelayed({ connect() }, 3000L)
             }
         })
     }
 
-    fun joinQueue(level: String, userGender: String, talkToFemaleOnly: Boolean, isVip: Boolean) {
+    private fun handleIncomingMessage(text: String) {
+        try {
+            val json = JSONObject(text)
+            val event = json.optString("event")
+
+            mainHandler.post {
+                when (event) {
+                    "match_found" -> {
+                        val roomId = json.getString("roomId")
+                        val isInitiator = json.getBoolean("isInitiator")
+                        val peerLevel = json.optString("peerLevel", "Beginner")
+                        val peerId = json.getString("peerId")
+                        val isReconnect = json.optBoolean("isReconnect", false)
+                        listener?.onMatchFound(roomId, isInitiator, peerLevel, peerId, isReconnect)
+                    }
+                    "offer" -> {
+                        val sdp = json.getString("sdp")
+                        listener?.onOfferReceived(SessionDescription(SessionDescription.Type.OFFER, sdp))
+                    }
+                    "answer" -> {
+                        val sdp = json.getString("sdp")
+                        listener?.onAnswerReceived(SessionDescription(SessionDescription.Type.ANSWER, sdp))
+                    }
+                    "ice_candidate" -> {
+                        val candJson = json.getJSONObject("candidate")
+                        val candidate = IceCandidate(
+                            candJson.getString("sdpMid"),
+                            candJson.getInt("sdpMLineIndex"),
+                            candJson.getString("sdp")
+                        )
+                        listener?.onIceCandidateReceived(candidate)
+                    }
+                    "call_ended" -> {
+                        listener?.onCallEnded()
+                    }
+                    "reconnect_waiting" -> {
+                        listener?.onReconnectWaiting()
+                    }
+                    "reconnect_failed" -> {
+                        val reason = json.optString("reason", "Unavailable")
+                        listener?.onReconnectFailed(reason)
+                    }
+                }
+            }
+        } catch (e: Throwable) {
+            AppLogger.log("Signaling-ERR", "Error parsing message: ${e.message}")
+        }
+    }
+
+    fun joinQueue(level: String, language: String = "ENGLISH", userGender: String, talkToFemaleOnly: Boolean, isVip: Boolean) {
         val payload = JSONObject().apply {
             put("event", "join_queue")
-            put("data", JSONObject().apply {
-                put("level", level)
-                put("userGender", userGender)
-                put("talkToFemaleOnly", talkToFemaleOnly)
-                put("isVip", isVip)
-            })
+            put("level", level)
+            put("language", language)
+            put("userGender", userGender)
+            put("talkToFemaleOnly", talkToFemaleOnly)
+            put("isVip", isVip)
         }
-        sendJson(payload)
+        send(payload.toString())
     }
 
     fun leaveQueue() {
         val payload = JSONObject().apply {
             put("event", "leave_queue")
-            put("data", JSONObject())
         }
-        sendJson(payload)
+        send(payload.toString())
     }
 
-    fun requestReconnect(targetPeerId: String, myLevel: String) {
+    fun requestReconnect(targetPeerId: String, level: String) {
         val payload = JSONObject().apply {
             put("event", "request_reconnect")
-            put("data", JSONObject().apply {
-                put("targetPeerId", targetPeerId)
-                put("myLevel", myLevel)
-            })
+            put("targetPeerId", targetPeerId)
+            put("level", level)
         }
-        sendJson(payload)
+        send(payload.toString())
     }
 
     fun cancelReconnect() {
         val payload = JSONObject().apply {
             put("event", "cancel_reconnect")
-            put("data", JSONObject())
         }
-        sendJson(payload)
+        send(payload.toString())
     }
 
     fun sendOffer(sdp: SessionDescription) {
         val payload = JSONObject().apply {
             put("event", "offer")
-            put("data", JSONObject().apply {
-                put("sdp", sdp.description)
-            })
+            put("sdp", sdp.description)
         }
-        sendJson(payload)
+        send(payload.toString())
     }
 
     fun sendAnswer(sdp: SessionDescription) {
         val payload = JSONObject().apply {
             put("event", "answer")
-            put("data", JSONObject().apply {
-                put("sdp", sdp.description)
-            })
+            put("sdp", sdp.description)
         }
-        sendJson(payload)
+        send(payload.toString())
     }
 
     fun sendIceCandidate(candidate: IceCandidate) {
+        val candJson = JSONObject().apply {
+            put("sdpMid", candidate.sdpMid)
+            put("sdpMLineIndex", candidate.sdpMLineIndex)
+            put("sdp", candidate.sdp)
+        }
         val payload = JSONObject().apply {
             put("event", "ice_candidate")
-            put("data", JSONObject().apply {
-                put("sdpMid", candidate.sdpMid)
-                put("sdpMLineIndex", candidate.sdpMLineIndex)
-                put("candidate", candidate.sdp)
-            })
+            put("candidate", candJson)
         }
-        sendJson(payload)
+        send(payload.toString())
     }
 
     fun endCall() {
         val payload = JSONObject().apply {
             put("event", "end_call")
-            put("data", JSONObject())
         }
-        sendJson(payload)
+        send(payload.toString())
     }
 
-    private fun sendJson(json: JSONObject) {
-        webSocket?.send(json.toString())
+    private fun send(message: String) {
+        if (isConnected && webSocket != null) {
+            webSocket?.send(message)
+        } else {
+            AppLogger.log("Signaling-ERR", "Cannot send message: WebSocket disconnected")
+        }
     }
 }

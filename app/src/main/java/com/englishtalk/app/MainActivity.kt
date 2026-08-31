@@ -33,11 +33,19 @@ import com.englishtalk.app.network.SignalingClient
 import com.englishtalk.app.service.CallService
 import com.englishtalk.app.utils.AppLogger
 import com.englishtalk.app.webrtc.WebRtcAudioClient
+import com.google.android.gms.ads.AdError
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdSize
 import com.google.android.gms.ads.AdView
+import com.google.android.gms.ads.FullScreenContentCallback
+import com.google.android.gms.ads.LoadAdError
+import com.google.android.gms.ads.rewarded.RewardedAd
+import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
 import org.webrtc.IceCandidate
 import org.webrtc.SessionDescription
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventListener {
 
@@ -49,7 +57,9 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private lateinit var btnBeginner: Button
     private lateinit var btnAdvanced: Button
     private lateinit var btnOtherLanguages: Button
+    private lateinit var btnShareApp: Button
     private lateinit var btnBackFromLanguages: Button
+    private lateinit var btnWatchAdReward: Button
     private lateinit var btnCancelSearch: Button
     private lateinit var btnReconnectLast: Button
     private lateinit var tvLockProgressPopup: TextView
@@ -64,6 +74,11 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private lateinit var tvConsoleLogs: TextView
     private lateinit var layoutBannerAd: FrameLayout
     private lateinit var tvTalkCoinsBadge: TextView
+
+    // Stats Card Views
+    private lateinit var tvStreakVal: TextView
+    private lateinit var tvTotalMinutesVal: TextView
+    private lateinit var tvTotalCallsVal: TextView
 
     // Regional language buttons
     private lateinit var btnLangHindi: Button
@@ -92,10 +107,18 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private var lastPeerId: String? = null
     private var canReconnect = false
 
-    // Progress unlock keys & Coin Economy
+    // Progress unlock keys & Coin Economy & Stats
     private val PREF_QUALIFIED_CALLS = "pref_qualified_calls"
     private val PREF_ADVANCED_UNLOCKED = "pref_advanced_unlocked"
     private val PREF_TALK_COINS = "pref_talk_coins"
+    private val PREF_STREAK_COUNT = "pref_streak_count"
+    private val PREF_LAST_CALL_DATE = "pref_last_call_date"
+    private val PREF_TOTAL_TALK_SECONDS = "pref_total_talk_seconds"
+    private val PREF_TOTAL_COMPLETED_CALLS = "pref_total_completed_calls"
+
+    // Rewarded Ad Holder
+    private var rewardedAd: RewardedAd? = null
+    private var isAdLoading = false
 
     // Sensors & Audio
     private var sensorManager: SensorManager? = null
@@ -165,6 +188,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         initSensors()
         setupListeners()
         loadBannerAd()
+        loadRewardedAd()
 
         // Initialize WebRTC engine once at startup
         WebRtcAudioClient.init(applicationContext)
@@ -227,7 +251,9 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         btnBeginner = findViewById(R.id.btnBeginner)
         btnAdvanced = findViewById(R.id.btnAdvanced)
         btnOtherLanguages = findViewById(R.id.btnOtherLanguages)
+        btnShareApp = findViewById(R.id.btnShareApp)
         btnBackFromLanguages = findViewById(R.id.btnBackFromLanguages)
+        btnWatchAdReward = findViewById(R.id.btnWatchAdReward)
         btnCancelSearch = findViewById(R.id.btnCancelSearch)
         btnReconnectLast = findViewById(R.id.btnReconnectLast)
         tvLockProgressPopup = findViewById(R.id.tvLockProgressPopup)
@@ -242,6 +268,10 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         tvConsoleLogs = findViewById(R.id.tvConsoleLogs)
         layoutBannerAd = findViewById(R.id.layoutBannerAd)
         tvTalkCoinsBadge = findViewById(R.id.tvTalkCoinsBadge)
+
+        tvStreakVal = findViewById(R.id.tvStreakVal)
+        tvTotalMinutesVal = findViewById(R.id.tvTotalMinutesVal)
+        tvTotalCallsVal = findViewById(R.id.tvTotalCallsVal)
 
         // Bind Language Buttons
         btnLangHindi = findViewById(R.id.btnLangHindi)
@@ -261,6 +291,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         AppLogger.init(applicationContext, tvConsoleLogs)
         updateLevelDashboardUI()
         updateCoinsUI()
+        updateStatsUI()
     }
 
     private fun setupListeners() {
@@ -301,6 +332,26 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
         btnBackFromLanguages.setOnClickListener {
             showDashboardView()
+        }
+
+        // Share App Button
+        btnShareApp.setOnClickListener {
+            try {
+                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    val appLink = "https://play.google.com/store/apps/details?id=${packageName}"
+                    val shareMessage = "Hey! Practice English and regional languages live 1-on-1 on English Talk. Download it here:\n$appLink"
+                    putExtra(Intent.EXTRA_TEXT, shareMessage)
+                }
+                startActivity(Intent.createChooser(shareIntent, "Share English Talk via"))
+            } catch (e: Throwable) {
+                AppLogger.log("Share", "Error launching share: ${e.message}")
+            }
+        }
+
+        // Watch Ad for +2 Talk Coins
+        btnWatchAdReward.setOnClickListener {
+            showRewardedAd()
         }
 
         // Regional Language Button Handlers (Strictly isolated matchmaking with 1 Coin requirement)
@@ -405,17 +456,125 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private fun showNoCoinsDialog() {
         AlertDialog.Builder(this)
             .setTitle("🪙 Need Talk Coins")
-            .setMessage("You need at least 1 Talk Coin to connect in regional languages.\n\nPractice English for 1+ minute in Beginner or Advanced to earn Talk Coins!")
-            .setPositiveButton("Practice English") { _, _ ->
+            .setMessage("You need at least 1 Talk Coin to connect in regional languages.\n\nPractice English for 1+ minute in Beginner or Advanced, or watch an ad to earn Talk Coins!")
+            .setPositiveButton("Watch Ad (+2 Coins)") { _, _ ->
+                showRewardedAd()
+            }
+            .setNegativeButton("Practice English") { _, _ ->
                 showDashboardView()
             }
-            .setNegativeButton("Cancel", null)
             .show()
     }
 
     private fun updateCoinsUI() {
         val count = prefs.getInt(PREF_TALK_COINS, 0)
         tvTalkCoinsBadge.text = "🪙 Talk Coins: $count"
+    }
+
+    private fun updateStatsUI() {
+        val streak = prefs.getInt(PREF_STREAK_COUNT, 0)
+        val totalSecs = prefs.getLong(PREF_TOTAL_TALK_SECONDS, 0L)
+        val totalCalls = prefs.getInt(PREF_TOTAL_COMPLETED_CALLS, 0)
+
+        val totalMins = totalSecs / 60
+        tvStreakVal.text = "🔥 $streak"
+        tvTotalMinutesVal.text = "⏱️ ${totalMins}m"
+        tvTotalCallsVal.text = "📞 $totalCalls"
+    }
+
+    private fun updateStreakAndStats(callDurationSecs: Long) {
+        // Increment lifetime totals
+        val newTotalSecs = prefs.getLong(PREF_TOTAL_TALK_SECONDS, 0L) + callDurationSecs
+        val newTotalCalls = prefs.getInt(PREF_TOTAL_COMPLETED_CALLS, 0) + 1
+        val editor = prefs.edit()
+        editor.putLong(PREF_TOTAL_TALK_SECONDS, newTotalSecs)
+        editor.putInt(PREF_TOTAL_COMPLETED_CALLS, newTotalCalls)
+
+        // Only calls >= 60s contribute to streak
+        if (callDurationSecs >= 60L) {
+            val sdf = SimpleDateFormat("yyyyMMdd", Locale.getDefault())
+            val todayStr = sdf.format(Date())
+            val lastDateStr = prefs.getString(PREF_LAST_CALL_DATE, "")
+
+            if (lastDateStr.isNullOrEmpty()) {
+                editor.putInt(PREF_STREAK_COUNT, 1)
+                editor.putString(PREF_LAST_CALL_DATE, todayStr)
+            } else if (lastDateStr != todayStr) {
+                try {
+                    val lastDate = sdf.parse(lastDateStr)
+                    val todayDate = sdf.parse(todayStr)
+                    if (lastDate != null && todayDate != null) {
+                        val diffDays = (todayDate.time - lastDate.time) / (1000 * 60 * 60 * 24)
+                        if (diffDays == 1L) {
+                            val currentStreak = prefs.getInt(PREF_STREAK_COUNT, 0) + 1
+                            editor.putInt(PREF_STREAK_COUNT, currentStreak)
+                        } else if (diffDays > 1L) {
+                            editor.putInt(PREF_STREAK_COUNT, 1)
+                        }
+                        editor.putString(PREF_LAST_CALL_DATE, todayStr)
+                    }
+                } catch (e: Throwable) {
+                    editor.putInt(PREF_STREAK_COUNT, 1)
+                    editor.putString(PREF_LAST_CALL_DATE, todayStr)
+                }
+            }
+        }
+        editor.apply()
+        updateStatsUI()
+    }
+
+    private fun loadRewardedAd() {
+        if (isAdLoading || rewardedAd != null) return
+        isAdLoading = true
+
+        // Official Google AdMob Test Rewarded Ad Unit ID
+        val adRequest = AdRequest.Builder().build()
+        RewardedAd.load(
+            this,
+            "ca-app-pub-3940256099942544/5224354917",
+            adRequest,
+            object : RewardedAdLoadCallback() {
+                override fun onAdFailedToLoad(loadAdError: LoadAdError) {
+                    rewardedAd = null
+                    isAdLoading = false
+                    AppLogger.log("AdMob", "Rewarded ad failed: ${loadAdError.message}")
+                }
+
+                override fun onAdLoaded(ad: RewardedAd) {
+                    rewardedAd = ad
+                    isAdLoading = false
+                    AppLogger.log("AdMob", "Rewarded ad loaded and ready")
+                }
+            }
+        )
+    }
+
+    private fun showRewardedAd() {
+        if (rewardedAd != null) {
+            rewardedAd?.fullScreenContentCallback = object : FullScreenContentCallback() {
+                override fun onAdDismissedFullScreenContent() {
+                    rewardedAd = null
+                    loadRewardedAd()
+                }
+
+                override fun onAdFailedToShowFullScreenContent(adError: AdError) {
+                    rewardedAd = null
+                    loadRewardedAd()
+                }
+            }
+
+            rewardedAd?.show(this) { _ ->
+                // Reward Granted: +2 Talk Coins
+                val current = prefs.getInt(PREF_TALK_COINS, 0) + 2
+                prefs.edit().putInt(PREF_TALK_COINS, current).apply()
+                updateCoinsUI()
+                Toast.makeText(this, "🎉 You earned +2 Talk Coins!", Toast.LENGTH_SHORT).show()
+                AppLogger.log("Coins", "Rewarded ad watched: +2 Talk Coins granted (Total: $current)")
+            }
+        } else {
+            Toast.makeText(this, "Ad is loading, please try again in a moment...", Toast.LENGTH_SHORT).show()
+            loadRewardedAd()
+        }
     }
 
     private fun showSavedLogsDialog() {
@@ -549,6 +708,9 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 val isAlreadyUnlocked = prefs.getBoolean(PREF_ADVANCED_UNLOCKED, false)
                 val completedLanguage = activeCallLanguage
 
+                // Update Lifetime Stats & Streak
+                updateStreakAndStats(elapsed)
+
                 // 1. Talk Coin Reward: Every English call (Beginner or Advanced) >= 60s awards +1 Coin
                 if (completedLanguage == "ENGLISH" && elapsed >= 60L) {
                     val currentCoins = prefs.getInt(PREF_TALK_COINS, 0) + 1
@@ -608,6 +770,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             layoutDashboard.visibility = View.VISIBLE
             updateLevelDashboardUI()
             updateCoinsUI()
+            updateStatsUI()
 
             if (canReconnect && lastPeerId != null) {
                 btnReconnectLast.visibility = View.VISIBLE
@@ -726,6 +889,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     override fun onResume() {
         super.onResume()
         updateCoinsUI()
+        updateStatsUI()
         backgroundHandler.removeCallbacks(autoMuteRunnable)
         if (wasMutedBeforeBackground && isMuted) {
             isMuted = false

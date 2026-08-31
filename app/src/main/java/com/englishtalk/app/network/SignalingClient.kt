@@ -11,7 +11,7 @@ import java.util.concurrent.TimeUnit
 
 object SignalingClient {
 
-    private const val SERVER_URL = "wss://englishtalk-signaling.onrender.com" // Replace with your exact Render WSS URL if customized
+    private const val SERVER_URL = "wss://english-talk-server-5pm7.onrender.com"
 
     interface SignalingListener {
         fun onMatchFound(roomId: String, isInitiator: Boolean, peerLevel: String, peerId: String, isReconnect: Boolean)
@@ -59,7 +59,6 @@ object SignalingClient {
             override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
                 isConnected = false
                 AppLogger.log("Signaling-ERR", "WebSocket failure: ${t.message}")
-                // Attempt automatic reconnect after 3 seconds
                 mainHandler.postDelayed({ connect() }, 3000L)
             }
         })

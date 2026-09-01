@@ -7,7 +7,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
-import android.graphics.Color
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -19,7 +18,6 @@ import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.view.View
-import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.*
 import androidx.core.app.ActivityCompat
@@ -37,8 +35,6 @@ import com.google.android.gms.ads.rewarded.RewardedAd
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
 import org.webrtc.IceCandidate
 import org.webrtc.SessionDescription
-import java.io.PrintWriter
-import java.io.StringWriter
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -75,16 +71,16 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private var tvSearchStatus: TextView? = null
     private var btnCancelSearch: Button? = null
 
-    // In-Call UI
+    // In-Call UI (Generic Views to support Button & ImageButton)
     private var tvCallStatus: TextView? = null
     private var tvCallDuration: TextView? = null
-    private var btnMute: ImageButton? = null
-    private var btnSpeaker: ImageButton? = null
-    private var btnEndCall: ImageButton? = null
+    private var btnMute: View? = null
+    private var btnSpeaker: View? = null
+    private var btnEndCall: View? = null
 
     // Languages UI
     private var btnWatchAdCoins: Button? = null
-    private var btnBackFromLanguages: ImageButton? = null
+    private var btnBackFromLanguages: View? = null
     private var gridLanguages: GridLayout? = null
 
     // AdMob
@@ -113,11 +109,13 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 val secs = elapsedSec % 60
                 tvCallDuration?.text = String.format(Locale.US, "%02d:%02d", mins, secs)
 
+                // 14-Minute Warning Dialog (840s)
                 if (elapsedSec >= 840 && !warningDialogShown && !isCallTimerExtended) {
                     warningDialogShown = true
                     showCallExtensionDialog()
                 }
 
+                // 15-Minute Hard Limit (or 20-min if extended)
                 val maxLimitSec = if (isCallTimerExtended) 1200L else 900L
                 if (elapsedSec >= maxLimitSec) {
                     Toast.makeText(this@MainActivity, "Call reached time limit", Toast.LENGTH_SHORT).show()
@@ -133,19 +131,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // On-screen crash trap
-        Thread.setDefaultUncaughtExceptionHandler { _, throwable ->
-            val sw = StringWriter()
-            val pw = PrintWriter(sw)
-            throwable.printStackTrace(pw)
-            val stackTrace = sw.toString()
-            AppLogger.log("CRASH-TRAP", stackTrace)
-
-            mainHandler.post {
-                showOnScreenError(stackTrace)
-            }
-        }
-
         try {
             val layoutId = resources.getIdentifier("activity_main", "layout", packageName)
             if (layoutId != 0) {
@@ -153,64 +138,42 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             }
         } catch (e: Throwable) {
             AppLogger.log("Layout-ERR", "setContentView error: ${e.message}")
-            showOnScreenError("Layout Inflate Error:\n" + e.message)
-            return
         }
 
+        prefs = getSharedPreferences("EnglishTalkPrefs", Context.MODE_PRIVATE)
+        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+
         try {
-            prefs = getSharedPreferences("EnglishTalkPrefs", Context.MODE_PRIVATE)
-            audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-            sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
-            powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+            proximitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY)
+        } catch (e: Throwable) {}
+
+        setupWakeLock()
+        initViews()
+        setupListeners()
+
+        mainHandler.post {
+            try {
+                MobileAds.initialize(applicationContext) {}
+                bannerAdView?.loadAd(AdRequest.Builder().build())
+            } catch (e: Throwable) {
+                AppLogger.log("AdMob-ERR", "MobileAds init: ${e.message}")
+            }
 
             try {
-                proximitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY)
-            } catch (e: Throwable) {}
-
-            setupWakeLock()
-            initViews()
-            setupListeners()
-
-            mainHandler.post {
-                try {
-                    MobileAds.initialize(applicationContext) {}
-                    bannerAdView?.loadAd(AdRequest.Builder().build())
-                } catch (e: Throwable) {
-                    AppLogger.log("AdMob-ERR", "MobileAds init: ${e.message}")
-                }
-
-                try {
-                    SignalingClient.setListener(this)
-                    SignalingClient.connect()
-                    WebRtcAudioClient.init(applicationContext)
-                } catch (e: Throwable) {
-                    AppLogger.log("Init-ERR", "Signaling/WebRTC init: ${e.message}")
-                }
-
-                loadRewardedAd()
+                SignalingClient.setListener(this)
+                SignalingClient.connect()
+                WebRtcAudioClient.init(applicationContext)
+            } catch (e: Throwable) {
+                AppLogger.log("Init-ERR", "Signaling/WebRTC init: ${e.message}")
             }
 
-            refreshDashboardUI()
-            checkPermissions()
-        } catch (e: Throwable) {
-            showOnScreenError("Startup Initialization Error:\n" + e.message)
+            loadRewardedAd()
         }
-    }
 
-    private fun showOnScreenError(errorText: String) {
-        try {
-            val scrollView = ScrollView(this)
-            val textView = TextView(this).apply {
-                text = "⚠️ APP ERROR REPORT:\n\n$errorText"
-                setTextColor(Color.RED)
-                textSize = 14f
-                setPadding(32, 48, 32, 48)
-            }
-            scrollView.addView(textView)
-            setContentView(scrollView)
-        } catch (e: Throwable) {
-            AppLogger.log("ERROR-VIEW", "Could not mount error view: ${e.message}")
-        }
+        refreshDashboardUI()
+        checkPermissions()
     }
 
     private fun setupWakeLock() {
@@ -262,6 +225,13 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         bannerAdView = resolveView("bannerAdView")
     }
 
+    private fun updateButtonVisual(buttonView: View?, resId: Int, textFallback: String) {
+        when (buttonView) {
+            is ImageButton -> buttonView.setImageResource(resId)
+            is Button -> buttonView.text = textFallback
+        }
+    }
+
     private fun setupListeners() {
         btnBeginner?.setOnClickListener {
             currentLevel = "Beginner"
@@ -303,14 +273,22 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         btnMute?.setOnClickListener {
             val newMuteState = !WebRtcAudioClient.isMuted
             WebRtcAudioClient.setMuted(newMuteState)
-            btnMute?.setImageResource(if (newMuteState) android.R.drawable.stat_notify_call_mute else android.R.drawable.ic_btn_speak_now)
+            updateButtonVisual(
+                btnMute,
+                if (newMuteState) android.R.drawable.stat_notify_call_mute else android.R.drawable.ic_btn_speak_now,
+                if (newMuteState) "UNMUTE" else "MUTE"
+            )
             AppLogger.log("Audio", "Mute toggled: $newMuteState")
         }
 
         btnSpeaker?.setOnClickListener {
             val newSpeakerState = !audioManager.isSpeakerphoneOn
             audioManager.isSpeakerphoneOn = newSpeakerState
-            btnSpeaker?.setImageResource(if (newSpeakerState) android.R.drawable.stat_sys_speakerphone else android.R.drawable.stat_notify_call_mute)
+            updateButtonVisual(
+                btnSpeaker,
+                if (newSpeakerState) android.R.drawable.stat_sys_speakerphone else android.R.drawable.stat_notify_call_mute,
+                if (newSpeakerState) "EARPIECE" else "SPEAKER"
+            )
             AppLogger.log("Audio", "Speaker toggled: $newSpeakerState")
         }
 
@@ -501,8 +479,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
             audioManager.isSpeakerphoneOn = false
             WebRtcAudioClient.setMuted(false)
-            btnMute?.setImageResource(android.R.drawable.ic_btn_speak_now)
-            btnSpeaker?.setImageResource(android.R.drawable.stat_notify_call_mute)
+            updateButtonVisual(btnMute, android.R.drawable.ic_btn_speak_now, "MUTE")
+            updateButtonVisual(btnSpeaker, android.R.drawable.stat_notify_call_mute, "SPEAKER")
 
             tvCallStatus?.text = "Connected"
             tvCallDuration?.text = "00:00"
@@ -695,7 +673,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         backgroundAutoMuteRunnable?.let { mainHandler.removeCallbacks(it) }
         if (isCallInProgress && WebRtcAudioClient.isMuted) {
             WebRtcAudioClient.setMuted(false)
-            btnMute?.setImageResource(android.R.drawable.ic_btn_speak_now)
+            updateButtonVisual(btnMute, android.R.drawable.ic_btn_speak_now, "MUTE")
             AppLogger.log("AutoMute", "Microphone unmuted upon app foreground")
         }
         refreshDashboardUI()

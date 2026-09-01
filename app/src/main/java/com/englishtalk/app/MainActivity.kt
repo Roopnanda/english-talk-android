@@ -1,13 +1,12 @@
 package com.englishtalk.app
 
 import android.Manifest
-import android.app.Activity
+import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
-import android.graphics.Color
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -20,158 +19,113 @@ import android.os.Looper
 import android.os.PowerManager
 import android.view.View
 import android.view.WindowManager
-import android.widget.Button
-import android.widget.FrameLayout
-import android.widget.LinearLayout
-import android.widget.ScrollView
-import android.widget.Switch
-import android.widget.TextView
-import android.widget.Toast
+import android.widget.*
+import androidx.activity.OnBackPressedCallback
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.englishtalk.app.network.SignalingClient
 import com.englishtalk.app.service.CallService
 import com.englishtalk.app.utils.AppLogger
-import com.englishtalk.app.webrtc.WebRtcAudioClient
-import com.google.android.gms.ads.AdError
+import com.englishtalk.app.utils.CooldownManager
+import com.englishtalk.app.webrtc.WebRtcManager
 import com.google.android.gms.ads.AdRequest
-import com.google.android.gms.ads.AdSize
 import com.google.android.gms.ads.AdView
-import com.google.android.gms.ads.FullScreenContentCallback
 import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.rewarded.RewardedAd
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
 import org.webrtc.IceCandidate
 import org.webrtc.SessionDescription
 import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.util.*
 
-class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventListener {
+class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener, SensorEventListener {
 
-    private lateinit var layoutDashboard: LinearLayout
-    private lateinit var layoutLanguages: ScrollView
-    private lateinit var layoutSearching: LinearLayout
-    private lateinit var layoutCall: LinearLayout
+    private lateinit var prefs: SharedPreferences
+    private lateinit var audioManager: AudioManager
+    private lateinit var sensorManager: SensorManager
+    private var proximitySensor: Sensor? = null
+    private var wakeLock: PowerManager.WakeLock? = null
+    private lateinit var powerManager: PowerManager
 
+    // Layout Containers
+    private lateinit var layoutDashboard: View
+    private lateinit var layoutLanguages: View
+    private lateinit var layoutSearching: View
+    private lateinit var layoutCall: View
+
+    // Dashboard UI
+    private lateinit var tvTalkCoins: TextView
+    private lateinit var tvStreak: TextView
+    private lateinit var tvPracticeTime: TextView
+    private lateinit var tvTotalCalls: TextView
     private lateinit var btnBeginner: Button
     private lateinit var btnAdvanced: Button
     private lateinit var btnOtherLanguages: Button
-    private lateinit var btnShareApp: Button
-    private lateinit var btnBackFromLanguages: Button
-    private lateinit var btnWatchAdReward: Button
+    private lateinit var btnReconnect: Button
+    private lateinit var btnShare: Button
+    private lateinit var btnReportUser: Button
+    private lateinit var switchFemaleOnly: Switch
+    private lateinit var tvFemaleOnlyLabel: TextView
+
+    // Searching UI
+    private lateinit var tvSearchStatus: TextView
     private lateinit var btnCancelSearch: Button
-    private lateinit var btnReconnectLast: Button
-    private lateinit var tvLockProgressPopup: TextView
-    private lateinit var switchFemaleFilter: Switch
-    private lateinit var btnVip: Button
-    private lateinit var tvSearchingStatus: TextView
-    private lateinit var tvCallPartnerName: TextView
-    private lateinit var tvCallTimer: TextView
-    private lateinit var btnMute: Button
-    private lateinit var btnSpeaker: Button
-    private lateinit var btnEndCall: Button
-    private lateinit var tvConsoleLogs: TextView
-    private lateinit var layoutBannerAd: FrameLayout
-    private lateinit var tvTalkCoinsBadge: TextView
 
-    // Stats Card Views
-    private lateinit var tvStreakVal: TextView
-    private lateinit var tvTotalMinutesVal: TextView
-    private lateinit var tvTotalCallsVal: TextView
+    // In-Call UI
+    private lateinit var tvCallStatus: TextView
+    private lateinit var tvCallDuration: TextView
+    private lateinit var btnMute: ImageButton
+    private lateinit var btnSpeaker: ImageButton
+    private lateinit var btnEndCall: ImageButton
 
-    // Regional language buttons
-    private lateinit var btnLangHindi: Button
-    private lateinit var btnLangPunjabi: Button
-    private lateinit var btnLangMarathi: Button
-    private lateinit var btnLangBengali: Button
-    private lateinit var btnLangBhojpuri: Button
-    private lateinit var btnLangGujarati: Button
-    private lateinit var btnLangKannada: Button
-    private lateinit var btnLangMalayalam: Button
-    private lateinit var btnLangTamil: Button
-    private lateinit var btnLangTelugu: Button
-    private lateinit var btnLangUrdu: Button
-    private lateinit var btnLangArabic: Button
+    // Languages UI
+    private lateinit var btnWatchAdCoins: Button
+    private lateinit var btnBackFromLanguages: ImageButton
+    private lateinit var gridLanguages: GridLayout
 
-    private lateinit var prefs: SharedPreferences
-    private var activeCallLevel = "Beginner"
-    private var activeCallLanguage = "ENGLISH"
-    private var isMuted = false
-    private var isSpeakerOn = false
-    private var isVip = false
-    private var hasShownWarning = false
-    private var coinDeductedForCurrentSearch = false
-    private var isCallInProgress = false
-    private var isReconnectingSession = false
-
-    // Single-use reconnect properties
-    private var lastPeerId: String? = null
-    private var canReconnect = false
-
-    // Progress unlock keys & Coin Economy & Stats
-    private val PREF_QUALIFIED_CALLS = "pref_qualified_calls"
-    private val PREF_ADVANCED_UNLOCKED = "pref_advanced_unlocked"
-    private val PREF_TALK_COINS = "pref_talk_coins"
-    private val PREF_STREAK_COUNT = "pref_streak_count"
-    private val PREF_LAST_CALL_DATE = "pref_last_call_date"
-    private val PREF_TOTAL_TALK_SECONDS = "pref_total_talk_seconds"
-    private val PREF_TOTAL_COMPLETED_CALLS = "pref_total_completed_calls"
-
-    // Rewarded Ad Holder
+    // AdMob
+    private lateinit var bannerAdView: AdView
     private var rewardedAd: RewardedAd? = null
-    private var isAdLoading = false
 
-    // Sensors & Audio
-    private var sensorManager: SensorManager? = null
-    private var proximitySensor: Sensor? = null
-    private var proximityWakeLock: PowerManager.WakeLock? = null
-    private lateinit var audioManager: AudioManager
-    private var powerManager: PowerManager? = null
+    // State Variables
+    private var currentLevel = "Beginner"
+    private var currentLanguage = "ENGLISH"
+    private var lastCallerPeerId = ""
+    private var isCallInProgress = false
+    private var callStartTimeMs = 0L
+    private var isCallTimerExtended = false
+    private var warningDialogShown = false
 
-    private val mainUiHandler = Handler(Looper.getMainLooper())
+    // Timing & Mute Handlers
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var backgroundAutoMuteRunnable: Runnable? = null
+    private var isAppInBackground = false
 
-    // Background Auto-Mute Handler
-    private val backgroundHandler = Handler(Looper.getMainLooper())
-    private var wasMutedBeforeBackground = false
-    private val autoMuteRunnable = Runnable {
-        if (!isMuted) {
-            isMuted = true
-            WebRtcAudioClient.setMicrophoneMute(true)
-            btnMute.text = "🔇"
-            AppLogger.log("AutoMute", "Hard-muted microphone after 30s in background")
-        }
-    }
-
-    // Lock Progress Pop-up Vanish Handler
-    private val popupHandler = Handler(Looper.getMainLooper())
-    private val hidePopupRunnable = Runnable {
-        tvLockProgressPopup.visibility = View.GONE
-    }
-
-    // Stopwatch Elapsed Timer (Counts UP: 00:00 -> 15:00)
-    private val timerHandler = Handler(Looper.getMainLooper())
-    private val timerRunnable = object : Runnable {
+    private val callTimerRunnable = object : Runnable {
         override fun run() {
-            val elapsedSec = CallService.getElapsedSeconds()
-            val totalMaxSec = CallService.getTotalDurationSeconds()
+            if (isCallInProgress && callStartTimeMs > 0L) {
+                val elapsedSec = (System.currentTimeMillis() - callStartTimeMs) / 1000L
+                val mins = elapsedSec / 60
+                val secs = elapsedSec % 60
+                tvCallDuration.text = String.format(Locale.US, "%02d:%02d", mins, secs)
 
-            if (elapsedSec >= totalMaxSec) {
-                endCallSession()
-                return
+                // 14-Minute Warning Dialog (840s)
+                if (elapsedSec >= 840 && !warningDialogShown && !isCallTimerExtended) {
+                    warningDialogShown = true
+                    showCallExtensionDialog()
+                }
+
+                // 15-Minute Hard Limit (or 20-min if extended)
+                val maxLimitSec = if (isCallTimerExtended) 1200L else 900L
+                if (elapsedSec >= maxLimitSec) {
+                    Toast.makeText(this@MainActivity, "Call reached time limit", Toast.LENGTH_SHORT).show()
+                    endActiveCall()
+                    return
+                }
+
+                mainHandler.postDelayed(this, 1000L)
             }
-
-            val mins = elapsedSec / 60
-            val secs = elapsedSec % 60
-            tvCallTimer.text = String.format("%02d:%02d", mins, secs)
-
-            // 14-minute warning dialog at 840s
-            if (elapsedSec >= 840L && !hasShownWarning) {
-                hasShownWarning = true
-                showExtendDialog()
-            }
-
-            timerHandler.postDelayed(this, 1000L)
         }
     }
 
@@ -179,68 +133,29 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // Clear keep-screen-on on create so dashboard follows device auto-screen-off timer
-        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-
         prefs = getSharedPreferences("EnglishTalkPrefs", Context.MODE_PRIVATE)
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
+        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        proximitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY)
+        powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
 
+        setupWakeLock()
         initViews()
-        initSensors()
         setupListeners()
-        loadBannerAd()
-        loadRewardedAd()
-
-        // Initialize WebRTC engine once at startup
-        WebRtcAudioClient.init(applicationContext)
+        setupBackPressHandling()
 
         SignalingClient.setListener(this)
         SignalingClient.connect()
+        WebRtcManager.init(applicationContext)
 
+        loadRewardedAd()
+        refreshDashboardUI()
         checkPermissions()
     }
 
-    override fun onNewIntent(intent: Intent?) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        // Resume active in-call screen cleanly when coming from notification
-        if (CallService.getElapsedSeconds() > 0L) {
-            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            layoutDashboard.visibility = View.GONE
-            layoutLanguages.visibility = View.GONE
-            layoutSearching.visibility = View.GONE
-            layoutCall.visibility = View.VISIBLE
-        }
-    }
-
-    override fun onBackPressed() {
-        // Prevent accidental exits while in call or queue
-        if (layoutCall.visibility == View.VISIBLE || layoutSearching.visibility == View.VISIBLE) {
-            AppLogger.log("UI", "Back gesture intercepted - remaining on active screen")
-            return
-        }
-        // If on the languages selection screen, back cleanly takes user to dashboard
-        if (layoutLanguages.visibility == View.VISIBLE) {
-            showDashboardView()
-            return
-        }
-        super.onBackPressed()
-    }
-
-    private fun initSensors() {
-        try {
-            sensorManager = getSystemService(Context.SENSOR_SERVICE) as? SensorManager
-            proximitySensor = sensorManager?.getDefaultSensor(Sensor.TYPE_PROXIMITY)
-
-            if (powerManager != null && powerManager!!.isWakeLockLevelSupported(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK)) {
-                proximityWakeLock = powerManager!!.newWakeLock(
-                    PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK,
-                    "EnglishTalk:ProximityLock"
-                )
-            }
-        } catch (e: Throwable) {
-            AppLogger.log("Sensors", "Sensor init note: ${e.message}")
+    private fun setupWakeLock() {
+        if (powerManager.isWakeLockLevelSupported(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK)) {
+            wakeLock = powerManager.newWakeLock(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK, "EnglishTalk:ProximityLock")
         }
     }
 
@@ -250,713 +165,543 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         layoutSearching = findViewById(R.id.layoutSearching)
         layoutCall = findViewById(R.id.layoutCall)
 
+        tvTalkCoins = findViewById(R.id.tvTalkCoins)
+        tvStreak = findViewById(R.id.tvStreak)
+        tvPracticeTime = findViewById(R.id.tvPracticeTime)
+        tvTotalCalls = findViewById(R.id.tvTotalCalls)
         btnBeginner = findViewById(R.id.btnBeginner)
         btnAdvanced = findViewById(R.id.btnAdvanced)
         btnOtherLanguages = findViewById(R.id.btnOtherLanguages)
-        btnShareApp = findViewById(R.id.btnShareApp)
-        btnBackFromLanguages = findViewById(R.id.btnBackFromLanguages)
-        btnWatchAdReward = findViewById(R.id.btnWatchAdReward)
+        btnReconnect = findViewById(R.id.btnReconnect)
+        btnShare = findViewById(R.id.btnShare)
+        btnReportUser = findViewById(R.id.btnReportUser)
+        switchFemaleOnly = findViewById(R.id.switchFemaleOnly)
+        tvFemaleOnlyLabel = findViewById(R.id.tvFemaleOnlyLabel)
+
+        tvSearchStatus = findViewById(R.id.tvSearchStatus)
         btnCancelSearch = findViewById(R.id.btnCancelSearch)
-        btnReconnectLast = findViewById(R.id.btnReconnectLast)
-        tvLockProgressPopup = findViewById(R.id.tvLockProgressPopup)
-        switchFemaleFilter = findViewById(R.id.switchFemaleFilter)
-        btnVip = findViewById(R.id.btnVip)
-        tvSearchingStatus = findViewById(R.id.tvSearchingStatus)
-        tvCallPartnerName = findViewById(R.id.tvCallPartnerName)
-        tvCallTimer = findViewById(R.id.tvCallTimer)
+
+        tvCallStatus = findViewById(R.id.tvCallStatus)
+        tvCallDuration = findViewById(R.id.tvCallDuration)
         btnMute = findViewById(R.id.btnMute)
         btnSpeaker = findViewById(R.id.btnSpeaker)
         btnEndCall = findViewById(R.id.btnEndCall)
-        tvConsoleLogs = findViewById(R.id.tvConsoleLogs)
-        layoutBannerAd = findViewById(R.id.layoutBannerAd)
-        tvTalkCoinsBadge = findViewById(R.id.tvTalkCoinsBadge)
 
-        tvStreakVal = findViewById(R.id.tvStreakVal)
-        tvTotalMinutesVal = findViewById(R.id.tvTotalMinutesVal)
-        tvTotalCallsVal = findViewById(R.id.tvTotalCallsVal)
+        btnWatchAdCoins = findViewById(R.id.btnWatchAdCoins)
+        btnBackFromLanguages = findViewById(R.id.btnBackFromLanguages)
+        gridLanguages = findViewById(R.id.gridLanguages)
+        bannerAdView = findViewById(R.id.bannerAdView)
 
-        // Bind Language Buttons
-        btnLangHindi = findViewById(R.id.btnLangHindi)
-        btnLangPunjabi = findViewById(R.id.btnLangPunjabi)
-        btnLangMarathi = findViewById(R.id.btnLangMarathi)
-        btnLangBengali = findViewById(R.id.btnLangBengali)
-        btnLangBhojpuri = findViewById(R.id.btnLangBhojpuri)
-        btnLangGujarati = findViewById(R.id.btnLangGujarati)
-        btnLangKannada = findViewById(R.id.btnLangKannada)
-        btnLangMalayalam = findViewById(R.id.btnLangMalayalam)
-        btnLangTamil = findViewById(R.id.btnLangTamil)
-        btnLangTelugu = findViewById(R.id.btnLangTelugu)
-        btnLangUrdu = findViewById(R.id.btnLangUrdu)
-        btnLangArabic = findViewById(R.id.btnLangArabic)
-
-        // Initialize persistent disk logger
-        AppLogger.init(applicationContext, tvConsoleLogs)
-        updateLevelDashboardUI()
-        updateCoinsUI()
-        updateStatsUI()
+        bannerAdView.loadAd(AdRequest.Builder().build())
     }
 
     private fun setupListeners() {
-        // 1-Tap Beginner Call
         btnBeginner.setOnClickListener {
-            if (hasAudioPermission()) {
-                activeCallLevel = "Beginner"
-                activeCallLanguage = "ENGLISH"
-                isReconnectingSession = false
-                coinDeductedForCurrentSearch = false
-                startMatchingSearch(level = "Beginner", language = "ENGLISH", label = "Beginner English")
-            } else {
-                checkPermissions()
-            }
+            currentLevel = "Beginner"
+            currentLanguage = "ENGLISH"
+            startSearchingFlow()
         }
 
-        // 1-Tap Advanced Call (with 20-call unlock gatekeeper)
         btnAdvanced.setOnClickListener {
-            val isUnlocked = prefs.getBoolean(PREF_ADVANCED_UNLOCKED, false)
-            if (isUnlocked) {
-                if (hasAudioPermission()) {
-                    activeCallLevel = "Advanced"
-                    activeCallLanguage = "ENGLISH"
-                    isReconnectingSession = false
-                    coinDeductedForCurrentSearch = false
-                    startMatchingSearch(level = "Advanced", language = "ENGLISH", label = "Advanced English")
-                } else {
-                    checkPermissions()
-                }
+            val qualifiedCalls = prefs.getInt("beginner_qualified_calls", 0)
+            if (qualifiedCalls >= 20) {
+                currentLevel = "Advanced"
+                currentLanguage = "ENGLISH"
+                startSearchingFlow()
             } else {
-                val count = prefs.getInt(PREF_QUALIFIED_CALLS, 0)
-                showLockProgressPopup(count)
+                Toast.makeText(
+                    this,
+                    "Complete 20 calls (4+ mins each in Beginner) to unlock Advanced. Progress: $qualifiedCalls / 20",
+                    Toast.LENGTH_LONG
+                ).show()
             }
         }
 
-        // Open Other Languages Screen
         btnOtherLanguages.setOnClickListener {
-            showLanguagesView()
+            showLayout(layoutLanguages)
         }
 
         btnBackFromLanguages.setOnClickListener {
-            showDashboardView()
+            showLayout(layoutDashboard)
         }
-
-        // Share App Button
-        btnShareApp.setOnClickListener {
-            try {
-                val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                    type = "text/plain"
-                    val appLink = "https://play.google.com/store/apps/details?id=${packageName}"
-                    val shareMessage = "Hey! Practice English and regional languages live 1-on-1 on English Talk. Download it here:\n$appLink"
-                    putExtra(Intent.EXTRA_TEXT, shareMessage)
-                }
-                startActivity(Intent.createChooser(shareIntent, "Share English Talk via"))
-            } catch (e: Throwable) {
-                AppLogger.log("Share", "Error launching share: ${e.message}")
-            }
-        }
-
-        // Watch Ad for +2 Talk Coins
-        btnWatchAdReward.setOnClickListener {
-            showRewardedAd()
-        }
-
-        // Regional Language Button Handlers (Strictly isolated matchmaking with 1 Coin requirement)
-        setupLanguageButton(btnLangHindi, "HINDI", "Hindi")
-        setupLanguageButton(btnLangPunjabi, "PUNJABI", "Punjabi")
-        setupLanguageButton(btnLangMarathi, "MARATHI", "Marathi")
-        setupLanguageButton(btnLangBengali, "BENGALI", "Bengali")
-        setupLanguageButton(btnLangBhojpuri, "BHOJPURI", "Bhojpuri")
-        setupLanguageButton(btnLangGujarati, "GUJARATI", "Gujarati")
-        setupLanguageButton(btnLangKannada, "KANNADA", "Kannada")
-        setupLanguageButton(btnLangMalayalam, "MALAYALAM", "Malayalam")
-        setupLanguageButton(btnLangTamil, "TAMIL", "Tamil")
-        setupLanguageButton(btnLangTelugu, "TELUGU", "Telugu")
-        setupLanguageButton(btnLangUrdu, "URDU", "Urdu")
-        setupLanguageButton(btnLangArabic, "ARABIC", "Arabic")
 
         btnCancelSearch.setOnClickListener {
-            AppLogger.log("UI", "Search cancelled by user")
-            SignalingClient.leaveQueue()
-            SignalingClient.cancelReconnect()
-
-            val wasRegional = coinDeductedForCurrentSearch
-
-            // Refund Talk Coin if user cancelled a regional language search before matching
-            if (coinDeductedForCurrentSearch) {
-                val currentCoins = prefs.getInt(PREF_TALK_COINS, 0) + 1
-                prefs.edit().putInt(PREF_TALK_COINS, currentCoins).apply()
-                coinDeductedForCurrentSearch = false
-                updateCoinsUI()
-                AppLogger.log("Coins", "1 Talk Coin refunded after search cancellation")
-            }
-
-            if (wasRegional) {
-                showLanguagesView()
-            } else {
-                showDashboardView()
-            }
-        }
-
-        btnReconnectLast.setOnClickListener {
-            val targetPeer = lastPeerId
-            if (targetPeer != null && canReconnect) {
-                isReconnectingSession = true
-                window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                layoutDashboard.visibility = View.GONE
-                layoutLanguages.visibility = View.GONE
-                layoutSearching.visibility = View.VISIBLE
-                tvSearchingStatus.text = "Reconnecting to the last caller..."
-                AppLogger.log("Reconnect", "Requesting reconnect with peer: $targetPeer")
-                SignalingClient.requestReconnect(targetPeer, activeCallLevel)
-            }
-        }
-
-        tvConsoleLogs.setOnClickListener {
-            showSavedLogsDialog()
-        }
-
-        btnMute.setOnClickListener {
-            isMuted = !isMuted
-            WebRtcAudioClient.setMicrophoneMute(isMuted)
-            btnMute.text = if (isMuted) "🔇" else "🎤"
-            AppLogger.log("Audio", "Mute toggled: $isMuted")
-        }
-
-        btnSpeaker.setOnClickListener {
-            isSpeakerOn = !isSpeakerOn
-            audioManager.isSpeakerphoneOn = isSpeakerOn
-            btnSpeaker.text = if (isSpeakerOn) "🔊" else "🔈"
-            AppLogger.log("Audio", "Speaker toggled: $isSpeakerOn")
+            cancelSearchAndReturn()
         }
 
         btnEndCall.setOnClickListener {
-            AppLogger.log("UI", "End call clicked")
-            endCallSession()
+            endActiveCall()
+        }
+
+        btnMute.setOnClickListener {
+            val newMuteState = !WebRtcManager.isMuted
+            WebRtcManager.setMuted(newMuteState)
+            btnMute.setImageResource(if (newMuteState) R.drawable.ic_mic_off else R.drawable.ic_mic_on)
+            AppLogger.log("Audio", "Mute toggled: $newMuteState")
+        }
+
+        btnSpeaker.setOnClickListener {
+            val newSpeakerState = !audioManager.isSpeakerphoneOn
+            audioManager.isSpeakerphoneOn = newSpeakerState
+            btnSpeaker.setImageResource(if (newSpeakerState) R.drawable.ic_speaker_on else R.drawable.ic_speaker_off)
+            AppLogger.log("Audio", "Speaker toggled: $newSpeakerState")
+        }
+
+        btnReconnect.setOnClickListener {
+            if (lastCallerPeerId.isNotEmpty()) {
+                initiateReconnectFlow()
+            }
+        }
+
+        btnShare.setOnClickListener {
+            val sendIntent = Intent().apply {
+                action = Intent.ACTION_SEND
+                putExtra(Intent.EXTRA_TEXT, "Practice English with me on English Talk! Download here: https://play.google.com/store/apps/details?id=$packageName")
+                type = "text/plain"
+            }
+            startActivity(Intent.createChooser(sendIntent, "Share App"))
+        }
+
+        btnReportUser.setOnClickListener {
+            showReportUserDialog()
+        }
+
+        btnWatchAdCoins.setOnClickListener {
+            showRewardedAd()
+        }
+
+        setupRegionalLanguageButtons()
+    }
+
+    private fun setupRegionalLanguageButtons() {
+        val languages = listOf("HINDI", "PUNJABI", "MARATHI", "BENGALI", "BHOJPURI", "GUJARATI", "KANNADA", "MALAYALAM", "TAMIL", "TELUGU", "URDU", "ARABIC")
+        for (i in 0 until gridLanguages.childCount) {
+            val view = gridLanguages.getChildAt(i)
+            if (view is Button && i < languages.size) {
+                val langName = languages[i]
+                view.setOnClickListener {
+                    currentLevel = "Native"
+                    currentLanguage = langName
+                    startRegionalSearchFlow(langName)
+                }
+            }
         }
     }
 
-    private fun setupLanguageButton(button: Button, langCode: String, langDisplayName: String) {
-        button.setOnClickListener {
-            if (!hasAudioPermission()) {
-                checkPermissions()
-                return@setOnClickListener
-            }
-
-            val currentCoins = prefs.getInt(PREF_TALK_COINS, 0)
-            if (currentCoins < 1) {
-                showNoCoinsDialog()
-                return@setOnClickListener
-            }
-
-            // Deduct 1 Talk Coin to enter regional pool
-            prefs.edit().putInt(PREF_TALK_COINS, currentCoins - 1).apply()
-            coinDeductedForCurrentSearch = true
-            isReconnectingSession = false
-            updateCoinsUI()
-            AppLogger.log("Coins", "1 Talk Coin deducted for $langDisplayName pool")
-
-            activeCallLevel = "Native"
-            activeCallLanguage = langCode
-            startMatchingSearch(level = "Native", language = langCode, label = langDisplayName)
-        }
-    }
-
-    private fun showNoCoinsDialog() {
-        AlertDialog.Builder(this)
-            .setTitle("🪙 Need Talk Coins")
-            .setMessage("You need at least 1 Talk Coin to connect in regional languages.\n\nPractice English for 1+ minute in Beginner or Advanced, or watch an ad to earn Talk Coins!")
-            .setPositiveButton("Watch Ad (+2 Coins)") { _, _ ->
-                showRewardedAd()
-            }
-            .setNegativeButton("Practice English") { _, _ ->
-                showDashboardView()
-            }
-            .show()
-    }
-
-    private fun updateCoinsUI() {
-        val count = prefs.getInt(PREF_TALK_COINS, 0)
-        tvTalkCoinsBadge.text = "🪙 Talk Coins: $count"
-    }
-
-    private fun updateStatsUI() {
-        val streak = prefs.getInt(PREF_STREAK_COUNT, 0)
-        val totalSecs = prefs.getLong(PREF_TOTAL_TALK_SECONDS, 0L)
-        val totalCalls = prefs.getInt(PREF_TOTAL_COMPLETED_CALLS, 0)
-
-        val totalMins = totalSecs / 60
-        tvStreakVal.text = "🔥 $streak"
-        tvTotalMinutesVal.text = "⏱️ ${totalMins}m"
-        tvTotalCallsVal.text = "📞 $totalCalls"
-    }
-
-    private fun updateStreakAndStats(callDurationSecs: Long) {
-        // Increment lifetime totals strictly once per call session
-        val newTotalSecs = prefs.getLong(PREF_TOTAL_TALK_SECONDS, 0L) + callDurationSecs
-        val newTotalCalls = prefs.getInt(PREF_TOTAL_COMPLETED_CALLS, 0) + 1
-        val editor = prefs.edit()
-        editor.putLong(PREF_TOTAL_TALK_SECONDS, newTotalSecs)
-        editor.putInt(PREF_TOTAL_COMPLETED_CALLS, newTotalCalls)
-
-        // Only calls >= 60s contribute to streak
-        if (callDurationSecs >= 60L) {
-            val sdf = SimpleDateFormat("yyyyMMdd", Locale.getDefault())
-            val todayStr = sdf.format(Date())
-            val lastDateStr = prefs.getString(PREF_LAST_CALL_DATE, "")
-
-            if (lastDateStr.isNullOrEmpty()) {
-                editor.putInt(PREF_STREAK_COUNT, 1)
-                editor.putString(PREF_LAST_CALL_DATE, todayStr)
-            } else if (lastDateStr != todayStr) {
-                try {
-                    val lastDate = sdf.parse(lastDateStr)
-                    val todayDate = sdf.parse(todayStr)
-                    if (lastDate != null && todayDate != null) {
-                        val diffDays = (todayDate.time - lastDate.time) / (1000 * 60 * 60 * 24)
-                        if (diffDays == 1L) {
-                            val currentStreak = prefs.getInt(PREF_STREAK_COUNT, 0) + 1
-                            editor.putInt(PREF_STREAK_COUNT, currentStreak)
-                        } else if (diffDays > 1L) {
-                            editor.putInt(PREF_STREAK_COUNT, 1)
-                        }
-                        editor.putString(PREF_LAST_CALL_DATE, todayStr)
+    private fun setupBackPressHandling() {
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                when {
+                    layoutSearching.visibility == View.VISIBLE || layoutCall.visibility == View.VISIBLE -> {
+                        AppLogger.log("UI", "Back gesture intercepted - remaining on active screen")
+                        // Invariant Rule 13: Completely ignore back presses in Search & Call screens
                     }
-                } catch (e: Throwable) {
-                    editor.putInt(PREF_STREAK_COUNT, 1)
-                    editor.putString(PREF_LAST_CALL_DATE, todayStr)
-                }
-            }
-        }
-        editor.apply()
-        updateStatsUI()
-    }
-
-    private fun loadRewardedAd() {
-        if (isAdLoading || rewardedAd != null) return
-        isAdLoading = true
-
-        val adRequest = AdRequest.Builder().build()
-        RewardedAd.load(
-            this,
-            "ca-app-pub-3940256099942544/5224354917",
-            adRequest,
-            object : RewardedAdLoadCallback() {
-                override fun onAdFailedToLoad(loadAdError: LoadAdError) {
-                    rewardedAd = null
-                    isAdLoading = false
-                    AppLogger.log("AdMob", "Rewarded ad failed: ${loadAdError.message}")
-                }
-
-                override fun onAdLoaded(ad: RewardedAd) {
-                    rewardedAd = ad
-                    isAdLoading = false
-                    AppLogger.log("AdMob", "Rewarded ad loaded and ready")
-                }
-            }
-        )
-    }
-
-    private fun showRewardedAd() {
-        if (rewardedAd != null) {
-            rewardedAd?.fullScreenContentCallback = object : FullScreenContentCallback() {
-                override fun onAdDismissedFullScreenContent() {
-                    rewardedAd = null
-                    loadRewardedAd()
-                }
-
-                override fun onAdFailedToShowFullScreenContent(adError: AdError) {
-                    rewardedAd = null
-                    loadRewardedAd()
-                }
-            }
-
-            rewardedAd?.show(this) { _ ->
-                val current = prefs.getInt(PREF_TALK_COINS, 0) + 2
-                prefs.edit().putInt(PREF_TALK_COINS, current).apply()
-                updateCoinsUI()
-                Toast.makeText(this, "🎉 You earned +2 Talk Coins!", Toast.LENGTH_SHORT).show()
-                AppLogger.log("Coins", "Rewarded ad watched: +2 Talk Coins granted (Total: $current)")
-            }
-        } else {
-            Toast.makeText(this, "Ad is loading, please try again in a moment...", Toast.LENGTH_SHORT).show()
-            loadRewardedAd()
-        }
-    }
-
-    private fun showSavedLogsDialog() {
-        val logs = AppLogger.getSavedLogs()
-        val scrollView = ScrollView(this)
-        val textView = TextView(this).apply {
-            text = logs
-            setPadding(32, 32, 32, 32)
-            setTextColor(Color.parseColor("#38BDF8"))
-            setBackgroundColor(Color.parseColor("#050811"))
-            textSize = 12f
-            typeface = android.graphics.Typeface.MONOSPACE
-            setTextIsSelectable(true)
-        }
-        scrollView.addView(textView)
-
-        AlertDialog.Builder(this)
-            .setTitle("📜 Complete Saved Crash Logs")
-            .setView(scrollView)
-            .setPositiveButton("Close", null)
-            .setNeutralButton("Clear Logs") { _, _ ->
-                AppLogger.clearLogs()
-                tvConsoleLogs.text = ""
-                AppLogger.log("System", "Logs cleared by user")
-            }
-            .show()
-    }
-
-    private fun hasAudioPermission(): Boolean {
-        return ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-    }
-
-    private fun showLockProgressPopup(currentCount: Int) {
-        popupHandler.removeCallbacks(hidePopupRunnable)
-        tvLockProgressPopup.text = "Complete 20 calls (4+ mins each in Beginner) to unlock Advanced.\nProgress: $currentCount / 20"
-        tvLockProgressPopup.visibility = View.VISIBLE
-        popupHandler.postDelayed(hidePopupRunnable, 3000L)
-    }
-
-    private fun updateLevelDashboardUI() {
-        val isAdvancedUnlocked = prefs.getBoolean(PREF_ADVANCED_UNLOCKED, false)
-
-        if (isAdvancedUnlocked) {
-            btnAdvanced.text = "ADVANCED (TAP TO CALL)"
-            btnAdvanced.setBackgroundColor(Color.parseColor("#2563EB"))
-            btnAdvanced.setTextColor(Color.WHITE)
-        } else {
-            btnAdvanced.text = "🔒 ADVANCED"
-            btnAdvanced.setBackgroundColor(Color.parseColor("#1E293B"))
-            btnAdvanced.setTextColor(Color.parseColor("#94A3B8"))
-        }
-    }
-
-    private fun startMatchingSearch(level: String, language: String, label: String) {
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-
-        layoutDashboard.visibility = View.GONE
-        layoutLanguages.visibility = View.GONE
-        layoutSearching.visibility = View.VISIBLE
-        tvSearchingStatus.text = "Searching for a $label conversation partner..."
-        AppLogger.log("Queue", "Joined $level search queue in language: $language")
-
-        SignalingClient.joinQueue(
-            level = level,
-            language = language,
-            userGender = "Unknown",
-            talkToFemaleOnly = switchFemaleFilter.isChecked,
-            isVip = isVip
-        )
-    }
-
-    private fun startCallView() {
-        mainUiHandler.post {
-            try {
-                isCallInProgress = true
-                coinDeductedForCurrentSearch = false
-
-                window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-
-                layoutSearching.visibility = View.GONE
-                layoutLanguages.visibility = View.GONE
-                layoutDashboard.visibility = View.GONE
-                layoutCall.visibility = View.VISIBLE
-
-                tvCallPartnerName.text = "Connected"
-                tvCallTimer.text = "00:00"
-                hasShownWarning = false
-
-                isMuted = false
-                isSpeakerOn = false
-                audioManager.isSpeakerphoneOn = false
-                btnMute.text = "🎤"
-                btnSpeaker.text = "🔈"
-
-                try {
-                    val serviceIntent = Intent(this, CallService::class.java)
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        startForegroundService(serviceIntent)
-                    } else {
-                        startService(serviceIntent)
+                    layoutLanguages.visibility == View.VISIBLE -> {
+                        showLayout(layoutDashboard)
                     }
-                } catch (e: Throwable) {
-                    AppLogger.log("Service-ERR", "FGS start note: ${e.message}")
-                }
-
-                timerHandler.post(timerRunnable)
-
-                try {
-                    proximityWakeLock?.let {
-                        if (!it.isHeld) it.acquire(10 * 60 * 1000L)
-                    }
-                } catch (e: Throwable) {
-                    AppLogger.log("WakeLock-ERR", "WakeLock acquire note: ${e.message}")
-                }
-
-                AppLogger.log("CallView", "Live call view active at 00:00")
-            } catch (e: Throwable) {
-                AppLogger.log("CallView-ERR", "View transition error: ${e.message}")
-            }
-        }
-    }
-
-    private fun endCallSession() {
-        mainUiHandler.post {
-            // Guard: ensure teardown logic and counters run strictly ONCE per call
-            if (!isCallInProgress && layoutCall.visibility != View.VISIBLE) {
-                return@post
-            }
-            isCallInProgress = false
-
-            try {
-                timerHandler.removeCallbacks(timerRunnable)
-
-                val elapsed = CallService.getElapsedSeconds()
-                val isAlreadyUnlocked = prefs.getBoolean(PREF_ADVANCED_UNLOCKED, false)
-                val completedLanguage = activeCallLanguage
-                val wasReconnecting = isReconnectingSession
-
-                // Update Lifetime Stats & Streak strictly once
-                updateStreakAndStats(elapsed)
-
-                // 1. Talk Coin Reward: Every English call (Beginner or Advanced) >= 60s awards +1 Coin
-                if (completedLanguage == "ENGLISH" && elapsed >= 60L) {
-                    val currentCoins = prefs.getInt(PREF_TALK_COINS, 0) + 1
-                    prefs.edit().putInt(PREF_TALK_COINS, currentCoins).apply()
-                    AppLogger.log("Coins", "Earned 1 Talk Coin! Total: $currentCoins")
-                    Toast.makeText(this, "🎉 Earned 1 Talk Coin!", Toast.LENGTH_SHORT).show()
-                }
-
-                // 2. Beginner Milestone: ONLY English Beginner calls >= 4 mins (240s) count toward 20
-                if (!isAlreadyUnlocked && completedLanguage == "ENGLISH" && activeCallLevel == "Beginner" && elapsed >= 240L) {
-                    val current = prefs.getInt(PREF_QUALIFIED_CALLS, 0) + 1
-                    prefs.edit().putInt(PREF_QUALIFIED_CALLS, current).apply()
-                    AppLogger.log("Progress", "Beginner milestone updated: $current/20")
-                    if (current >= 20) {
-                        prefs.edit().putBoolean(PREF_ADVANCED_UNLOCKED, true).apply()
-                        AppLogger.log("Progress", "Advanced UNLOCKED")
+                    else -> {
+                        isEnabled = false
+                        onBackPressedDispatcher.onBackPressed()
                     }
                 }
-
-                SignalingClient.endCall()
-                WebRtcAudioClient.close()
-
-                try {
-                    stopService(Intent(this, CallService::class.java))
-                } catch (e: Throwable) {
-                    // Safe cleanup
-                }
-
-                try {
-                    proximityWakeLock?.let {
-                        if (it.isHeld) it.release()
-                    }
-                } catch (e: Throwable) {
-                    // Safe cleanup
-                }
-
-                // Reconnect calls or English calls return to Home Dashboard; Regional calls return to Languages screen
-                if (!wasReconnecting && completedLanguage != "ENGLISH") {
-                    showLanguagesView()
-                } else {
-                    showDashboardView()
-                }
-            } catch (e: Throwable) {
-                AppLogger.log("EndCall-ERR", "Error ending call: ${e.message}")
-            }
-        }
-    }
-
-    private fun showDashboardView() {
-        mainUiHandler.post {
-            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-
-            layoutSearching.visibility = View.GONE
-            layoutLanguages.visibility = View.GONE
-            layoutCall.visibility = View.GONE
-            layoutDashboard.visibility = View.VISIBLE
-            updateLevelDashboardUI()
-            updateCoinsUI()
-            updateStatsUI()
-
-            if (canReconnect && lastPeerId != null) {
-                btnReconnectLast.visibility = View.VISIBLE
-            } else {
-                btnReconnectLast.visibility = View.GONE
-            }
-        }
-    }
-
-    private fun showLanguagesView() {
-        mainUiHandler.post {
-            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-
-            layoutSearching.visibility = View.GONE
-            layoutCall.visibility = View.GONE
-            layoutDashboard.visibility = View.GONE
-            layoutLanguages.visibility = View.VISIBLE
-            updateCoinsUI()
-        }
-    }
-
-    private fun showExtendDialog() {
-        AlertDialog.Builder(this)
-            .setTitle("Time Warning")
-            .setMessage("14 minutes reached! Would you like to extend this call by 5 minutes?")
-            .setPositiveButton("Extend +5 Mins") { _, _ ->
-                CallService.extendTime(300L)
-                AppLogger.log("Timer", "Call extended by 5 minutes")
-            }
-            .setNegativeButton("Dismiss", null)
-            .show()
-    }
-
-    // --- Signaling Listener Handlers ---
-
-    override fun onMatchFound(roomId: String, isInitiator: Boolean, peerLevel: String, peerId: String, isReconnect: Boolean) {
-        AppLogger.log("Signaling", "Match: $roomId, Initiator: $isInitiator")
-        if (isReconnect) {
-            canReconnect = false
-            lastPeerId = null
-        } else {
-            lastPeerId = peerId
-            canReconnect = true
-        }
-
-        WebRtcAudioClient.startSession(object : WebRtcAudioClient.RtcListener {
-            override fun onLocalOfferCreated(sdp: SessionDescription) {
-                AppLogger.log("WebRTC", "Local offer SDP ready")
-                SignalingClient.sendOffer(sdp)
-            }
-
-            override fun onLocalAnswerCreated(sdp: SessionDescription) {
-                AppLogger.log("WebRTC", "Local answer SDP ready")
-                SignalingClient.sendAnswer(sdp)
-            }
-
-            override fun onIceCandidateGenerated(candidate: IceCandidate) {
-                SignalingClient.sendIceCandidate(candidate)
-            }
-
-            override fun onAudioConnected() {
-                AppLogger.log("WebRTC", "Two-way live audio pipeline connected!")
-                startCallView()
-            }
-
-            override fun onDisconnected() {
-                AppLogger.log("WebRTC", "Audio pipeline disconnected")
-                endCallSession()
             }
         })
+    }
 
-        if (isInitiator) {
-            AppLogger.log("WebRTC", "Generating initial SDP Offer...")
-            WebRtcAudioClient.createOffer()
+    private fun startSearchingFlow() {
+        // Cooldown Invariant Verification
+        if (CooldownManager.isUnderCooldown(this)) {
+            val remSec = CooldownManager.getRemainingCooldownSeconds(this)
+            val mins = remSec / 60
+            val secs = remSec % 60
+            Toast.makeText(
+                this,
+                "You are on a 3-minute break for frequent early hang-ups. Please wait ${mins}m ${secs}s before searching again.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        tvSearchStatus.text = "Searching for practice partner..."
+        showLayout(layoutSearching)
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+        val isFemaleOnly = switchFemaleOnly.isChecked
+        val isVip = prefs.getBoolean("is_vip", false)
+        val userGender = prefs.getString("user_gender", "Unknown") ?: "Unknown"
+
+        SignalingClient.joinQueue(currentLevel, currentLanguage, userGender, isFemaleOnly, isVip)
+        AppLogger.log("Queue", "Joined $currentLevel search queue in language: $currentLanguage")
+    }
+
+    private fun startRegionalSearchFlow(lang: String) {
+        if (CooldownManager.isUnderCooldown(this)) {
+            val remSec = CooldownManager.getRemainingCooldownSeconds(this)
+            Toast.makeText(this, "You are on a 3-minute break. Please wait ${remSec}s.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val coins = prefs.getInt("talk_coins", 0)
+        if (coins < 1) {
+            showZeroCoinsDialog()
+            return
+        }
+
+        // Deduct 1 Talk Coin for Regional Pool
+        prefs.edit().putInt("talk_coins", coins - 1).apply()
+        refreshDashboardUI()
+        AppLogger.log("Coins", "1 Talk Coin deducted for $lang pool")
+
+        startSearchingFlow()
+    }
+
+    private fun cancelSearchAndReturn() {
+        SignalingClient.leaveQueue()
+        SignalingClient.cancelReconnect()
+
+        // Refund Talk Coin if searching inside a regional pool
+        if (currentLanguage != "ENGLISH") {
+            val coins = prefs.getInt("talk_coins", 0)
+            prefs.edit().putInt("talk_coins", coins + 1).apply()
+            AppLogger.log("Coins", "1 Talk Coin refunded after search cancellation")
+        }
+
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        showLayout(if (currentLanguage == "ENGLISH") layoutDashboard else layoutLanguages)
+        refreshDashboardUI()
+        AppLogger.log("UI", "Search cancelled by user")
+    }
+
+    private fun initiateReconnectFlow() {
+        if (CooldownManager.isUnderCooldown(this)) {
+            Toast.makeText(this, "Under cooldown. Please wait.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        tvSearchStatus.text = "Reconnecting to last caller..."
+        showLayout(layoutSearching)
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+        SignalingClient.requestReconnect(lastCallerPeerId, currentLevel)
+        AppLogger.log("Reconnect", "Requesting reconnect with peer: $lastCallerPeerId")
+    }
+
+    private fun showReportUserDialog() {
+        if (lastCallerPeerId.isEmpty()) {
+            Toast.makeText(this, "No recent caller available to report.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Report Last Caller")
+            .setMessage("Are you sure you want to report your last conversation partner for inappropriate behavior or abusive language?")
+            .setPositiveButton("Report") { _, _ ->
+                SignalingClient.reportUser(lastCallerPeerId)
+                Toast.makeText(this, "Report submitted. Thank you for keeping our community safe.", Toast.LENGTH_LONG).show()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showCallExtensionDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Call Limit Warning")
+            .setMessage("This call will reach the 15-minute limit soon. Would you like to extend for +5 minutes?")
+            .setPositiveButton("Extend +5 Mins") { _, _ ->
+                isCallTimerExtended = true
+                Toast.makeText(this, "Call extended by 5 minutes", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Dismiss", null)
+            .setCancelable(false)
+            .show()
+    }
+
+    private fun showZeroCoinsDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("🪙 0 Talk Coins")
+            .setMessage("Joining Regional Language pools requires at least 1 Talk Coin. You can earn coins by practicing English for 1+ minute or watching a quick video ad.")
+            .setPositiveButton("Watch Ad (+2 Coins)") { _, _ -> showRewardedAd() }
+            .setNegativeButton("Practice English", null)
+            .show()
+    }
+
+    // ----------------------------------------------------
+    // SIGNALING LISTENER IMPLEMENTATION
+    // ----------------------------------------------------
+
+    override fun onMatchFound(roomId: String, isInitiator: Boolean, peerLevel: String, peerId: String, isReconnect: Boolean) {
+        runOnUiThread {
+            lastCallerPeerId = peerId
+            isCallInProgress = true
+            callStartTimeMs = System.currentTimeMillis()
+            warningDialogShown = false
+            isCallTimerExtended = false
+
+            showLayout(layoutCall)
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+            // Audio Baseline Invariant: Earpiece Mode ON, Mic ON
+            audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+            audioManager.isSpeakerphoneOn = false
+            WebRtcManager.setMuted(false)
+            btnMute.setImageResource(R.drawable.ic_mic_on)
+            btnSpeaker.setImageResource(R.drawable.ic_speaker_off)
+
+            tvCallStatus.text = "Connected"
+            tvCallDuration.text = "00:00"
+
+            startService(Intent(this, CallService::class.java))
+            proximitySensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI) }
+
+            mainHandler.post(callTimerRunnable)
+            WebRtcManager.startPeerConnection(roomId, isInitiator, this)
+            AppLogger.log("CallView", "Live call view active at 00:00")
         }
     }
 
     override fun onOfferReceived(sdp: SessionDescription) {
-        AppLogger.log("Signaling", "Remote SDP Offer received")
-        WebRtcAudioClient.handleRemoteOffer(sdp)
+        WebRtcManager.handleRemoteOffer(sdp)
     }
 
     override fun onAnswerReceived(sdp: SessionDescription) {
-        AppLogger.log("Signaling", "Remote SDP Answer received")
-        WebRtcAudioClient.handleRemoteAnswer(sdp)
+        WebRtcManager.handleRemoteAnswer(sdp)
     }
 
     override fun onIceCandidateReceived(candidate: IceCandidate) {
-        WebRtcAudioClient.addIceCandidate(candidate)
+        WebRtcManager.handleRemoteIceCandidate(candidate)
     }
 
     override fun onCallEnded() {
-        AppLogger.log("Signaling", "Remote peer ended call")
-        endCallSession()
+        runOnUiThread {
+            AppLogger.log("Signaling", "Remote peer ended call")
+            teardownCallSession(isRemoteDisconnect = true)
+        }
     }
 
     override fun onReconnectWaiting() {
-        mainUiHandler.post {
-            tvSearchingStatus.text = "Waiting for partner to accept reconnect..."
+        runOnUiThread {
+            tvSearchStatus.text = "Waiting for partner to accept reconnect..."
             AppLogger.log("Reconnect", "Waiting for partner...")
         }
     }
 
     override fun onReconnectFailed(reason: String) {
-        mainUiHandler.post {
-            canReconnect = false
-            AppLogger.log("Reconnect", "Reconnect failed: $reason")
-            showDashboardView()
+        runOnUiThread {
+            Toast.makeText(this, "Partner is unavailable for reconnect.", Toast.LENGTH_SHORT).show()
+            cancelSearchAndReturn()
         }
     }
 
-    // --- Lifecycle & Background Auto-Mute ---
-
-    override fun onResume() {
-        super.onResume()
-        updateCoinsUI()
-        updateStatsUI()
-        backgroundHandler.removeCallbacks(autoMuteRunnable)
-        if (wasMutedBeforeBackground && isMuted) {
-            isMuted = false
-            WebRtcAudioClient.setMicrophoneMute(false)
-            btnMute.text = "🎤"
-            wasMutedBeforeBackground = false
-            AppLogger.log("AutoMute", "Microphone unmuted upon app foreground")
-        }
-        try {
-            sensorManager?.registerListener(this, proximitySensor, SensorManager.SENSOR_DELAY_NORMAL)
-        } catch (e: Throwable) {
-            // Safe fallback
+    override fun onServerCooldown(remainingSeconds: Long) {
+        runOnUiThread {
+            CooldownManager.triggerThreeMinuteCooldown(this)
+            cancelSearchAndReturn()
+            Toast.makeText(
+                this,
+                "You are on a 3-minute break due to community reports. Please take a short pause before searching again.",
+                Toast.LENGTH_LONG
+            ).show()
         }
     }
+
+    private fun endActiveCall() {
+        SignalingClient.endCall()
+        teardownCallSession(isRemoteDisconnect = false)
+    }
+
+    private fun teardownCallSession(isRemoteDisconnect: Boolean) {
+        if (!isCallInProgress) return
+        isCallInProgress = false
+
+        mainHandler.removeCallbacks(callTimerRunnable)
+        stopService(Intent(this, CallService::class.java))
+        sensorManager.unregisterListener(this)
+        if (wakeLock?.isHeld == true) wakeLock?.release()
+
+        val callDurationSec = if (callStartTimeMs > 0L) (System.currentTimeMillis() - callStartTimeMs) / 1000L else 0L
+
+        // Record Call Duration for Cooldown Engine
+        CooldownManager.onCallFinished(this, callDurationSec)
+
+        // Atomic Statistics & Coins Evaluation (Rule 1, 5, 7, 11)
+        updateSessionStats(callDurationSec)
+
+        WebRtcManager.close()
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+        // Route clean post-call destination (Rule 2 & 4)
+        if (btnReconnect.visibility == View.VISIBLE && !isRemoteDisconnect) {
+            btnReconnect.visibility = View.GONE
+        } else if (lastCallerPeerId.isNotEmpty()) {
+            btnReconnect.visibility = View.VISIBLE
+        }
+
+        showLayout(if (currentLanguage == "ENGLISH") layoutDashboard else layoutLanguages)
+        refreshDashboardUI()
+        AppLogger.log("WebRTC", "Session cleaned up. Talk time: $callDurationSec s")
+    }
+
+    private fun updateSessionStats(durationSec: Long) {
+        val totalSec = prefs.getLong("total_practice_seconds", 0L) + durationSec
+        val totalCalls = prefs.getInt("total_calls_count", 0) + 1
+        val editor = prefs.edit()
+
+        editor.putLong("total_practice_seconds", totalSec)
+        editor.putInt("total_calls_count", totalCalls)
+
+        // Rule 5: English calls >= 60s earn +1 Talk Coin
+        if (currentLanguage == "ENGLISH" && durationSec >= 60) {
+            val currentCoins = prefs.getInt("talk_coins", 0) + 1
+            editor.putInt("talk_coins", currentCoins)
+            AppLogger.log("Coins", "Earned 1 Talk Coin! Total: $currentCoins")
+        }
+
+        // Rule 11: Beginner calls >= 240s count toward Advanced unlock
+        if (currentLanguage == "ENGLISH" && currentLevel == "Beginner" && durationSec >= 240) {
+            val qualified = prefs.getInt("beginner_qualified_calls", 0) + 1
+            editor.putInt("beginner_qualified_calls", qualified)
+            AppLogger.log("Progression", "Advanced unlock progression: $qualified / 20")
+        }
+
+        // Rule 7: Daily Streak calculation
+        if (durationSec >= 60) {
+            val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+            val lastActiveDate = prefs.getString("last_active_date", "") ?: ""
+            val currentStreak = prefs.getInt("daily_streak", 0)
+
+            if (lastActiveDate != todayStr) {
+                val cal = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
+                val yesterdayStr = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(cal.time)
+
+                if (lastActiveDate == yesterdayStr) {
+                    editor.putInt("daily_streak", currentStreak + 1)
+                } else {
+                    editor.putInt("daily_streak", 1)
+                }
+                editor.putString("last_active_date", todayStr)
+            }
+        }
+
+        editor.apply()
+    }
+
+    private fun refreshDashboardUI() {
+        val coins = prefs.getInt("talk_coins", 0)
+        val streak = prefs.getInt("daily_streak", 0)
+        val practiceMins = prefs.getLong("total_practice_seconds", 0L) / 60
+        val totalCalls = prefs.getInt("total_calls_count", 0)
+        val qualifiedCalls = prefs.getInt("beginner_qualified_calls", 0)
+
+        tvTalkCoins.text = "🪙 Talk Coins: $coins"
+        tvStreak.text = "$streak"
+        tvPracticeTime.text = "${practiceMins}m"
+        tvTotalCalls.text = "$totalCalls"
+
+        if (qualifiedCalls >= 20) {
+            btnAdvanced.text = "ADVANCED (TAP TO CALL)"
+        } else {
+            btnAdvanced.text = "🔒 ADVANCED ($qualifiedCalls/20)"
+        }
+    }
+
+    private fun showLayout(activeLayout: View) {
+        layoutDashboard.visibility = if (activeLayout == layoutDashboard) View.VISIBLE else View.GONE
+        layoutLanguages.visibility = if (activeLayout == layoutLanguages) View.VISIBLE else View.GONE
+        layoutSearching.visibility = if (activeLayout == layoutSearching) View.VISIBLE else View.GONE
+        layoutCall.visibility = if (activeLayout == layoutCall) View.VISIBLE else View.GONE
+    }
+
+    // ----------------------------------------------------
+    // BACKGROUND AUTO-MUTE & POWER BUTTON MANAGEMENT
+    // ----------------------------------------------------
 
     override fun onPause() {
         super.onPause()
-        if (layoutCall.visibility == View.VISIBLE) {
-            val isScreenOff = powerManager?.isInteractive == false
-            if (isScreenOff) {
-                AppLogger.log("PowerKey", "Screen locked via power button - keeping microphone active")
-            } else {
-                wasMutedBeforeBackground = !isMuted
-                backgroundHandler.postDelayed(autoMuteRunnable, 30000L)
+        if (isCallInProgress) {
+            val isScreenOn = powerManager.isInteractive
+            if (isScreenOn) {
+                // Rule 15: Background with Screen ON -> 30s Auto-Mute countdown
+                isAppInBackground = true
+                backgroundAutoMuteRunnable = Runnable {
+                    if (isAppInBackground && isCallInProgress) {
+                        WebRtcManager.setMuted(true)
+                        AppLogger.log("AutoMute", "Hard-muted microphone after 30s in background")
+                    }
+                }
+                backgroundAutoMuteRunnable?.let { mainHandler.postDelayed(it, 30000L) }
                 AppLogger.log("AutoMute", "App minimized to background: 30s auto-mute timer started")
+            } else {
+                // Rule 14: Screen Locked via Power Button -> Unmuted indefinitely
+                AppLogger.log("PowerKey", "Screen locked via power button - keeping microphone active")
             }
-        }
-        try {
-            sensorManager?.unregisterListener(this)
-        } catch (e: Throwable) {
-            // Safe fallback
         }
     }
 
-    override fun onSensorChanged(event: SensorEvent?) {}
+    override fun onResume() {
+        super.onResume()
+        isAppInBackground = false
+        backgroundAutoMuteRunnable?.let { mainHandler.removeCallbacks(it) }
+        if (isCallInProgress && WebRtcManager.isMuted) {
+            WebRtcManager.setMuted(false)
+            btnMute.setImageResource(R.drawable.ic_mic_on)
+            AppLogger.log("AutoMute", "Microphone unmuted upon app foreground")
+        }
+        refreshDashboardUI()
+    }
+
+    override fun onSensorChanged(event: SensorEvent?) {
+        if (event?.sensor?.type == Sensor.TYPE_PROXIMITY && isCallInProgress) {
+            val distance = event.values[0]
+            val maxRange = proximitySensor?.maximumRange ?: 5f
+            if (distance < maxRange) {
+                if (wakeLock?.isHeld == false) wakeLock?.acquire(10 * 60 * 1000L)
+            } else {
+                if (wakeLock?.isHeld == true) wakeLock?.release()
+            }
+        }
+    }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
-    private fun loadBannerAd() {
-        try {
-            val adView = AdView(this)
-            adView.adUnitId = "ca-app-pub-3940256099942544/6300978111"
-            adView.setAdSize(AdSize.BANNER)
-            layoutBannerAd.removeAllViews()
-            layoutBannerAd.addView(adView)
-            adView.loadAd(AdRequest.Builder().build())
-        } catch (e: Throwable) {
-            AppLogger.log("AdMob", "Banner ad load note: ${e.message}")
+    // ----------------------------------------------------
+    // ADMOB REWARDED VIDEO
+    // ----------------------------------------------------
+
+    private fun loadRewardedAd() {
+        val adRequest = AdRequest.Builder().build()
+        RewardedAd.load(this, "ca-app-pub-3940256099942544/5224354917", adRequest, object : RewardedAdLoadCallback() {
+            override fun onAdLoaded(ad: RewardedAd) {
+                rewardedAd = ad
+                AppLogger.log("AdMob", "Rewarded ad loaded and ready")
+            }
+
+            override fun onAdFailedToLoad(error: LoadAdError) {
+                rewardedAd = null
+                AppLogger.log("AdMob", "Rewarded ad failed: ${error.message}")
+            }
+        })
+    }
+
+    private fun showRewardedAd() {
+        if (rewardedAd != null) {
+            rewardedAd?.show(this) { _ ->
+                val currentCoins = prefs.getInt("talk_coins", 0) + 2
+                prefs.edit().putInt("talk_coins", currentCoins).apply()
+                refreshDashboardUI()
+                Toast.makeText(this, "+2 Talk Coins added!", Toast.LENGTH_SHORT).show()
+                AppLogger.log("Coins", "Rewarded ad completed: +2 Talk Coins added")
+                loadRewardedAd()
+            }
+        } else {
+            Toast.makeText(this, "Ad is loading, please try in a moment...", Toast.LENGTH_SHORT).show()
+            loadRewardedAd()
         }
     }
 
     private fun checkPermissions() {
-        val permissions = mutableListOf(Manifest.permission.RECORD_AUDIO)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
-        }
-        val missing = permissions.filter {
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
-        }
-        if (missing.isNotEmpty()) {
-            ActivityCompat.requestPermissions(this, missing.toTypedArray(), 101)
+        val permissions = arrayOf(Manifest.permission.RECORD_AUDIO)
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, permissions, 101)
         }
     }
 }

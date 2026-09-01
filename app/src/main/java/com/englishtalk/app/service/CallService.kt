@@ -16,7 +16,6 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.englishtalk.app.MainActivity
-import com.englishtalk.app.R
 import com.englishtalk.app.utils.AppLogger
 import com.englishtalk.app.webrtc.WebRtcAudioClient
 
@@ -187,7 +186,7 @@ class CallService : Service(), AudioManager.OnAudioFocusChangeListener {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("English Talk Call Active")
             .setContentText("Speaking with your practice partner...")
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(android.R.drawable.stat_sys_phone_call)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)

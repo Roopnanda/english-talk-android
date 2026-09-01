@@ -17,8 +17,8 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.englishtalk.app.MainActivity
 import com.englishtalk.app.R
-import com.englishtalk.app.WebRtcManager
 import com.englishtalk.app.utils.AppLogger
+import com.englishtalk.app.webrtc.WebRtcManager
 
 class CallService : Service(), AudioManager.OnAudioFocusChangeListener {
 

@@ -1,11 +1,13 @@
 package com.englishtalk.app
 
 import android.Manifest
+import android.app.Activity
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -17,10 +19,9 @@ import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.*
-import androidx.activity.ComponentActivity
-import androidx.activity.OnBackPressedCallback
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.englishtalk.app.network.SignalingClient
@@ -36,10 +37,12 @@ import com.google.android.gms.ads.rewarded.RewardedAd
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
 import org.webrtc.IceCandidate
 import org.webrtc.SessionDescription
+import java.io.PrintWriter
+import java.io.StringWriter
 import java.text.SimpleDateFormat
 import java.util.*
 
-class MainActivity : ComponentActivity(), SignalingClient.SignalingListener, SensorEventListener {
+class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventListener {
 
     private lateinit var prefs: SharedPreferences
     private lateinit var audioManager: AudioManager
@@ -110,13 +113,11 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener, Sen
                 val secs = elapsedSec % 60
                 tvCallDuration?.text = String.format(Locale.US, "%02d:%02d", mins, secs)
 
-                // 14-Minute Warning Dialog (840s)
                 if (elapsedSec >= 840 && !warningDialogShown && !isCallTimerExtended) {
                     warningDialogShown = true
                     showCallExtensionDialog()
                 }
 
-                // 15-Minute Hard Limit (or 20-min if extended)
                 val maxLimitSec = if (isCallTimerExtended) 1200L else 900L
                 if (elapsedSec >= maxLimitSec) {
                     Toast.makeText(this@MainActivity, "Call reached time limit", Toast.LENGTH_SHORT).show()
@@ -132,77 +133,84 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener, Sen
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        Thread.setDefaultUncaughtExceptionHandler { _, e ->
-            AppLogger.log("CRASH-TRAP", "Uncaught runtime exception: ${e.message}")
+        // On-screen crash trap
+        Thread.setDefaultUncaughtExceptionHandler { _, throwable ->
+            val sw = StringWriter()
+            val pw = PrintWriter(sw)
+            throwable.printStackTrace(pw)
+            val stackTrace = sw.toString()
+            AppLogger.log("CRASH-TRAP", stackTrace)
+
+            mainHandler.post {
+                showOnScreenError(stackTrace)
+            }
         }
 
         try {
-            setContentView(R.layout.activity_main)
-        } catch (e: Throwable) {
-            AppLogger.log("Layout-ERR", "Direct layout inflate error: ${e.message}")
-            val dynamicLayoutId = resources.getIdentifier("activity_main", "layout", packageName)
-            if (dynamicLayoutId != 0) {
-                setContentView(dynamicLayoutId)
+            val layoutId = resources.getIdentifier("activity_main", "layout", packageName)
+            if (layoutId != 0) {
+                setContentView(layoutId)
             }
+        } catch (e: Throwable) {
+            AppLogger.log("Layout-ERR", "setContentView error: ${e.message}")
+            showOnScreenError("Layout Inflate Error:\n" + e.message)
+            return
         }
-
-        prefs = getSharedPreferences("EnglishTalkPrefs", Context.MODE_PRIVATE)
-        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
-        powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
 
         try {
-            proximitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY)
+            prefs = getSharedPreferences("EnglishTalkPrefs", Context.MODE_PRIVATE)
+            audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+            powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+
+            try {
+                proximitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY)
+            } catch (e: Throwable) {}
+
+            setupWakeLock()
+            initViews()
+            setupListeners()
+
+            mainHandler.post {
+                try {
+                    MobileAds.initialize(applicationContext) {}
+                    bannerAdView?.loadAd(AdRequest.Builder().build())
+                } catch (e: Throwable) {
+                    AppLogger.log("AdMob-ERR", "MobileAds init: ${e.message}")
+                }
+
+                try {
+                    SignalingClient.setListener(this)
+                    SignalingClient.connect()
+                    WebRtcAudioClient.init(applicationContext)
+                } catch (e: Throwable) {
+                    AppLogger.log("Init-ERR", "Signaling/WebRTC init: ${e.message}")
+                }
+
+                loadRewardedAd()
+            }
+
+            refreshDashboardUI()
+            checkPermissions()
         } catch (e: Throwable) {
-            AppLogger.log("Sensor-ERR", "Proximity sensor unavailable: ${e.message}")
+            showOnScreenError("Startup Initialization Error:\n" + e.message)
         }
-
-        setupWakeLock()
-        initViews()
-        setupListeners()
-        setupBackPressHandler()
-
-        // Asynchronous non-blocking SDK & WebRTC init
-        mainHandler.post {
-            try {
-                MobileAds.initialize(applicationContext) {}
-                bannerAdView?.loadAd(AdRequest.Builder().build())
-            } catch (e: Throwable) {
-                AppLogger.log("AdMob-ERR", "MobileAds init: ${e.message}")
-            }
-
-            try {
-                SignalingClient.setListener(this)
-                SignalingClient.connect()
-                WebRtcAudioClient.init(applicationContext)
-            } catch (e: Throwable) {
-                AppLogger.log("Init-ERR", "Signaling/WebRTC init: ${e.message}")
-            }
-
-            loadRewardedAd()
-        }
-
-        refreshDashboardUI()
-        checkPermissions()
     }
 
-    private fun setupBackPressHandler() {
-        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                when {
-                    layoutSearching?.visibility == View.VISIBLE || layoutCall?.visibility == View.VISIBLE -> {
-                        AppLogger.log("UI", "Back gesture intercepted - remaining on active screen")
-                    }
-                    layoutLanguages?.visibility == View.VISIBLE -> {
-                        showLayout(layoutDashboard)
-                    }
-                    else -> {
-                        isEnabled = false
-                        onBackPressedDispatcher.onBackPressed()
-                    }
-                }
+    private fun showOnScreenError(errorText: String) {
+        try {
+            val scrollView = ScrollView(this)
+            val textView = TextView(this).apply {
+                text = "⚠️ APP ERROR REPORT:\n\n$errorText"
+                setTextColor(Color.RED)
+                textSize = 14f
+                setPadding(32, 48, 32, 48)
             }
-        })
+            scrollView.addView(textView)
+            setContentView(scrollView)
+        } catch (e: Throwable) {
+            AppLogger.log("ERROR-VIEW", "Could not mount error view: ${e.message}")
+        }
     }
 
     private fun setupWakeLock() {
@@ -345,6 +353,22 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener, Sen
                         startRegionalSearchFlow(langName)
                     }
                 }
+            }
+        }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        when {
+            layoutSearching?.visibility == View.VISIBLE || layoutCall?.visibility == View.VISIBLE -> {
+                AppLogger.log("UI", "Back gesture intercepted - remaining on active screen")
+            }
+            layoutLanguages?.visibility == View.VISIBLE -> {
+                showLayout(layoutDashboard)
+            }
+            else -> {
+                @Suppress("DEPRECATION")
+                super.onBackPressed()
             }
         }
     }
@@ -727,9 +751,21 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener, Sen
     }
 
     private fun checkPermissions() {
-        val permissions = arrayOf(Manifest.permission.RECORD_AUDIO)
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, permissions, 101)
+        val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            arrayOf(
+                Manifest.permission.RECORD_AUDIO,
+                Manifest.permission.BLUETOOTH_CONNECT
+            )
+        } else {
+            arrayOf(Manifest.permission.RECORD_AUDIO)
+        }
+
+        val missing = permissions.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+
+        if (missing.isNotEmpty()) {
+            ActivityCompat.requestPermissions(this, missing.toTypedArray(), 101)
         }
     }
 }

@@ -18,7 +18,7 @@ import androidx.core.app.NotificationCompat
 import com.englishtalk.app.MainActivity
 import com.englishtalk.app.R
 import com.englishtalk.app.utils.AppLogger
-import com.englishtalk.app.webrtc.WebRtcManager
+import com.englishtalk.app.webrtc.WebRtcAudioClient
 
 class CallService : Service(), AudioManager.OnAudioFocusChangeListener {
 
@@ -102,14 +102,14 @@ class CallService : Service(), AudioManager.OnAudioFocusChangeListener {
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
                 AppLogger.log("AudioRoute", "GSM call interruption (AudioFocus Loss Transient) -> Auto-muting WebRTC mic")
-                wasMutedBeforeFocusLoss = WebRtcManager.isMuted
-                WebRtcManager.setMuted(true)
+                wasMutedBeforeFocusLoss = WebRtcAudioClient.isMuted
+                WebRtcAudioClient.setMuted(true)
             }
             AudioManager.AUDIOFOCUS_GAIN -> {
                 AppLogger.log("AudioRoute", "GSM call ended (AudioFocus GAIN) -> Restoring WebRTC mic")
                 audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
                 if (!wasMutedBeforeFocusLoss) {
-                    WebRtcManager.setMuted(false)
+                    WebRtcAudioClient.setMuted(false)
                 }
             }
             AudioManager.AUDIOFOCUS_LOSS -> {

@@ -1,7 +1,7 @@
 package com.englishtalk.app
 
 import android.Manifest
-import android.annotation.SuppressLint
+import android.app.Activity
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
@@ -21,14 +21,12 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.*
 import androidx.activity.OnBackPressedCallback
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.englishtalk.app.network.SignalingClient
 import com.englishtalk.app.service.CallService
 import com.englishtalk.app.utils.AppLogger
 import com.englishtalk.app.utils.CooldownManager
-import com.englishtalk.app.webrtc.WebRtcManager
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdView
 import com.google.android.gms.ads.LoadAdError
@@ -39,7 +37,7 @@ import org.webrtc.SessionDescription
 import java.text.SimpleDateFormat
 import java.util.*
 
-class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener, SensorEventListener {
+class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventListener {
 
     private lateinit var prefs: SharedPreferences
     private lateinit var audioManager: AudioManager
@@ -142,7 +140,6 @@ class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener, Sen
         setupWakeLock()
         initViews()
         setupListeners()
-        setupBackPressHandling()
 
         SignalingClient.setListener(this)
         SignalingClient.connect()
@@ -288,24 +285,21 @@ class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener, Sen
         }
     }
 
-    private fun setupBackPressHandling() {
-        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                when {
-                    layoutSearching.visibility == View.VISIBLE || layoutCall.visibility == View.VISIBLE -> {
-                        AppLogger.log("UI", "Back gesture intercepted - remaining on active screen")
-                        // Invariant Rule 13: Completely ignore back presses in Search & Call screens
-                    }
-                    layoutLanguages.visibility == View.VISIBLE -> {
-                        showLayout(layoutDashboard)
-                    }
-                    else -> {
-                        isEnabled = false
-                        onBackPressedDispatcher.onBackPressed()
-                    }
-                }
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        when {
+            layoutSearching.visibility == View.VISIBLE || layoutCall.visibility == View.VISIBLE -> {
+                AppLogger.log("UI", "Back gesture intercepted - remaining on active screen")
+                // Invariant Rule 13: Completely ignore back presses in Search & Call screens
             }
-        })
+            layoutLanguages.visibility == View.VISIBLE -> {
+                showLayout(layoutDashboard)
+            }
+            else -> {
+                @Suppress("DEPRECATION")
+                super.onBackPressed()
+            }
+        }
     }
 
     private fun startSearchingFlow() {

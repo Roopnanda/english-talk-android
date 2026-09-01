@@ -129,50 +129,59 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener, Sen
         }
     }
 
-    private fun <T : View> findSafeView(resName: String): T? {
-        val id = resources.getIdentifier(resName, "id", packageName)
-        return if (id != 0) findViewById(id) else null
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         Thread.setDefaultUncaughtExceptionHandler { _, e ->
-            AppLogger.log("CRASH-TRAP", "Uncaught exception: ${e.message}")
+            AppLogger.log("CRASH-TRAP", "Uncaught runtime exception: ${e.message}")
         }
 
-        // Direct layout inflation matching namespace com.englishtalk.app
-        val layoutResId = resources.getIdentifier("activity_main", "layout", packageName)
-        if (layoutResId != 0) {
-            setContentView(layoutResId)
+        try {
+            setContentView(R.layout.activity_main)
+        } catch (e: Throwable) {
+            AppLogger.log("Layout-ERR", "Direct layout inflate error: ${e.message}")
+            val dynamicLayoutId = resources.getIdentifier("activity_main", "layout", packageName)
+            if (dynamicLayoutId != 0) {
+                setContentView(dynamicLayoutId)
+            }
         }
 
         prefs = getSharedPreferences("EnglishTalkPrefs", Context.MODE_PRIVATE)
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
-        proximitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY)
         powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+
+        try {
+            proximitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY)
+        } catch (e: Throwable) {
+            AppLogger.log("Sensor-ERR", "Proximity sensor unavailable: ${e.message}")
+        }
 
         setupWakeLock()
         initViews()
         setupListeners()
         setupBackPressHandler()
 
-        try {
-            MobileAds.initialize(this) {}
-        } catch (e: Throwable) {
-            AppLogger.log("AdMob-ERR", "MobileAds init: ${e.message}")
+        // Asynchronous non-blocking SDK & WebRTC init
+        mainHandler.post {
+            try {
+                MobileAds.initialize(applicationContext) {}
+                bannerAdView?.loadAd(AdRequest.Builder().build())
+            } catch (e: Throwable) {
+                AppLogger.log("AdMob-ERR", "MobileAds init: ${e.message}")
+            }
+
+            try {
+                SignalingClient.setListener(this)
+                SignalingClient.connect()
+                WebRtcAudioClient.init(applicationContext)
+            } catch (e: Throwable) {
+                AppLogger.log("Init-ERR", "Signaling/WebRTC init: ${e.message}")
+            }
+
+            loadRewardedAd()
         }
 
-        try {
-            SignalingClient.setListener(this)
-            SignalingClient.connect()
-            WebRtcAudioClient.init(applicationContext)
-        } catch (e: Throwable) {
-            AppLogger.log("Init-ERR", "Signaling/WebRTC init: ${e.message}")
-        }
-
-        loadRewardedAd()
         refreshDashboardUI()
         checkPermissions()
     }
@@ -206,44 +215,43 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener, Sen
         }
     }
 
+    private fun <T : View> resolveView(resName: String): T? {
+        val id = resources.getIdentifier(resName, "id", packageName)
+        return if (id != 0) findViewById(id) else null
+    }
+
     private fun initViews() {
-        layoutDashboard = findSafeView("layoutDashboard")
-        layoutLanguages = findSafeView("layoutLanguages")
-        layoutSearching = findSafeView("layoutSearching")
-        layoutCall = findSafeView("layoutCall")
+        layoutDashboard = resolveView("layoutDashboard")
+        layoutLanguages = resolveView("layoutLanguages")
+        layoutSearching = resolveView("layoutSearching")
+        layoutCall = resolveView("layoutCall")
 
-        tvTalkCoins = findSafeView("tvTalkCoins")
-        tvStreak = findSafeView("tvStreak")
-        tvPracticeTime = findSafeView("tvPracticeTime")
-        tvTotalCalls = findSafeView("tvTotalCalls")
-        btnBeginner = findSafeView("btnBeginner")
-        btnAdvanced = findSafeView("btnAdvanced")
-        btnOtherLanguages = findSafeView("btnOtherLanguages")
-        btnReconnect = findSafeView("btnReconnect")
-        btnShare = findSafeView("btnShare")
-        btnReportUser = findSafeView("btnReportUser")
-        switchFemaleOnly = findSafeView("switchFemaleOnly")
-        tvFemaleOnlyLabel = findSafeView("tvFemaleOnlyLabel")
+        tvTalkCoins = resolveView("tvTalkCoins")
+        tvStreak = resolveView("tvStreak")
+        tvPracticeTime = resolveView("tvPracticeTime")
+        tvTotalCalls = resolveView("tvTotalCalls")
+        btnBeginner = resolveView("btnBeginner")
+        btnAdvanced = resolveView("btnAdvanced")
+        btnOtherLanguages = resolveView("btnOtherLanguages")
+        btnReconnect = resolveView("btnReconnect")
+        btnShare = resolveView("btnShare")
+        btnReportUser = resolveView("btnReportUser")
+        switchFemaleOnly = resolveView("switchFemaleOnly")
+        tvFemaleOnlyLabel = resolveView("tvFemaleOnlyLabel")
 
-        tvSearchStatus = findSafeView("tvSearchStatus")
-        btnCancelSearch = findSafeView("btnCancelSearch")
+        tvSearchStatus = resolveView("tvSearchStatus")
+        btnCancelSearch = resolveView("btnCancelSearch")
 
-        tvCallStatus = findSafeView("tvCallStatus")
-        tvCallDuration = findSafeView("tvCallDuration")
-        btnMute = findSafeView("btnMute")
-        btnSpeaker = findSafeView("btnSpeaker")
-        btnEndCall = findSafeView("btnEndCall")
+        tvCallStatus = resolveView("tvCallStatus")
+        tvCallDuration = resolveView("tvCallDuration")
+        btnMute = resolveView("btnMute")
+        btnSpeaker = resolveView("btnSpeaker")
+        btnEndCall = resolveView("btnEndCall")
 
-        btnWatchAdCoins = findSafeView("btnWatchAdCoins")
-        btnBackFromLanguages = findSafeView("btnBackFromLanguages")
-        gridLanguages = findSafeView("gridLanguages")
-        bannerAdView = findSafeView("bannerAdView")
-
-        try {
-            bannerAdView?.loadAd(AdRequest.Builder().build())
-        } catch (e: Throwable) {
-            AppLogger.log("AdMob-ERR", "Banner load: ${e.message}")
-        }
+        btnWatchAdCoins = resolveView("btnWatchAdCoins")
+        btnBackFromLanguages = resolveView("btnBackFromLanguages")
+        gridLanguages = resolveView("gridLanguages")
+        bannerAdView = resolveView("bannerAdView")
     }
 
     private fun setupListeners() {
@@ -442,6 +450,7 @@ class MainActivity : ComponentActivity(), SignalingClient.SignalingListener, Sen
                 Toast.makeText(this, "Call extended by 5 minutes", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("Dismiss", null)
+            .setCancelable(false)
             .show()
     }
 

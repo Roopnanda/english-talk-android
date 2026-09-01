@@ -18,14 +18,9 @@ import android.os.Looper
 import android.os.PowerManager
 import android.view.View
 import android.view.WindowManager
-import android.widget.Button
-import android.widget.GridLayout
-import android.widget.ImageButton
-import android.widget.Switch
-import android.widget.TextView
-import android.widget.Toast
+import android.widget.*
+import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.englishtalk.app.network.SignalingClient
@@ -42,11 +37,9 @@ import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
 import org.webrtc.IceCandidate
 import org.webrtc.SessionDescription
 import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Date
-import java.util.Locale
+import java.util.*
 
-class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener, SensorEventListener {
+class MainActivity : ComponentActivity(), SignalingClient.SignalingListener, SensorEventListener {
 
     private lateinit var prefs: SharedPreferences
     private lateinit var audioManager: AudioManager
@@ -144,18 +137,16 @@ class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener, Sen
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 1. Uncaught Exception Logger Trap
         Thread.setDefaultUncaughtExceptionHandler { _, e ->
             AppLogger.log("CRASH-TRAP", "Uncaught exception: ${e.message}")
         }
 
-        // 2. Direct XML layout inflation
-        val layoutId = resources.getIdentifier("activity_main", "layout", packageName)
-        if (layoutId != 0) {
-            setContentView(layoutId)
+        // Direct layout inflation matching namespace com.englishtalk.app
+        val layoutResId = resources.getIdentifier("activity_main", "layout", packageName)
+        if (layoutResId != 0) {
+            setContentView(layoutResId)
         }
 
-        // 3. System Services Initialization
         prefs = getSharedPreferences("EnglishTalkPrefs", Context.MODE_PRIVATE)
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
@@ -167,7 +158,6 @@ class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener, Sen
         setupListeners()
         setupBackPressHandler()
 
-        // 4. Safe SDK Inits
         try {
             MobileAds.initialize(this) {}
         } catch (e: Throwable) {
@@ -452,7 +442,6 @@ class MainActivity : AppCompatActivity(), SignalingClient.SignalingListener, Sen
                 Toast.makeText(this, "Call extended by 5 minutes", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("Dismiss", null)
-            .setCancelable(false)
             .show()
     }
 

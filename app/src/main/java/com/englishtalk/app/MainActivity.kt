@@ -1,7 +1,6 @@
 package com.englishtalk.app
 
 import android.Manifest
-import android.app.Activity
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
@@ -20,6 +19,8 @@ import android.os.PowerManager
 import android.view.View
 import android.view.WindowManager
 import android.widget.*
+import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.englishtalk.app.network.SignalingClient
@@ -38,7 +39,7 @@ import org.webrtc.SessionDescription
 import java.text.SimpleDateFormat
 import java.util.*
 
-class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventListener {
+class MainActivity : ComponentActivity(), SignalingClient.SignalingListener, SensorEventListener {
 
     private lateinit var prefs: SharedPreferences
     private lateinit var audioManager: AudioManager
@@ -136,15 +137,18 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // 1. Crash Trap for disk persistence
         Thread.setDefaultUncaughtExceptionHandler { _, e ->
-            AppLogger.log("CRASH-TRAP", "Fatal exception in UI thread: ${e.message}")
+            AppLogger.log("CRASH-TRAP", "Uncaught exception: ${e.message}")
         }
 
+        // 2. Safe layout inflation
         val layoutId = resources.getIdentifier("activity_main", "layout", packageName)
         if (layoutId != 0) {
             setContentView(layoutId)
         }
 
+        // 3. System service binding
         prefs = getSharedPreferences("EnglishTalkPrefs", Context.MODE_PRIVATE)
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
@@ -154,7 +158,9 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         setupWakeLock()
         initViews()
         setupListeners()
+        setupBackPressHandler()
 
+        // 4. Safe third-party SDK initialization
         try {
             MobileAds.initialize(this) {}
         } catch (e: Throwable) {
@@ -172,6 +178,25 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         loadRewardedAd()
         refreshDashboardUI()
         checkPermissions()
+    }
+
+    private fun setupBackPressHandler() {
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                when {
+                    layoutSearching?.visibility == View.VISIBLE || layoutCall?.visibility == View.VISIBLE -> {
+                        AppLogger.log("UI", "Back gesture intercepted - remaining on active screen")
+                    }
+                    layoutLanguages?.visibility == View.VISIBLE -> {
+                        showLayout(layoutDashboard)
+                    }
+                    else -> {
+                        isEnabled = false
+                        onBackPressedDispatcher.onBackPressed()
+                    }
+                }
+            }
+        })
     }
 
     private fun setupWakeLock() {
@@ -315,22 +340,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                         startRegionalSearchFlow(langName)
                     }
                 }
-            }
-        }
-    }
-
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        when {
-            layoutSearching?.visibility == View.VISIBLE || layoutCall?.visibility == View.VISIBLE -> {
-                AppLogger.log("UI", "Back gesture intercepted - remaining on active screen")
-            }
-            layoutLanguages?.visibility == View.VISIBLE -> {
-                showLayout(layoutDashboard)
-            }
-            else -> {
-                @Suppress("DEPRECATION")
-                super.onBackPressed()
             }
         }
     }

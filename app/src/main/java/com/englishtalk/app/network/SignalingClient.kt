@@ -31,6 +31,7 @@ object SignalingClient {
         fun onCallEnded()
         fun onReconnectWaiting()
         fun onReconnectFailed(reason: String)
+        fun onServerCooldown(remainingSeconds: Long)
     }
 
     fun setListener(l: SignalingListener) {
@@ -92,6 +93,11 @@ object SignalingClient {
                         AppLogger.log("Signaling", "Match confirmed: $roomId (Initiator: $isInitiator, Peer: $peerId)")
                         listener?.onMatchFound(roomId, isInitiator, peerLevel, peerId, isReconnect)
                     }
+                    "cooldown_active" -> {
+                        val remSec = json.optLong("remainingSeconds", 180L)
+                        AppLogger.log("Signaling", "Server cooldown notification: $remSec seconds remaining")
+                        listener?.onServerCooldown(remSec)
+                    }
                     "offer" -> {
                         val sdp = json.optString("sdp")
                         listener?.onOfferReceived(SessionDescription(SessionDescription.Type.OFFER, sdp))
@@ -138,6 +144,19 @@ object SignalingClient {
             AppLogger.log("Queue-OUT", "Dispatched join_queue for $level in $language")
         } catch (e: Throwable) {
             AppLogger.log("Signaling-ERR", "Send error: ${e.message}")
+        }
+    }
+
+    fun reportUser(reportedPeerId: String) {
+        try {
+            val json = JSONObject().apply {
+                put("type", "report_user")
+                put("reportedPeerId", reportedPeerId)
+            }
+            webSocket?.send(json.toString())
+            AppLogger.log("Moderation", "Dispatched report_user for $reportedPeerId")
+        } catch (e: Throwable) {
+            AppLogger.log("Signaling-ERR", "Report send error: ${e.message}")
         }
     }
 

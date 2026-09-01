@@ -47,43 +47,43 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private lateinit var powerManager: PowerManager
 
     // Layout Containers
-    private lateinit var layoutDashboard: View
-    private lateinit var layoutLanguages: View
-    private lateinit var layoutSearching: View
-    private lateinit var layoutCall: View
+    private var layoutDashboard: View? = null
+    private var layoutLanguages: View? = null
+    private var layoutSearching: View? = null
+    private var layoutCall: View? = null
 
     // Dashboard UI
-    private lateinit var tvTalkCoins: TextView
-    private lateinit var tvStreak: TextView
-    private lateinit var tvPracticeTime: TextView
-    private lateinit var tvTotalCalls: TextView
-    private lateinit var btnBeginner: Button
-    private lateinit var btnAdvanced: Button
-    private lateinit var btnOtherLanguages: Button
-    private lateinit var btnReconnect: Button
-    private lateinit var btnShare: Button
-    private lateinit var btnReportUser: Button
-    private lateinit var switchFemaleOnly: Switch
-    private lateinit var tvFemaleOnlyLabel: TextView
+    private var tvTalkCoins: TextView? = null
+    private var tvStreak: TextView? = null
+    private var tvPracticeTime: TextView? = null
+    private var tvTotalCalls: TextView? = null
+    private var btnBeginner: Button? = null
+    private var btnAdvanced: Button? = null
+    private var btnOtherLanguages: Button? = null
+    private var btnReconnect: Button? = null
+    private var btnShare: Button? = null
+    private var btnReportUser: View? = null
+    private var switchFemaleOnly: Switch? = null
+    private var tvFemaleOnlyLabel: TextView? = null
 
     // Searching UI
-    private lateinit var tvSearchStatus: TextView
-    private lateinit var btnCancelSearch: Button
+    private var tvSearchStatus: TextView? = null
+    private var btnCancelSearch: Button? = null
 
     // In-Call UI
-    private lateinit var tvCallStatus: TextView
-    private lateinit var tvCallDuration: TextView
-    private lateinit var btnMute: ImageButton
-    private lateinit var btnSpeaker: ImageButton
-    private lateinit var btnEndCall: ImageButton
+    private var tvCallStatus: TextView? = null
+    private var tvCallDuration: TextView? = null
+    private var btnMute: ImageButton? = null
+    private var btnSpeaker: ImageButton? = null
+    private var btnEndCall: ImageButton? = null
 
     // Languages UI
-    private lateinit var btnWatchAdCoins: Button
-    private lateinit var btnBackFromLanguages: ImageButton
-    private lateinit var gridLanguages: GridLayout
+    private var btnWatchAdCoins: Button? = null
+    private var btnBackFromLanguages: ImageButton? = null
+    private var gridLanguages: GridLayout? = null
 
     // AdMob
-    private lateinit var bannerAdView: AdView
+    private var bannerAdView: AdView? = null
     private var rewardedAd: RewardedAd? = null
 
     // State Variables
@@ -106,7 +106,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 val elapsedSec = (System.currentTimeMillis() - callStartTimeMs) / 1000L
                 val mins = elapsedSec / 60
                 val secs = elapsedSec % 60
-                tvCallDuration.text = String.format(Locale.US, "%02d:%02d", mins, secs)
+                tvCallDuration?.text = String.format(Locale.US, "%02d:%02d", mins, secs)
 
                 // 14-Minute Warning Dialog (840s)
                 if (elapsedSec >= 840 && !warningDialogShown && !isCallTimerExtended) {
@@ -127,9 +127,18 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         }
     }
 
+    private fun <T : View> findSafeView(resName: String): T? {
+        val id = resources.getIdentifier(resName, "id", packageName)
+        return if (id != 0) findViewById(id) else null
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        
+        val layoutId = resources.getIdentifier("activity_main", "layout", packageName)
+        if (layoutId != 0) {
+            setContentView(layoutId)
+        }
 
         prefs = getSharedPreferences("EnglishTalkPrefs", Context.MODE_PRIVATE)
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -157,49 +166,49 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     }
 
     private fun initViews() {
-        layoutDashboard = findViewById(R.id.layoutDashboard)
-        layoutLanguages = findViewById(R.id.layoutLanguages)
-        layoutSearching = findViewById(R.id.layoutSearching)
-        layoutCall = findViewById(R.id.layoutCall)
+        layoutDashboard = findSafeView("layoutDashboard")
+        layoutLanguages = findSafeView("layoutLanguages")
+        layoutSearching = findSafeView("layoutSearching")
+        layoutCall = findSafeView("layoutCall")
 
-        tvTalkCoins = findViewById(R.id.tvTalkCoins)
-        tvStreak = findViewById(R.id.tvStreak)
-        tvPracticeTime = findViewById(R.id.tvPracticeTime)
-        tvTotalCalls = findViewById(R.id.tvTotalCalls)
-        btnBeginner = findViewById(R.id.btnBeginner)
-        btnAdvanced = findViewById(R.id.btnAdvanced)
-        btnOtherLanguages = findViewById(R.id.btnOtherLanguages)
-        btnReconnect = findViewById(R.id.btnReconnect)
-        btnShare = findViewById(R.id.btnShare)
-        btnReportUser = findViewById(R.id.btnReportUser)
-        switchFemaleOnly = findViewById(R.id.switchFemaleOnly)
-        tvFemaleOnlyLabel = findViewById(R.id.tvFemaleOnlyLabel)
+        tvTalkCoins = findSafeView("tvTalkCoins")
+        tvStreak = findSafeView("tvStreak")
+        tvPracticeTime = findSafeView("tvPracticeTime")
+        tvTotalCalls = findSafeView("tvTotalCalls")
+        btnBeginner = findSafeView("btnBeginner")
+        btnAdvanced = findSafeView("btnAdvanced")
+        btnOtherLanguages = findSafeView("btnOtherLanguages")
+        btnReconnect = findSafeView("btnReconnect")
+        btnShare = findSafeView("btnShare")
+        btnReportUser = findSafeView("btnReportUser")
+        switchFemaleOnly = findSafeView("switchFemaleOnly")
+        tvFemaleOnlyLabel = findSafeView("tvFemaleOnlyLabel")
 
-        tvSearchStatus = findViewById(R.id.tvSearchStatus)
-        btnCancelSearch = findViewById(R.id.btnCancelSearch)
+        tvSearchStatus = findSafeView("tvSearchStatus")
+        btnCancelSearch = findSafeView("btnCancelSearch")
 
-        tvCallStatus = findViewById(R.id.tvCallStatus)
-        tvCallDuration = findViewById(R.id.tvCallDuration)
-        btnMute = findViewById(R.id.btnMute)
-        btnSpeaker = findViewById(R.id.btnSpeaker)
-        btnEndCall = findViewById(R.id.btnEndCall)
+        tvCallStatus = findSafeView("tvCallStatus")
+        tvCallDuration = findSafeView("tvCallDuration")
+        btnMute = findSafeView("btnMute")
+        btnSpeaker = findSafeView("btnSpeaker")
+        btnEndCall = findSafeView("btnEndCall")
 
-        btnWatchAdCoins = findViewById(R.id.btnWatchAdCoins)
-        btnBackFromLanguages = findViewById(R.id.btnBackFromLanguages)
-        gridLanguages = findViewById(R.id.gridLanguages)
-        bannerAdView = findViewById(R.id.bannerAdView)
+        btnWatchAdCoins = findSafeView("btnWatchAdCoins")
+        btnBackFromLanguages = findSafeView("btnBackFromLanguages")
+        gridLanguages = findSafeView("gridLanguages")
+        bannerAdView = findSafeView("bannerAdView")
 
-        bannerAdView.loadAd(AdRequest.Builder().build())
+        bannerAdView?.loadAd(AdRequest.Builder().build())
     }
 
     private fun setupListeners() {
-        btnBeginner.setOnClickListener {
+        btnBeginner?.setOnClickListener {
             currentLevel = "Beginner"
             currentLanguage = "ENGLISH"
             startSearchingFlow()
         }
 
-        btnAdvanced.setOnClickListener {
+        btnAdvanced?.setOnClickListener {
             val qualifiedCalls = prefs.getInt("beginner_qualified_calls", 0)
             if (qualifiedCalls >= 20) {
                 currentLevel = "Advanced"
@@ -214,43 +223,43 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             }
         }
 
-        btnOtherLanguages.setOnClickListener {
+        btnOtherLanguages?.setOnClickListener {
             showLayout(layoutLanguages)
         }
 
-        btnBackFromLanguages.setOnClickListener {
+        btnBackFromLanguages?.setOnClickListener {
             showLayout(layoutDashboard)
         }
 
-        btnCancelSearch.setOnClickListener {
+        btnCancelSearch?.setOnClickListener {
             cancelSearchAndReturn()
         }
 
-        btnEndCall.setOnClickListener {
+        btnEndCall?.setOnClickListener {
             endActiveCall()
         }
 
-        btnMute.setOnClickListener {
+        btnMute?.setOnClickListener {
             val newMuteState = !WebRtcAudioClient.isMuted
             WebRtcAudioClient.setMuted(newMuteState)
-            btnMute.setImageResource(if (newMuteState) android.R.drawable.stat_notify_call_mute else android.R.drawable.ic_btn_speak_now)
+            btnMute?.setImageResource(if (newMuteState) android.R.drawable.stat_notify_call_mute else android.R.drawable.ic_btn_speak_now)
             AppLogger.log("Audio", "Mute toggled: $newMuteState")
         }
 
-        btnSpeaker.setOnClickListener {
+        btnSpeaker?.setOnClickListener {
             val newSpeakerState = !audioManager.isSpeakerphoneOn
             audioManager.isSpeakerphoneOn = newSpeakerState
-            btnSpeaker.setImageResource(if (newSpeakerState) android.R.drawable.stat_sys_speakerphone else android.R.drawable.stat_notify_call_mute)
+            btnSpeaker?.setImageResource(if (newSpeakerState) android.R.drawable.stat_sys_speakerphone else android.R.drawable.stat_notify_call_mute)
             AppLogger.log("Audio", "Speaker toggled: $newSpeakerState")
         }
 
-        btnReconnect.setOnClickListener {
+        btnReconnect?.setOnClickListener {
             if (lastCallerPeerId.isNotEmpty()) {
                 initiateReconnectFlow()
             }
         }
 
-        btnShare.setOnClickListener {
+        btnShare?.setOnClickListener {
             val sendIntent = Intent().apply {
                 action = Intent.ACTION_SEND
                 putExtra(Intent.EXTRA_TEXT, "Practice English with me on English Talk! Download here: https://play.google.com/store/apps/details?id=$packageName")
@@ -259,11 +268,11 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             startActivity(Intent.createChooser(sendIntent, "Share App"))
         }
 
-        btnReportUser.setOnClickListener {
+        btnReportUser?.setOnClickListener {
             showReportUserDialog()
         }
 
-        btnWatchAdCoins.setOnClickListener {
+        btnWatchAdCoins?.setOnClickListener {
             showRewardedAd()
         }
 
@@ -272,14 +281,16 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
     private fun setupRegionalLanguageButtons() {
         val languages = listOf("HINDI", "PUNJABI", "MARATHI", "BENGALI", "BHOJPURI", "GUJARATI", "KANNADA", "MALAYALAM", "TAMIL", "TELUGU", "URDU", "ARABIC")
-        for (i in 0 until gridLanguages.childCount) {
-            val view = gridLanguages.getChildAt(i)
-            if (view is Button && i < languages.size) {
-                val langName = languages[i]
-                view.setOnClickListener {
-                    currentLevel = "Native"
-                    currentLanguage = langName
-                    startRegionalSearchFlow(langName)
+        gridLanguages?.let { grid ->
+            for (i in 0 until grid.childCount) {
+                val view = grid.getChildAt(i)
+                if (view is Button && i < languages.size) {
+                    val langName = languages[i]
+                    view.setOnClickListener {
+                        currentLevel = "Native"
+                        currentLanguage = langName
+                        startRegionalSearchFlow(langName)
+                    }
                 }
             }
         }
@@ -288,10 +299,10 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         when {
-            layoutSearching.visibility == View.VISIBLE || layoutCall.visibility == View.VISIBLE -> {
+            layoutSearching?.visibility == View.VISIBLE || layoutCall?.visibility == View.VISIBLE -> {
                 AppLogger.log("UI", "Back gesture intercepted - remaining on active screen")
             }
-            layoutLanguages.visibility == View.VISIBLE -> {
+            layoutLanguages?.visibility == View.VISIBLE -> {
                 showLayout(layoutDashboard)
             }
             else -> {
@@ -314,11 +325,11 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             return
         }
 
-        tvSearchStatus.text = "Searching for practice partner..."
+        tvSearchStatus?.text = "Searching for practice partner..."
         showLayout(layoutSearching)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        val isFemaleOnly = switchFemaleOnly.isChecked
+        val isFemaleOnly = switchFemaleOnly?.isChecked == true
         val isVip = prefs.getBoolean("is_vip", false)
         val userGender = prefs.getString("user_gender", "Unknown") ?: "Unknown"
 
@@ -368,7 +379,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             return
         }
 
-        tvSearchStatus.text = "Reconnecting to last caller..."
+        tvSearchStatus?.text = "Reconnecting to last caller..."
         showLayout(layoutSearching)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
@@ -415,10 +426,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             .show()
     }
 
-    // ----------------------------------------------------
-    // SIGNALING LISTENER IMPLEMENTATION
-    // ----------------------------------------------------
-
     override fun onMatchFound(roomId: String, isInitiator: Boolean, peerLevel: String, peerId: String, isReconnect: Boolean) {
         runOnUiThread {
             lastCallerPeerId = peerId
@@ -433,11 +440,11 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
             audioManager.isSpeakerphoneOn = false
             WebRtcAudioClient.setMuted(false)
-            btnMute.setImageResource(android.R.drawable.ic_btn_speak_now)
-            btnSpeaker.setImageResource(android.R.drawable.stat_notify_call_mute)
+            btnMute?.setImageResource(android.R.drawable.ic_btn_speak_now)
+            btnSpeaker?.setImageResource(android.R.drawable.stat_notify_call_mute)
 
-            tvCallStatus.text = "Connected"
-            tvCallDuration.text = "00:00"
+            tvCallStatus?.text = "Connected"
+            tvCallDuration?.text = "00:00"
 
             startService(Intent(this, CallService::class.java))
             proximitySensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI) }
@@ -469,7 +476,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
     override fun onReconnectWaiting() {
         runOnUiThread {
-            tvSearchStatus.text = "Waiting for partner to accept reconnect..."
+            tvSearchStatus?.text = "Waiting for partner to accept reconnect..."
             AppLogger.log("Reconnect", "Waiting for partner...")
         }
     }
@@ -515,10 +522,10 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         WebRtcAudioClient.close()
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        if (btnReconnect.visibility == View.VISIBLE && !isRemoteDisconnect) {
-            btnReconnect.visibility = View.GONE
+        if (btnReconnect?.visibility == View.VISIBLE && !isRemoteDisconnect) {
+            btnReconnect?.visibility = View.GONE
         } else if (lastCallerPeerId.isNotEmpty()) {
-            btnReconnect.visibility = View.VISIBLE
+            btnReconnect?.visibility = View.VISIBLE
         }
 
         showLayout(if (currentLanguage == "ENGLISH") layoutDashboard else layoutLanguages)
@@ -574,23 +581,23 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         val totalCalls = prefs.getInt("total_calls_count", 0)
         val qualifiedCalls = prefs.getInt("beginner_qualified_calls", 0)
 
-        tvTalkCoins.text = "🪙 Talk Coins: $coins"
-        tvStreak.text = "$streak"
-        tvPracticeTime.text = "${practiceMins}m"
-        tvTotalCalls.text = "$totalCalls"
+        tvTalkCoins?.text = "🪙 Talk Coins: $coins"
+        tvStreak?.text = "$streak"
+        tvPracticeTime?.text = "${practiceMins}m"
+        tvTotalCalls?.text = "$totalCalls"
 
         if (qualifiedCalls >= 20) {
-            btnAdvanced.text = "ADVANCED (TAP TO CALL)"
+            btnAdvanced?.text = "ADVANCED (TAP TO CALL)"
         } else {
-            btnAdvanced.text = "🔒 ADVANCED ($qualifiedCalls/20)"
+            btnAdvanced?.text = "🔒 ADVANCED ($qualifiedCalls/20)"
         }
     }
 
-    private fun showLayout(activeLayout: View) {
-        layoutDashboard.visibility = if (activeLayout == layoutDashboard) View.VISIBLE else View.GONE
-        layoutLanguages.visibility = if (activeLayout == layoutLanguages) View.VISIBLE else View.GONE
-        layoutSearching.visibility = if (activeLayout == layoutSearching) View.VISIBLE else View.GONE
-        layoutCall.visibility = if (activeLayout == layoutCall) View.VISIBLE else View.GONE
+    private fun showLayout(activeLayout: View?) {
+        layoutDashboard?.visibility = if (activeLayout == layoutDashboard) View.VISIBLE else View.GONE
+        layoutLanguages?.visibility = if (activeLayout == layoutLanguages) View.VISIBLE else View.GONE
+        layoutSearching?.visibility = if (activeLayout == layoutSearching) View.VISIBLE else View.GONE
+        layoutCall?.visibility = if (activeLayout == layoutCall) View.VISIBLE else View.GONE
     }
 
     override fun onPause() {
@@ -619,7 +626,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         backgroundAutoMuteRunnable?.let { mainHandler.removeCallbacks(it) }
         if (isCallInProgress && WebRtcAudioClient.isMuted) {
             WebRtcAudioClient.setMuted(false)
-            btnMute.setImageResource(android.R.drawable.ic_btn_speak_now)
+            btnMute?.setImageResource(android.R.drawable.ic_btn_speak_now)
             AppLogger.log("AutoMute", "Microphone unmuted upon app foreground")
         }
         refreshDashboardUI()

@@ -27,7 +27,7 @@ import com.englishtalk.app.network.SignalingClient
 import com.englishtalk.app.service.CallService
 import com.englishtalk.app.utils.AppLogger
 import com.englishtalk.app.utils.CooldownManager
-import com.englishtalk.app.webrtc.WebRtcManager
+import com.englishtalk.app.webrtc.WebRtcAudioClient
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdView
 import com.google.android.gms.ads.LoadAdError
@@ -144,7 +144,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
         SignalingClient.setListener(this)
         SignalingClient.connect()
-        WebRtcManager.init(applicationContext)
+        WebRtcAudioClient.init(applicationContext)
 
         loadRewardedAd()
         refreshDashboardUI()
@@ -232,8 +232,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         }
 
         btnMute.setOnClickListener {
-            val newMuteState = !WebRtcManager.isMuted
-            WebRtcManager.setMuted(newMuteState)
+            val newMuteState = !WebRtcAudioClient.isMuted
+            WebRtcAudioClient.setMuted(newMuteState)
             btnMute.setImageResource(if (newMuteState) android.R.drawable.stat_notify_call_mute else android.R.drawable.ic_btn_speak_now)
             AppLogger.log("Audio", "Mute toggled: $newMuteState")
         }
@@ -433,7 +433,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
             audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
             audioManager.isSpeakerphoneOn = false
-            WebRtcManager.setMuted(false)
+            WebRtcAudioClient.setMuted(false)
             btnMute.setImageResource(android.R.drawable.ic_btn_speak_now)
             btnSpeaker.setImageResource(android.R.drawable.stat_notify_call_mute)
 
@@ -444,21 +444,21 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             proximitySensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI) }
 
             mainHandler.post(callTimerRunnable)
-            WebRtcManager.startPeerConnection(roomId, isInitiator, this)
+            WebRtcAudioClient.startPeerConnection(roomId, isInitiator, this)
             AppLogger.log("CallView", "Live call view active at 00:00")
         }
     }
 
     override fun onOfferReceived(sdp: SessionDescription) {
-        WebRtcManager.handleRemoteOffer(sdp)
+        WebRtcAudioClient.handleRemoteOffer(sdp)
     }
 
     override fun onAnswerReceived(sdp: SessionDescription) {
-        WebRtcManager.handleRemoteAnswer(sdp)
+        WebRtcAudioClient.handleRemoteAnswer(sdp)
     }
 
     override fun onIceCandidateReceived(candidate: IceCandidate) {
-        WebRtcManager.handleRemoteIceCandidate(candidate)
+        WebRtcAudioClient.handleRemoteIceCandidate(candidate)
     }
 
     override fun onCallEnded() {
@@ -513,7 +513,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         CooldownManager.onCallFinished(this, callDurationSec)
         updateSessionStats(callDurationSec)
 
-        WebRtcManager.close()
+        WebRtcAudioClient.close()
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         if (btnReconnect.visibility == View.VISIBLE && !isRemoteDisconnect) {
@@ -602,7 +602,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 isAppInBackground = true
                 backgroundAutoMuteRunnable = Runnable {
                     if (isAppInBackground && isCallInProgress) {
-                        WebRtcManager.setMuted(true)
+                        WebRtcAudioClient.setMuted(true)
                         AppLogger.log("AutoMute", "Hard-muted microphone after 30s in background")
                     }
                 }
@@ -618,8 +618,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         super.onResume()
         isAppInBackground = false
         backgroundAutoMuteRunnable?.let { mainHandler.removeCallbacks(it) }
-        if (isCallInProgress && WebRtcManager.isMuted) {
-            WebRtcManager.setMuted(false)
+        if (isCallInProgress && WebRtcAudioClient.isMuted) {
+            WebRtcAudioClient.setMuted(false)
             btnMute.setImageResource(android.R.drawable.ic_btn_speak_now)
             AppLogger.log("AutoMute", "Microphone unmuted upon app foreground")
         }

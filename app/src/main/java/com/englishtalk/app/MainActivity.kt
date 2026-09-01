@@ -30,6 +30,7 @@ import com.englishtalk.app.webrtc.WebRtcAudioClient
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdView
 import com.google.android.gms.ads.LoadAdError
+import com.google.android.gms.ads.MobileAds
 import com.google.android.gms.ads.rewarded.RewardedAd
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
 import org.webrtc.IceCandidate
@@ -134,7 +135,11 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
+        Thread.setDefaultUncaughtExceptionHandler { _, e ->
+            AppLogger.log("CRASH-TRAP", "Fatal exception in UI thread: ${e.message}")
+        }
+
         val layoutId = resources.getIdentifier("activity_main", "layout", packageName)
         if (layoutId != 0) {
             setContentView(layoutId)
@@ -150,9 +155,19 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         initViews()
         setupListeners()
 
-        SignalingClient.setListener(this)
-        SignalingClient.connect()
-        WebRtcAudioClient.init(applicationContext)
+        try {
+            MobileAds.initialize(this) {}
+        } catch (e: Throwable) {
+            AppLogger.log("AdMob-ERR", "MobileAds init: ${e.message}")
+        }
+
+        try {
+            SignalingClient.setListener(this)
+            SignalingClient.connect()
+            WebRtcAudioClient.init(applicationContext)
+        } catch (e: Throwable) {
+            AppLogger.log("Init-ERR", "Signaling/WebRTC init: ${e.message}")
+        }
 
         loadRewardedAd()
         refreshDashboardUI()
@@ -160,8 +175,12 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     }
 
     private fun setupWakeLock() {
-        if (powerManager.isWakeLockLevelSupported(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK)) {
-            wakeLock = powerManager.newWakeLock(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK, "EnglishTalk:ProximityLock")
+        try {
+            if (powerManager.isWakeLockLevelSupported(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK)) {
+                wakeLock = powerManager.newWakeLock(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK, "EnglishTalk:ProximityLock")
+            }
+        } catch (e: Throwable) {
+            AppLogger.log("WakeLock-ERR", "WakeLock init: ${e.message}")
         }
     }
 
@@ -198,7 +217,11 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         gridLanguages = findSafeView("gridLanguages")
         bannerAdView = findSafeView("bannerAdView")
 
-        bannerAdView?.loadAd(AdRequest.Builder().build())
+        try {
+            bannerAdView?.loadAd(AdRequest.Builder().build())
+        } catch (e: Throwable) {
+            AppLogger.log("AdMob-ERR", "Banner load: ${e.message}")
+        }
     }
 
     private fun setupListeners() {
@@ -446,7 +469,12 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             tvCallStatus?.text = "Connected"
             tvCallDuration?.text = "00:00"
 
-            startService(Intent(this, CallService::class.java))
+            try {
+                startService(Intent(this, CallService::class.java))
+            } catch (e: Throwable) {
+                AppLogger.log("Service-ERR", "CallService start: ${e.message}")
+            }
+
             proximitySensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI) }
 
             mainHandler.post(callTimerRunnable)
@@ -510,7 +538,10 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         isCallInProgress = false
 
         mainHandler.removeCallbacks(callTimerRunnable)
-        stopService(Intent(this, CallService::class.java))
+        try {
+            stopService(Intent(this, CallService::class.java))
+        } catch (e: Throwable) {}
+
         sensorManager.unregisterListener(this)
         if (wakeLock?.isHeld == true) wakeLock?.release()
 
@@ -647,18 +678,22 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
     private fun loadRewardedAd() {
-        val adRequest = AdRequest.Builder().build()
-        RewardedAd.load(this, "ca-app-pub-3940256099942544/5224354917", adRequest, object : RewardedAdLoadCallback() {
-            override fun onAdLoaded(ad: RewardedAd) {
-                rewardedAd = ad
-                AppLogger.log("AdMob", "Rewarded ad loaded and ready")
-            }
+        try {
+            val adRequest = AdRequest.Builder().build()
+            RewardedAd.load(this, "ca-app-pub-3940256099942544/5224354917", adRequest, object : RewardedAdLoadCallback() {
+                override fun onAdLoaded(ad: RewardedAd) {
+                    rewardedAd = ad
+                    AppLogger.log("AdMob", "Rewarded ad loaded and ready")
+                }
 
-            override fun onAdFailedToLoad(error: LoadAdError) {
-                rewardedAd = null
-                AppLogger.log("AdMob", "Rewarded ad failed: ${error.message}")
-            }
-        })
+                override fun onAdFailedToLoad(error: LoadAdError) {
+                    rewardedAd = null
+                    AppLogger.log("AdMob", "Rewarded ad failed: ${error.message}")
+                }
+            })
+        } catch (e: Throwable) {
+            AppLogger.log("AdMob-ERR", "Load rewarded ad: ${e.message}")
+        }
     }
 
     private fun showRewardedAd() {

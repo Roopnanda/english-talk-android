@@ -20,13 +20,14 @@ import android.os.PowerManager
 import android.view.View
 import android.view.WindowManager
 import android.widget.*
-import androidx.activity.OnBackPressedCallback
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.englishtalk.app.R
 import com.englishtalk.app.network.SignalingClient
 import com.englishtalk.app.service.CallService
 import com.englishtalk.app.utils.AppLogger
 import com.englishtalk.app.utils.CooldownManager
+import com.englishtalk.app.webrtc.WebRtcManager
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdView
 import com.google.android.gms.ads.LoadAdError
@@ -233,14 +234,14 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         btnMute.setOnClickListener {
             val newMuteState = !WebRtcManager.isMuted
             WebRtcManager.setMuted(newMuteState)
-            btnMute.setImageResource(if (newMuteState) R.drawable.ic_mic_off else R.drawable.ic_mic_on)
+            btnMute.setImageResource(if (newMuteState) android.R.drawable.stat_notify_call_mute else android.R.drawable.ic_btn_speak_now)
             AppLogger.log("Audio", "Mute toggled: $newMuteState")
         }
 
         btnSpeaker.setOnClickListener {
             val newSpeakerState = !audioManager.isSpeakerphoneOn
             audioManager.isSpeakerphoneOn = newSpeakerState
-            btnSpeaker.setImageResource(if (newSpeakerState) R.drawable.ic_speaker_on else R.drawable.ic_speaker_off)
+            btnSpeaker.setImageResource(if (newSpeakerState) android.R.drawable.stat_sys_speakerphone else android.R.drawable.stat_notify_call_mute)
             AppLogger.log("Audio", "Speaker toggled: $newSpeakerState")
         }
 
@@ -290,7 +291,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         when {
             layoutSearching.visibility == View.VISIBLE || layoutCall.visibility == View.VISIBLE -> {
                 AppLogger.log("UI", "Back gesture intercepted - remaining on active screen")
-                // Invariant Rule 13: Completely ignore back presses in Search & Call screens
             }
             layoutLanguages.visibility == View.VISIBLE -> {
                 showLayout(layoutDashboard)
@@ -303,7 +303,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     }
 
     private fun startSearchingFlow() {
-        // Cooldown Invariant Verification
         if (CooldownManager.isUnderCooldown(this)) {
             val remSec = CooldownManager.getRemainingCooldownSeconds(this)
             val mins = remSec / 60
@@ -341,7 +340,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             return
         }
 
-        // Deduct 1 Talk Coin for Regional Pool
         prefs.edit().putInt("talk_coins", coins - 1).apply()
         refreshDashboardUI()
         AppLogger.log("Coins", "1 Talk Coin deducted for $lang pool")
@@ -353,7 +351,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         SignalingClient.leaveQueue()
         SignalingClient.cancelReconnect()
 
-        // Refund Talk Coin if searching inside a regional pool
         if (currentLanguage != "ENGLISH") {
             val coins = prefs.getInt("talk_coins", 0)
             prefs.edit().putInt("talk_coins", coins + 1).apply()
@@ -434,12 +431,11 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             showLayout(layoutCall)
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-            // Audio Baseline Invariant: Earpiece Mode ON, Mic ON
             audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
             audioManager.isSpeakerphoneOn = false
             WebRtcManager.setMuted(false)
-            btnMute.setImageResource(R.drawable.ic_mic_on)
-            btnSpeaker.setImageResource(R.drawable.ic_speaker_off)
+            btnMute.setImageResource(android.R.drawable.ic_btn_speak_now)
+            btnSpeaker.setImageResource(android.R.drawable.stat_notify_call_mute)
 
             tvCallStatus.text = "Connected"
             tvCallDuration.text = "00:00"
@@ -514,16 +510,12 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
         val callDurationSec = if (callStartTimeMs > 0L) (System.currentTimeMillis() - callStartTimeMs) / 1000L else 0L
 
-        // Record Call Duration for Cooldown Engine
         CooldownManager.onCallFinished(this, callDurationSec)
-
-        // Atomic Statistics & Coins Evaluation (Rule 1, 5, 7, 11)
         updateSessionStats(callDurationSec)
 
         WebRtcManager.close()
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        // Route clean post-call destination (Rule 2 & 4)
         if (btnReconnect.visibility == View.VISIBLE && !isRemoteDisconnect) {
             btnReconnect.visibility = View.GONE
         } else if (lastCallerPeerId.isNotEmpty()) {
@@ -543,21 +535,18 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         editor.putLong("total_practice_seconds", totalSec)
         editor.putInt("total_calls_count", totalCalls)
 
-        // Rule 5: English calls >= 60s earn +1 Talk Coin
         if (currentLanguage == "ENGLISH" && durationSec >= 60) {
             val currentCoins = prefs.getInt("talk_coins", 0) + 1
             editor.putInt("talk_coins", currentCoins)
             AppLogger.log("Coins", "Earned 1 Talk Coin! Total: $currentCoins")
         }
 
-        // Rule 11: Beginner calls >= 240s count toward Advanced unlock
         if (currentLanguage == "ENGLISH" && currentLevel == "Beginner" && durationSec >= 240) {
             val qualified = prefs.getInt("beginner_qualified_calls", 0) + 1
             editor.putInt("beginner_qualified_calls", qualified)
             AppLogger.log("Progression", "Advanced unlock progression: $qualified / 20")
         }
 
-        // Rule 7: Daily Streak calculation
         if (durationSec >= 60) {
             val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
             val lastActiveDate = prefs.getString("last_active_date", "") ?: ""
@@ -605,16 +594,11 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         layoutCall.visibility = if (activeLayout == layoutCall) View.VISIBLE else View.GONE
     }
 
-    // ----------------------------------------------------
-    // BACKGROUND AUTO-MUTE & POWER BUTTON MANAGEMENT
-    // ----------------------------------------------------
-
     override fun onPause() {
         super.onPause()
         if (isCallInProgress) {
             val isScreenOn = powerManager.isInteractive
             if (isScreenOn) {
-                // Rule 15: Background with Screen ON -> 30s Auto-Mute countdown
                 isAppInBackground = true
                 backgroundAutoMuteRunnable = Runnable {
                     if (isAppInBackground && isCallInProgress) {
@@ -625,7 +609,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 backgroundAutoMuteRunnable?.let { mainHandler.postDelayed(it, 30000L) }
                 AppLogger.log("AutoMute", "App minimized to background: 30s auto-mute timer started")
             } else {
-                // Rule 14: Screen Locked via Power Button -> Unmuted indefinitely
                 AppLogger.log("PowerKey", "Screen locked via power button - keeping microphone active")
             }
         }
@@ -637,7 +620,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         backgroundAutoMuteRunnable?.let { mainHandler.removeCallbacks(it) }
         if (isCallInProgress && WebRtcManager.isMuted) {
             WebRtcManager.setMuted(false)
-            btnMute.setImageResource(R.drawable.ic_mic_on)
+            btnMute.setImageResource(android.R.drawable.ic_btn_speak_now)
             AppLogger.log("AutoMute", "Microphone unmuted upon app foreground")
         }
         refreshDashboardUI()
@@ -656,10 +639,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
-
-    // ----------------------------------------------------
-    // ADMOB REWARDED VIDEO
-    // ----------------------------------------------------
 
     private fun loadRewardedAd() {
         val adRequest = AdRequest.Builder().build()

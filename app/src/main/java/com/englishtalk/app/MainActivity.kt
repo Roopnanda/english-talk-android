@@ -98,6 +98,9 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private var isCallTimerExtended = false
     private var warningDialogShown = false
 
+    // In-Memory Diagnostic Log Buffer
+    private val diagnosticLogs = Collections.synchronizedList(mutableListOf<String>())
+
     // Timing & Mute Handlers
     private val mainHandler = Handler(Looper.getMainLooper())
     private var backgroundAutoMuteRunnable: Runnable? = null
@@ -136,11 +139,21 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         }
     }
 
+    private fun logEvent(tag: String, message: String) {
+        val time = SimpleDateFormat("HH:mm:ss", Locale.US).format(Date())
+        val entry = "[$time][$tag] $message"
+        diagnosticLogs.add(entry)
+        if (diagnosticLogs.size > 200) {
+            diagnosticLogs.removeAt(0)
+        }
+        AppLogger.log(tag, message)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         Thread.setDefaultUncaughtExceptionHandler { _, e ->
-            AppLogger.log("CRASH-TRAP", "Uncaught exception: ${e.message}")
+            logEvent("CRASH-TRAP", "Uncaught exception: ${e.message}")
         }
 
         try {
@@ -149,7 +162,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 setContentView(layoutId)
             }
         } catch (e: Throwable) {
-            AppLogger.log("Layout-ERR", "setContentView error: ${e.message}")
+            logEvent("Layout-ERR", "setContentView error: ${e.message}")
         }
 
         prefs = getSharedPreferences("EnglishTalkPrefs", Context.MODE_PRIVATE)
@@ -171,7 +184,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 try {
                     bannerAdView?.loadAd(AdRequest.Builder().build())
                 } catch (e: Throwable) {
-                    AppLogger.log("AdMob-ERR", "Banner load: ${e.message}")
+                    logEvent("AdMob-ERR", "Banner load: ${e.message}")
                 }
                 loadRewardedAd()
             }
@@ -182,7 +195,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             SignalingClient.connect()
             WebRtcAudioClient.init(applicationContext)
         } catch (e: Throwable) {
-            AppLogger.log("Init-ERR", "Signaling/WebRTC init: ${e.message}")
+            logEvent("Init-ERR", "Signaling/WebRTC init: ${e.message}")
         }
 
         refreshDashboardUI()
@@ -195,7 +208,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 wakeLock = powerManager.newWakeLock(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK, "EnglishTalk:ProximityLock")
             }
         } catch (e: Throwable) {
-            AppLogger.log("WakeLock-ERR", "WakeLock init: ${e.message}")
+            logEvent("WakeLock-ERR", "WakeLock init: ${e.message}")
         }
     }
 
@@ -292,7 +305,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 if (newMuteState) android.R.drawable.stat_notify_call_mute else android.R.drawable.ic_btn_speak_now,
                 if (newMuteState) "UNMUTE" else "MUTE"
             )
-            AppLogger.log("Audio", "Mute toggled: $newMuteState")
+            logEvent("Audio", "Mute toggled: $newMuteState")
         }
 
         btnSpeaker?.setOnClickListener {
@@ -303,7 +316,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 if (newSpeakerState) android.R.drawable.stat_sys_speakerphone else android.R.drawable.stat_notify_call_mute,
                 if (newSpeakerState) "EARPIECE" else "SPEAKER"
             )
-            AppLogger.log("Audio", "Speaker toggled: $newSpeakerState")
+            logEvent("Audio", "Speaker toggled: $newSpeakerState")
         }
 
         btnReconnect?.setOnClickListener {
@@ -375,15 +388,15 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     }
 
     private fun showDiagnosticLogsDialog() {
-        val logs = try {
-            AppLogger.getLogs()
-        } catch (e: Throwable) {
+        val logContent = if (diagnosticLogs.isEmpty()) {
             "No diagnostic logs recorded yet."
+        } else {
+            diagnosticLogs.joinToString("\n")
         }
 
         val scroll = ScrollView(this)
         val text = TextView(this).apply {
-            setText(logs)
+            setText(logContent)
             setTextColor(Color.WHITE)
             setBackgroundColor(Color.BLACK)
             setPadding(24, 24, 24, 24)
@@ -396,7 +409,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             .setView(scroll)
             .setPositiveButton("Close", null)
             .setNeutralButton("Clear Logs") { _, _ ->
-                AppLogger.clearLogs()
+                diagnosticLogs.clear()
                 Toast.makeText(this, "Logs cleared", Toast.LENGTH_SHORT).show()
             }
             .show()
@@ -406,7 +419,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     override fun onBackPressed() {
         when {
             layoutSearching?.visibility == View.VISIBLE || layoutCall?.visibility == View.VISIBLE -> {
-                AppLogger.log("UI", "Back gesture intercepted - remaining on active screen")
+                logEvent("UI", "Back gesture intercepted - remaining on active screen")
             }
             layoutLanguages?.visibility == View.VISIBLE -> {
                 showLayout(layoutDashboard)
@@ -440,7 +453,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         val userGender = prefs.getString("user_gender", "Unknown") ?: "Unknown"
 
         SignalingClient.joinQueue(currentLevel, currentLanguage, userGender, isFemaleOnly, isVip)
-        AppLogger.log("Queue", "Joined $currentLevel search queue in language: $currentLanguage")
+        logEvent("Queue", "Joined $currentLevel search queue in language: $currentLanguage")
     }
 
     private fun startRegionalSearchFlow(lang: String) {
@@ -458,7 +471,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
         prefs.edit().putInt("talk_coins", coins - 1).apply()
         refreshDashboardUI()
-        AppLogger.log("Coins", "1 Talk Coin deducted for $lang pool")
+        logEvent("Coins", "1 Talk Coin deducted for $lang pool")
 
         startSearchingFlow()
     }
@@ -470,13 +483,13 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         if (currentLanguage != "ENGLISH") {
             val coins = prefs.getInt("talk_coins", 0)
             prefs.edit().putInt("talk_coins", coins + 1).apply()
-            AppLogger.log("Coins", "1 Talk Coin refunded after search cancellation")
+            logEvent("Coins", "1 Talk Coin refunded after search cancellation")
         }
 
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         showLayout(if (currentLanguage == "ENGLISH") layoutDashboard else layoutLanguages)
         refreshDashboardUI()
-        AppLogger.log("UI", "Search cancelled by user")
+        logEvent("UI", "Search cancelled by user")
     }
 
     private fun initiateReconnectFlow() {
@@ -490,7 +503,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         SignalingClient.requestReconnect(lastCallerPeerId, currentLevel)
-        AppLogger.log("Reconnect", "Requesting reconnect with peer: $lastCallerPeerId")
+        logEvent("Reconnect", "Requesting reconnect with peer: $lastCallerPeerId")
     }
 
     private fun showReportUserDialog() {
@@ -555,7 +568,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             try {
                 startService(Intent(this, CallService::class.java))
             } catch (e: Throwable) {
-                AppLogger.log("Service-ERR", "CallService start: ${e.message}")
+                logEvent("Service-ERR", "CallService start: ${e.message}")
             }
 
             proximitySensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI) }
@@ -563,7 +576,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             mainHandler.removeCallbacks(callTimerRunnable)
             mainHandler.post(callTimerRunnable)
             WebRtcAudioClient.startPeerConnection(roomId, isInitiator, this)
-            AppLogger.log("CallView", "Live call view active at 00:00")
+            logEvent("CallView", "Live call view active at 00:00")
         }
     }
 
@@ -581,7 +594,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
     override fun onCallEnded() {
         runOnUiThread {
-            AppLogger.log("Signaling", "Remote peer ended call")
+            logEvent("Signaling", "Remote peer ended call")
             teardownCallSession(isRemoteDisconnect = true)
         }
     }
@@ -589,7 +602,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     override fun onReconnectWaiting() {
         runOnUiThread {
             tvSearchStatus?.text = "Waiting for partner to accept reconnect..."
-            AppLogger.log("Reconnect", "Waiting for partner...")
+            logEvent("Reconnect", "Waiting for partner...")
         }
     }
 
@@ -652,7 +665,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         }
 
         refreshDashboardUI()
-        AppLogger.log("WebRTC", "Session cleaned up. Talk time: $callDurationSec s")
+        logEvent("WebRTC", "Session cleaned up. Talk time: $callDurationSec s")
     }
 
     private fun updateSessionStats(durationSec: Long) {
@@ -667,14 +680,14 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         if (currentLanguage == "ENGLISH" && durationSec >= 60) {
             val currentCoins = prefs.getInt("talk_coins", 0) + 1
             editor.putInt("talk_coins", currentCoins)
-            AppLogger.log("Coins", "Earned 1 Talk Coin! Total: $currentCoins")
+            logEvent("Coins", "Earned 1 Talk Coin! Total: $currentCoins")
         }
 
         // Beginner to Advanced Unlock Progression: calls >= 240 seconds (4 mins)
         if (currentLanguage == "ENGLISH" && currentLevel == "Beginner" && durationSec >= 240) {
             val qualified = prefs.getInt("beginner_qualified_calls", 0) + 1
             editor.putInt("beginner_qualified_calls", qualified)
-            AppLogger.log("Progression", "Advanced unlock progression: $qualified / 20")
+            logEvent("Progression", "Advanced unlock progression: $qualified / 20")
         }
 
         // Daily Streak update for calls >= 60 seconds
@@ -739,13 +752,13 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 backgroundAutoMuteRunnable = Runnable {
                     if (isAppInBackground && isCallInProgress) {
                         WebRtcAudioClient.setMuted(true)
-                        AppLogger.log("AutoMute", "Hard-muted microphone after 30s in background")
+                        logEvent("AutoMute", "Hard-muted microphone after 30s in background")
                     }
                 }
                 backgroundAutoMuteRunnable?.let { mainHandler.postDelayed(it, 30000L) }
-                AppLogger.log("AutoMute", "App minimized to background: 30s auto-mute timer started")
+                logEvent("AutoMute", "App minimized to background: 30s auto-mute timer started")
             } else {
-                AppLogger.log("PowerKey", "Screen locked via power button - keeping microphone active")
+                logEvent("PowerKey", "Screen locked via power button - keeping microphone active")
             }
         }
     }
@@ -757,7 +770,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         if (isCallInProgress && WebRtcAudioClient.isMuted) {
             WebRtcAudioClient.setMuted(false)
             updateButtonVisual(btnMute, android.R.drawable.ic_btn_speak_now, "MUTE")
-            AppLogger.log("AutoMute", "Microphone unmuted upon app foreground")
+            logEvent("AutoMute", "Microphone unmuted upon app foreground")
         }
         refreshDashboardUI()
     }
@@ -782,16 +795,16 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             RewardedAd.load(this, "ca-app-pub-3940256099942544/5224354917", adRequest, object : RewardedAdLoadCallback() {
                 override fun onAdLoaded(ad: RewardedAd) {
                     rewardedAd = ad
-                    AppLogger.log("AdMob", "Rewarded ad loaded and ready")
+                    logEvent("AdMob", "Rewarded ad loaded and ready")
                 }
 
                 override fun onAdFailedToLoad(error: LoadAdError) {
                     rewardedAd = null
-                    AppLogger.log("AdMob", "Rewarded ad failed: ${error.message}")
+                    logEvent("AdMob", "Rewarded ad failed: ${error.message}")
                 }
             })
         } catch (e: Throwable) {
-            AppLogger.log("AdMob-ERR", "Load rewarded ad: ${e.message}")
+            logEvent("AdMob-ERR", "Load rewarded ad: ${e.message}")
         }
     }
 
@@ -802,7 +815,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 prefs.edit().putInt("talk_coins", currentCoins).apply()
                 refreshDashboardUI()
                 Toast.makeText(this, "+2 Talk Coins added!", Toast.LENGTH_SHORT).show()
-                AppLogger.log("Coins", "Rewarded ad completed: +2 Talk Coins added")
+                logEvent("Coins", "Rewarded ad completed: +2 Talk Coins added")
                 loadRewardedAd()
             }
         } else {

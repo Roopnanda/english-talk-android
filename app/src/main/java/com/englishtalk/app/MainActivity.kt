@@ -448,7 +448,9 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private fun startRegionalSearchFlow(lang: String) {
         if (CooldownManager.isUnderCooldown(this)) {
             val remSec = CooldownManager.getRemainingCooldownSeconds(this)
-            Toast.makeText(this, "You are on a 3-minute break. Please wait ${remSec}s.", Toast.LENGTH_SHORT).show()
+            val mins = remSec / 60
+            val secs = remSec % 60
+            Toast.makeText(this, "You are on a 3-minute break. Please wait ${mins}m ${secs}s.", Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -484,8 +486,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         }
 
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        
-        // Rule 2: Reconnect cancel or English returns to Dashboard, Regional returns to Languages
+
         if (wasReconnectAttempt || currentLanguage == "ENGLISH") {
             showLayout(layoutDashboard)
         } else {
@@ -498,7 +499,10 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
     private fun initiateReconnectFlow() {
         if (CooldownManager.isUnderCooldown(this)) {
-            Toast.makeText(this, "Under cooldown. Please wait.", Toast.LENGTH_SHORT).show()
+            val remSec = CooldownManager.getRemainingCooldownSeconds(this)
+            val mins = remSec / 60
+            val secs = remSec % 60
+            Toast.makeText(this, "You are on a 3-minute break. Please wait ${mins}m ${secs}s.", Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -665,9 +669,14 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         sensorManager.unregisterListener(this)
         if (wakeLock?.isHeld == true) wakeLock?.release()
 
-        CooldownManager.onCallFinished(this, callDurationSec)
-        updateSessionStats(callDurationSec)
+        // Evaluates Rule 30 with initiator-only attribution
+        val abuseResult = CooldownManager.onCallFinished(
+            context = this,
+            durationSec = callDurationSec,
+            isLocalInitiatorHangup = !isRemoteDisconnect
+        )
 
+        updateSessionStats(callDurationSec)
         WebRtcAudioClient.close()
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
@@ -687,7 +696,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             btnReconnectLast?.visibility = View.GONE
         }
 
-        // Rule 2: Universal Landing on HomeScreen Dashboard for ALL Reconnect sessions
+        // Universal Landing on HomeScreen Dashboard for ALL Reconnect sessions
         if (completedReconnectSession || currentLanguage == "ENGLISH") {
             showLayout(layoutDashboard)
         } else {
@@ -696,6 +705,28 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
         refreshDashboardUI()
         logEvent("WebRTC", "Session ended. Talk time: ${callDurationSec}s")
+
+        // Handle Rule 30 Abuse UI Outcomes on Main Thread
+        when (abuseResult) {
+            CooldownManager.AbuseActionResult.TIER1_WARNING -> {
+                Toast.makeText(
+                    this,
+                    "Great conversations take a moment to start. Try speaking for 1 minute before skipping!",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+            CooldownManager.AbuseActionResult.TIER2_COOLDOWN -> {
+                val remSec = CooldownManager.getRemainingCooldownSeconds(this)
+                val mins = remSec / 60
+                val secs = remSec % 60
+                Toast.makeText(
+                    this,
+                    "You are on a 3-minute break for frequent early hang-ups. Please wait ${mins}m ${secs}s before searching again.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+            CooldownManager.AbuseActionResult.NONE -> {}
+        }
     }
 
     private fun updateSessionStats(durationSec: Long) {

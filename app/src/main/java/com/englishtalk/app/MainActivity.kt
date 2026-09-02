@@ -49,13 +49,13 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private var wakeLock: PowerManager.WakeLock? = null
     private lateinit var powerManager: PowerManager
 
-    // Layout Containers (exact XML IDs)
+    // Layout Containers
     private var layoutDashboard: View? = null
     private var layoutLanguages: View? = null
     private var layoutSearching: View? = null
     private var layoutCall: View? = null
 
-    // Dashboard UI (exact XML IDs)
+    // Dashboard UI
     private var tvTalkCoinsBadge: TextView? = null
     private var tvStreakVal: TextView? = null
     private var tvTotalMinutesVal: TextView? = null
@@ -70,18 +70,18 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private var switchFemaleFilter: Switch? = null
     private var tvConsoleLogs: TextView? = null
 
-    // Searching UI (exact XML IDs)
+    // Searching UI
     private var tvSearchingStatus: TextView? = null
     private var btnCancelSearch: Button? = null
 
-    // In-Call UI (exact XML IDs)
+    // In-Call UI
     private var tvCallPartnerName: TextView? = null
     private var tvCallTimer: TextView? = null
     private var btnMute: Button? = null
     private var btnSpeaker: Button? = null
     private var btnEndCall: Button? = null
 
-    // Languages UI (exact XML IDs)
+    // Languages UI
     private var btnBackFromLanguages: Button? = null
     private var btnWatchAdReward: Button? = null
 
@@ -94,10 +94,15 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private var currentLevel = "Beginner"
     private var currentLanguage = "ENGLISH"
     private var lastCallerPeerId = ""
+    private var lastCallerLanguage = "ENGLISH"
     private var isCallInProgress = false
     private var callStartTimeMs = 0L
     private var isCallTimerExtended = false
     private var warningDialogShown = false
+
+    // Strict Single-Use Reconnect Guards (Rule 12)
+    private var isCurrentSessionReconnect = false
+    private var reconnectConsumed = false
 
     // Diagnostic In-Memory Event Log
     private val diagnosticLogs = Collections.synchronizedList(mutableListOf<String>())
@@ -119,13 +124,11 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                     tvCallTimer?.text = formatted
                 }
 
-                // 14-Minute Warning Dialog (840s)
                 if (elapsedSec >= 840 && !warningDialogShown && !isCallTimerExtended) {
                     warningDialogShown = true
                     runOnUiThread { showCallExtensionDialog() }
                 }
 
-                // 15-Minute Hard Limit (or 20-min if extended)
                 val maxLimitSec = if (isCallTimerExtended) 1200L else 900L
                 if (elapsedSec >= maxLimitSec) {
                     runOnUiThread {
@@ -176,7 +179,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         setupListeners()
         setupRegionalLanguageButtons()
 
-        // Asynchronous AdMob Setup
         MobileAds.initialize(this) {
             runOnUiThread {
                 setupBannerAd()
@@ -208,13 +210,11 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     }
 
     private fun initViews() {
-        // Layout Containers
         layoutDashboard = findViewById(R.id.layoutDashboard)
         layoutLanguages = findViewById(R.id.layoutLanguages)
         layoutSearching = findViewById(R.id.layoutSearching)
         layoutCall = findViewById(R.id.layoutCall)
 
-        // Dashboard
         tvTalkCoinsBadge = findViewById(R.id.tvTalkCoinsBadge)
         tvStreakVal = findViewById(R.id.tvStreakVal)
         tvTotalMinutesVal = findViewById(R.id.tvTotalMinutesVal)
@@ -229,22 +229,17 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         switchFemaleFilter = findViewById(R.id.switchFemaleFilter)
         tvConsoleLogs = findViewById(R.id.tvConsoleLogs)
 
-        // Searching
         tvSearchingStatus = findViewById(R.id.tvSearchingStatus)
         btnCancelSearch = findViewById(R.id.btnCancelSearch)
 
-        // In-Call
         tvCallPartnerName = findViewById(R.id.tvCallPartnerName)
         tvCallTimer = findViewById(R.id.tvCallTimer)
         btnMute = findViewById(R.id.btnMute)
         btnSpeaker = findViewById(R.id.btnSpeaker)
         btnEndCall = findViewById(R.id.btnEndCall)
 
-        // Languages
         btnBackFromLanguages = findViewById(R.id.btnBackFromLanguages)
         btnWatchAdReward = findViewById(R.id.btnWatchAdReward)
-
-        // Banner Container
         layoutBannerAd = findViewById(R.id.layoutBannerAd)
     }
 
@@ -269,6 +264,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         btnBeginner?.setOnClickListener {
             currentLevel = "Beginner"
             currentLanguage = "ENGLISH"
+            isCurrentSessionReconnect = false
+            reconnectConsumed = false
             startSearchingFlow()
         }
 
@@ -277,6 +274,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             if (qualifiedCalls >= 20) {
                 currentLevel = "Advanced"
                 currentLanguage = "ENGLISH"
+                isCurrentSessionReconnect = false
+                reconnectConsumed = false
                 startSearchingFlow()
             } else {
                 tvLockProgressPopup?.text = "Complete 20 calls (4+ mins each in Beginner) to unlock Advanced. Progress: $qualifiedCalls/20"
@@ -316,8 +315,10 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         }
 
         btnReconnectLast?.setOnClickListener {
-            if (lastCallerPeerId.isNotEmpty()) {
+            if (lastCallerPeerId.isNotEmpty() && !reconnectConsumed) {
                 initiateReconnectFlow()
+            } else {
+                btnReconnectLast?.visibility = View.GONE
             }
         }
 
@@ -338,7 +339,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             Toast.makeText(this, "VIP Membership: Talk to Female Only filter unlocked!", Toast.LENGTH_SHORT).show()
         }
 
-        // Diagnostic Console Click Listener (Rule 33)
         tvConsoleLogs?.setOnClickListener {
             showDiagnosticLogsDialog()
         }
@@ -364,6 +364,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             findViewById<Button>(btnId)?.setOnClickListener {
                 currentLevel = "Native"
                 currentLanguage = langName
+                isCurrentSessionReconnect = false
+                reconnectConsumed = false
                 startRegionalSearchFlow(langName)
             }
         }
@@ -467,14 +469,29 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         SignalingClient.leaveQueue()
         SignalingClient.cancelReconnect()
 
-        if (currentLanguage != "ENGLISH") {
+        val wasReconnectAttempt = isCurrentSessionReconnect
+        if (wasReconnectAttempt) {
+            isCurrentSessionReconnect = false
+            lastCallerPeerId = ""
+            reconnectConsumed = true
+            btnReconnectLast?.visibility = View.GONE
+        }
+
+        if (currentLanguage != "ENGLISH" && !wasReconnectAttempt) {
             val coins = prefs.getInt("talk_coins", 0)
             prefs.edit().putInt("talk_coins", coins + 1).apply()
             logEvent("Coins", "+1 Talk Coin refunded")
         }
 
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        showLayout(if (currentLanguage == "ENGLISH") layoutDashboard else layoutLanguages)
+        
+        // Rule 2: Reconnect cancel or English returns to Dashboard, Regional returns to Languages
+        if (wasReconnectAttempt || currentLanguage == "ENGLISH") {
+            showLayout(layoutDashboard)
+        } else {
+            showLayout(layoutLanguages)
+        }
+
         refreshDashboardUI()
         logEvent("UI", "Search cancelled by user")
     }
@@ -485,12 +502,15 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             return
         }
 
+        isCurrentSessionReconnect = true
+        reconnectConsumed = true
         tvSearchingStatus?.text = "Reconnecting to last caller..."
         showLayout(layoutSearching)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        SignalingClient.requestReconnect(lastCallerPeerId, currentLevel)
-        logEvent("Reconnect", "Calling peer: $lastCallerPeerId")
+        val reconnectLevel = if (lastCallerLanguage == "ENGLISH") currentLevel else "Native"
+        SignalingClient.requestReconnect(lastCallerPeerId, reconnectLevel)
+        logEvent("Reconnect", "Calling peer: $lastCallerPeerId in pool: $lastCallerLanguage")
     }
 
     private fun showReportUserDialog() {
@@ -536,7 +556,18 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
     override fun onMatchFound(roomId: String, isInitiator: Boolean, peerLevel: String, peerId: String, isReconnect: Boolean) {
         runOnUiThread {
-            lastCallerPeerId = peerId
+            isCurrentSessionReconnect = isReconnect || isCurrentSessionReconnect
+
+            if (isCurrentSessionReconnect) {
+                lastCallerPeerId = ""
+                reconnectConsumed = true
+                btnReconnectLast?.visibility = View.GONE
+            } else {
+                lastCallerPeerId = peerId
+                lastCallerLanguage = currentLanguage
+                reconnectConsumed = false
+            }
+
             isCallInProgress = true
             callStartTimeMs = System.currentTimeMillis()
             warningDialogShown = false
@@ -565,7 +596,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             mainHandler.removeCallbacks(callTimerRunnable)
             mainHandler.post(callTimerRunnable)
             WebRtcAudioClient.startPeerConnection(roomId, isInitiator, this)
-            logEvent("CallView", "Live call connected at 00:00")
+            logEvent("CallView", "Live call connected at 00:00 (Pool: $currentLanguage, Reconnect: $isCurrentSessionReconnect)")
         }
     }
 
@@ -640,13 +671,24 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         WebRtcAudioClient.close()
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        // Show Reconnect Button on Dashboard whenever peer ID was established (Rule 12)
-        if (lastCallerPeerId.isNotEmpty()) {
+        val completedReconnectSession = isCurrentSessionReconnect
+
+        if (completedReconnectSession) {
+            lastCallerPeerId = ""
+            lastCallerLanguage = ""
+            isCurrentSessionReconnect = false
+            reconnectConsumed = true
+            btnReconnectLast?.visibility = View.GONE
+            logEvent("Reconnect", "Single-use reconnect session completed. Button locked and destroyed.")
+        } else if (lastCallerPeerId.isNotEmpty() && !reconnectConsumed) {
             btnReconnectLast?.visibility = View.VISIBLE
+            logEvent("Reconnect", "Single-use reconnect token armed for pool: $lastCallerLanguage")
+        } else {
+            btnReconnectLast?.visibility = View.GONE
         }
 
-        // Reconnect session destination invariance: always return to Dashboard (Rule 2)
-        if (currentLanguage == "ENGLISH" || lastCallerPeerId.isNotEmpty()) {
+        // Rule 2: Universal Landing on HomeScreen Dashboard for ALL Reconnect sessions
+        if (completedReconnectSession || currentLanguage == "ENGLISH") {
             showLayout(layoutDashboard)
         } else {
             showLayout(layoutLanguages)
@@ -720,13 +762,14 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             btnAdvanced?.text = "🔒 ADVANCED ($qualifiedCalls/20)"
         }
 
-        if (lastCallerPeerId.isNotEmpty()) {
+        if (lastCallerPeerId.isNotEmpty() && !reconnectConsumed) {
             btnReconnectLast?.visibility = View.VISIBLE
+        } else {
+            btnReconnectLast?.visibility = View.GONE
         }
     }
 
     private fun showLayout(activeLayout: View?) {
-        // layoutDashboard is wrapped inside a ScrollView, so toggle its parent ScrollView
         val dashboardScroll = layoutDashboard?.parent as? View
         dashboardScroll?.visibility = if (activeLayout == layoutDashboard) View.VISIBLE else View.GONE
         layoutLanguages?.visibility = if (activeLayout == layoutLanguages) View.VISIBLE else View.GONE
@@ -816,13 +859,14 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     }
 
     private fun checkPermissions() {
-        val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            arrayOf(
-                Manifest.permission.RECORD_AUDIO,
-                Manifest.permission.BLUETOOTH_CONNECT
-            )
-        } else {
-            arrayOf(Manifest.permission.RECORD_AUDIO)
+        val permissions = mutableListOf(Manifest.permission.RECORD_AUDIO)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
         }
 
         val missing = permissions.filter {

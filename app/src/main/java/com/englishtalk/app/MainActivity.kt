@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -18,6 +19,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.*
 import androidx.core.app.ActivityCompat
@@ -71,7 +73,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private var tvSearchStatus: TextView? = null
     private var btnCancelSearch: Button? = null
 
-    // In-Call UI (Generic Views to support Button & ImageButton)
+    // In-Call UI (Polymorphic View to support Button or ImageButton)
     private var tvCallStatus: TextView? = null
     private var tvCallDuration: TextView? = null
     private var btnMute: View? = null
@@ -79,7 +81,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private var btnEndCall: View? = null
 
     // Languages UI
-    private var btnWatchAdCoins: Button? = null
+    private var btnWatchAdCoins: View? = null
     private var btnBackFromLanguages: View? = null
     private var gridLanguages: GridLayout? = null
 
@@ -107,19 +109,25 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 val elapsedSec = (System.currentTimeMillis() - callStartTimeMs) / 1000L
                 val mins = elapsedSec / 60
                 val secs = elapsedSec % 60
-                tvCallDuration?.text = String.format(Locale.US, "%02d:%02d", mins, secs)
+                val formatted = String.format(Locale.US, "%02d:%02d", mins, secs)
+
+                runOnUiThread {
+                    tvCallDuration?.text = formatted
+                }
 
                 // 14-Minute Warning Dialog (840s)
                 if (elapsedSec >= 840 && !warningDialogShown && !isCallTimerExtended) {
                     warningDialogShown = true
-                    showCallExtensionDialog()
+                    runOnUiThread { showCallExtensionDialog() }
                 }
 
                 // 15-Minute Hard Limit (or 20-min if extended)
                 val maxLimitSec = if (isCallTimerExtended) 1200L else 900L
                 if (elapsedSec >= maxLimitSec) {
-                    Toast.makeText(this@MainActivity, "Call reached time limit", Toast.LENGTH_SHORT).show()
-                    endActiveCall()
+                    runOnUiThread {
+                        Toast.makeText(this@MainActivity, "Call reached time limit", Toast.LENGTH_SHORT).show()
+                        endActiveCall()
+                    }
                     return
                 }
 
@@ -130,6 +138,10 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        Thread.setDefaultUncaughtExceptionHandler { _, e ->
+            AppLogger.log("CRASH-TRAP", "Uncaught exception: ${e.message}")
+        }
 
         try {
             val layoutId = resources.getIdentifier("activity_main", "layout", packageName)
@@ -153,23 +165,24 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         initViews()
         setupListeners()
 
-        mainHandler.post {
-            try {
-                MobileAds.initialize(applicationContext) {}
-                bannerAdView?.loadAd(AdRequest.Builder().build())
-            } catch (e: Throwable) {
-                AppLogger.log("AdMob-ERR", "MobileAds init: ${e.message}")
+        // Asynchronous AdMob init
+        MobileAds.initialize(this) {
+            runOnUiThread {
+                try {
+                    bannerAdView?.loadAd(AdRequest.Builder().build())
+                } catch (e: Throwable) {
+                    AppLogger.log("AdMob-ERR", "Banner load: ${e.message}")
+                }
+                loadRewardedAd()
             }
+        }
 
-            try {
-                SignalingClient.setListener(this)
-                SignalingClient.connect()
-                WebRtcAudioClient.init(applicationContext)
-            } catch (e: Throwable) {
-                AppLogger.log("Init-ERR", "Signaling/WebRTC init: ${e.message}")
-            }
-
-            loadRewardedAd()
+        try {
+            SignalingClient.setListener(this)
+            SignalingClient.connect()
+            WebRtcAudioClient.init(applicationContext)
+        } catch (e: Throwable) {
+            AppLogger.log("Init-ERR", "Signaling/WebRTC init: ${e.message}")
         }
 
         refreshDashboardUI()
@@ -214,13 +227,13 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         btnCancelSearch = resolveView("btnCancelSearch")
 
         tvCallStatus = resolveView("tvCallStatus")
-        tvCallDuration = resolveView("tvCallDuration")
+        tvCallDuration = resolveView("tvCallDuration") ?: resolveView("tvTimer")
         btnMute = resolveView("btnMute")
         btnSpeaker = resolveView("btnSpeaker")
         btnEndCall = resolveView("btnEndCall")
 
-        btnWatchAdCoins = resolveView("btnWatchAdCoins")
-        btnBackFromLanguages = resolveView("btnBackFromLanguages")
+        btnWatchAdCoins = resolveView("btnWatchAdCoins") ?: resolveView("btnWatchAd")
+        btnBackFromLanguages = resolveView("btnBackFromLanguages") ?: resolveView("btnBackLanguages")
         gridLanguages = resolveView("gridLanguages")
         bannerAdView = resolveView("bannerAdView")
     }
@@ -256,6 +269,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
         btnOtherLanguages?.setOnClickListener {
             showLayout(layoutLanguages)
+            setupRegionalLanguageButtons()
         }
 
         btnBackFromLanguages?.setOnClickListener {
@@ -315,24 +329,77 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             showRewardedAd()
         }
 
+        // Diagnostic Log Viewer Trigger (Long press on Streak / Practice Time)
+        tvStreak?.setOnLongClickListener {
+            showDiagnosticLogsDialog()
+            true
+        }
+        tvPracticeTime?.setOnLongClickListener {
+            showDiagnosticLogsDialog()
+            true
+        }
+
         setupRegionalLanguageButtons()
     }
 
     private fun setupRegionalLanguageButtons() {
         val languages = listOf("HINDI", "PUNJABI", "MARATHI", "BENGALI", "BHOJPURI", "GUJARATI", "KANNADA", "MALAYALAM", "TAMIL", "TELUGU", "URDU", "ARABIC")
+
+        // Direct ID lookup binding
+        for (lang in languages) {
+            val view = resolveView<Button>("btn${lang.lowercase().replaceFirstChar { it.uppercase() }}")
+            view?.setOnClickListener {
+                currentLevel = "Native"
+                currentLanguage = lang
+                startRegionalSearchFlow(lang)
+            }
+        }
+
+        // GridLayout Children Binding
         gridLanguages?.let { grid ->
             for (i in 0 until grid.childCount) {
-                val view = grid.getChildAt(i)
-                if (view is Button && i < languages.size) {
-                    val langName = languages[i]
-                    view.setOnClickListener {
-                        currentLevel = "Native"
-                        currentLanguage = langName
-                        startRegionalSearchFlow(langName)
+                val child = grid.getChildAt(i)
+                if (child is Button) {
+                    val buttonText = child.text.toString().trim().uppercase()
+                    val matchedLang = languages.find { buttonText.contains(it) } ?: if (i < languages.size) languages[i] else null
+                    if (matchedLang != null) {
+                        child.setOnClickListener {
+                            currentLevel = "Native"
+                            currentLanguage = matchedLang
+                            startRegionalSearchFlow(matchedLang)
+                        }
                     }
                 }
             }
         }
+    }
+
+    private fun showDiagnosticLogsDialog() {
+        val logs = try {
+            AppLogger.getLogs()
+        } catch (e: Throwable) {
+            "No diagnostic logs recorded yet."
+        }
+
+        val scroll = ScrollView(this)
+        val text = TextView(this).apply {
+            setText(logs)
+            setTextColor(Color.WHITE)
+            setBackgroundColor(Color.BLACK)
+            setPadding(24, 24, 24, 24)
+            textSize = 12f
+        }
+        scroll.addView(text)
+
+        AlertDialog.Builder(this)
+            .setTitle("Diagnostic Logs")
+            .setView(scroll)
+            .setPositiveButton("Close", null)
+            .setNeutralButton("Clear Logs") { _, _ ->
+                AppLogger.clearLogs()
+                Toast.makeText(this, "Logs cleared", Toast.LENGTH_SHORT).show()
+            }
+            .show()
     }
 
     @Deprecated("Deprecated in Java")
@@ -493,6 +560,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
             proximitySensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI) }
 
+            mainHandler.removeCallbacks(callTimerRunnable)
             mainHandler.post(callTimerRunnable)
             WebRtcAudioClient.startPeerConnection(roomId, isInitiator, this)
             AppLogger.log("CallView", "Live call view active at 00:00")
@@ -551,9 +619,12 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
     private fun teardownCallSession(isRemoteDisconnect: Boolean) {
         if (!isCallInProgress) return
-        isCallInProgress = false
 
+        val callDurationSec = if (callStartTimeMs > 0L) (System.currentTimeMillis() - callStartTimeMs) / 1000L else 0L
+
+        isCallInProgress = false
         mainHandler.removeCallbacks(callTimerRunnable)
+
         try {
             stopService(Intent(this, CallService::class.java))
         } catch (e: Throwable) {}
@@ -561,21 +632,25 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         sensorManager.unregisterListener(this)
         if (wakeLock?.isHeld == true) wakeLock?.release()
 
-        val callDurationSec = if (callStartTimeMs > 0L) (System.currentTimeMillis() - callStartTimeMs) / 1000L else 0L
-
         CooldownManager.onCallFinished(this, callDurationSec)
         updateSessionStats(callDurationSec)
 
         WebRtcAudioClient.close()
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        if (btnReconnect?.visibility == View.VISIBLE && !isRemoteDisconnect) {
-            btnReconnect?.visibility = View.GONE
-        } else if (lastCallerPeerId.isNotEmpty()) {
+        // Show Reconnect and Report buttons whenever a peer ID was established
+        if (lastCallerPeerId.isNotEmpty()) {
             btnReconnect?.visibility = View.VISIBLE
+            btnReportUser?.visibility = View.VISIBLE
         }
 
-        showLayout(if (currentLanguage == "ENGLISH") layoutDashboard else layoutLanguages)
+        // Reconnect session destination invariance: always return to Dashboard
+        if (currentLanguage == "ENGLISH" || lastCallerPeerId.isNotEmpty()) {
+            showLayout(layoutDashboard)
+        } else {
+            showLayout(layoutLanguages)
+        }
+
         refreshDashboardUI()
         AppLogger.log("WebRTC", "Session cleaned up. Talk time: $callDurationSec s")
     }
@@ -588,18 +663,21 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         editor.putLong("total_practice_seconds", totalSec)
         editor.putInt("total_calls_count", totalCalls)
 
+        // Award Talk Coin for English calls >= 60 seconds
         if (currentLanguage == "ENGLISH" && durationSec >= 60) {
             val currentCoins = prefs.getInt("talk_coins", 0) + 1
             editor.putInt("talk_coins", currentCoins)
             AppLogger.log("Coins", "Earned 1 Talk Coin! Total: $currentCoins")
         }
 
+        // Beginner to Advanced Unlock Progression: calls >= 240 seconds (4 mins)
         if (currentLanguage == "ENGLISH" && currentLevel == "Beginner" && durationSec >= 240) {
             val qualified = prefs.getInt("beginner_qualified_calls", 0) + 1
             editor.putInt("beginner_qualified_calls", qualified)
             AppLogger.log("Progression", "Advanced unlock progression: $qualified / 20")
         }
 
+        // Daily Streak update for calls >= 60 seconds
         if (durationSec >= 60) {
             val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
             val lastActiveDate = prefs.getString("last_active_date", "") ?: ""
@@ -637,6 +715,11 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             btnAdvanced?.text = "ADVANCED (TAP TO CALL)"
         } else {
             btnAdvanced?.text = "🔒 ADVANCED ($qualifiedCalls/20)"
+        }
+
+        if (lastCallerPeerId.isNotEmpty()) {
+            btnReconnect?.visibility = View.VISIBLE
+            btnReportUser?.visibility = View.VISIBLE
         }
     }
 

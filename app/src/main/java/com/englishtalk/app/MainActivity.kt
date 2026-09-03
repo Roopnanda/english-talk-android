@@ -194,9 +194,38 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             logEvent("Init-ERR", "Signaling/WebRTC init: ${e.message}")
         }
 
+        checkAndEnforceGenderSelection()
         refreshDashboardUI()
         checkPermissions()
         logEvent("SYS", "English Talk initialized successfully")
+    }
+
+    // Rule 34: Layer 1 Mandatory Onboarding Profile Gender Lock
+    private fun checkAndEnforceGenderSelection() {
+        val savedGender = prefs.getString("user_gender", "NOT_SET") ?: "NOT_SET"
+        if (savedGender == "NOT_SET") {
+            val genderOptions = arrayOf("Male", "Female", "Other")
+            var selectedChoice = 0
+
+            AlertDialog.Builder(this)
+                .setTitle("Select Your Gender")
+                .setMessage("To ensure fair and accurate matchmaking, please select your gender. This selection cannot be changed later.")
+                .setCancelable(false)
+                .setSingleChoiceItems(genderOptions, 0) { _, which ->
+                    selectedChoice = which
+                }
+                .setPositiveButton("Confirm") { dialog, _ ->
+                    val chosenGender = when (selectedChoice) {
+                        0 -> "MALE"
+                        1 -> "FEMALE"
+                        else -> "OTHER"
+                    }
+                    prefs.edit().putString("user_gender", chosenGender).apply()
+                    logEvent("Profile", "Gender permanently locked as $chosenGender")
+                    dialog.dismiss()
+                }
+                .show()
+        }
     }
 
     private fun setupWakeLock() {
@@ -204,9 +233,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             if (powerManager.isWakeLockLevelSupported(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK)) {
                 wakeLock = powerManager.newWakeLock(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK, "EnglishTalk:ProximityLock")
             }
-        } catch (e: Throwable) {
-            logEvent("WakeLock-ERR", "WakeLock init: ${e.message}")
-        }
+        } catch (e: Throwable) {}
     }
 
     private fun initViews() {
@@ -253,11 +280,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 }
                 container.addView(bannerAdView)
                 bannerAdView?.loadAd(AdRequest.Builder().build())
-                logEvent("AdMob", "Banner Ad loaded")
             }
-        } catch (e: Throwable) {
-            logEvent("AdMob-ERR", "Banner setup: ${e.message}")
-        }
+        } catch (e: Throwable) {}
     }
 
     private fun setupListeners() {
@@ -304,14 +328,12 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             val newMuteState = !WebRtcAudioClient.isMuted
             WebRtcAudioClient.setMuted(newMuteState)
             btnMute?.text = if (newMuteState) "🔇" else "🎤"
-            logEvent("Audio", "Mute: $newMuteState")
         }
 
         btnSpeaker?.setOnClickListener {
             val newSpeakerState = !audioManager.isSpeakerphoneOn
             audioManager.isSpeakerphoneOn = newSpeakerState
             btnSpeaker?.text = if (newSpeakerState) "🔊" else "🔈"
-            logEvent("Audio", "Speaker: $newSpeakerState")
         }
 
         btnReconnectLast?.setOnClickListener {
@@ -439,10 +461,18 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
         val isFemaleOnly = switchFemaleFilter?.isChecked == true
         val isVip = prefs.getBoolean("is_vip", false)
-        val userGender = prefs.getString("user_gender", "Unknown") ?: "Unknown"
+        val hasFemalePass = prefs.getBoolean("has_female_pass", false)
+        val userGender = prefs.getString("user_gender", "MALE") ?: "MALE"
 
-        SignalingClient.joinQueue(currentLevel, currentLanguage, userGender, isFemaleOnly, isVip)
-        logEvent("Queue", "Joined $currentLevel queue [$currentLanguage]")
+        SignalingClient.joinQueue(
+            level = currentLevel,
+            language = currentLanguage,
+            userGender = userGender,
+            isFemaleOnly = isFemaleOnly,
+            isVip = isVip,
+            hasFemalePass = hasFemalePass
+        )
+        logEvent("Queue", "Joined $currentLevel queue [$currentLanguage] (Gender: $userGender, FemaleFilter: $isFemaleOnly)")
     }
 
     private fun startRegionalSearchFlow(lang: String) {
@@ -517,19 +547,30 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         logEvent("Reconnect", "Calling peer: $lastCallerPeerId in pool: $lastCallerLanguage")
     }
 
+    // Rule 35: Layer 3 Peer Reporting ("Partner is Not Female" support)
     private fun showReportUserDialog() {
         if (lastCallerPeerId.isEmpty()) {
             Toast.makeText(this, "No recent caller available to report.", Toast.LENGTH_SHORT).show()
             return
         }
 
+        val reportOptions = arrayOf("Harassment / Abusive Behavior", "Partner is Not Female (Gender Mismatch)")
+        var selectedReason = 0
+
         AlertDialog.Builder(this)
             .setTitle("Report Last Caller")
-            .setMessage("Are you sure you want to report your last partner for inappropriate behavior?")
-            .setPositiveButton("Report") { _, _ ->
-                SignalingClient.reportUser(lastCallerPeerId)
+            .setSingleChoiceItems(reportOptions, 0) { _, which ->
+                selectedReason = which
+            }
+            .setPositiveButton("Submit Report") { _, _ ->
+                if (selectedReason == 0) {
+                    SignalingClient.reportUser(lastCallerPeerId)
+                    logEvent("Report", "Reported harassment: $lastCallerPeerId")
+                } else {
+                    SignalingClient.reportGenderMismatch(lastCallerPeerId)
+                    logEvent("Report", "Reported gender mismatch: $lastCallerPeerId")
+                }
                 Toast.makeText(this, "Report submitted. Thank you for keeping our community safe.", Toast.LENGTH_LONG).show()
-                logEvent("Report", "Reported peer: $lastCallerPeerId")
             }
             .setNegativeButton("Cancel", null)
             .show()
@@ -572,6 +613,12 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 reconnectConsumed = false
             }
 
+            // If user consumed their single-use Female Pass on an English call with female filter on
+            if (switchFemaleFilter?.isChecked == true && prefs.getBoolean("has_female_pass", false)) {
+                prefs.edit().putBoolean("has_female_pass", false).apply()
+                logEvent("FemalePass", "Female Match Pass consumed for this call")
+            }
+
             isCallInProgress = true
             callStartTimeMs = System.currentTimeMillis()
             warningDialogShown = false
@@ -591,9 +638,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
             try {
                 startService(Intent(this, CallService::class.java))
-            } catch (e: Throwable) {
-                logEvent("Service-ERR", "CallService start: ${e.message}")
-            }
+            } catch (e: Throwable) {}
 
             proximitySensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI) }
 
@@ -669,7 +714,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         sensorManager.unregisterListener(this)
         if (wakeLock?.isHeld == true) wakeLock?.release()
 
-        // Evaluates Rule 30 with initiator-only attribution
         val abuseResult = CooldownManager.onCallFinished(
             context = this,
             durationSec = callDurationSec,
@@ -696,7 +740,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             btnReconnectLast?.visibility = View.GONE
         }
 
-        // Universal Landing on HomeScreen Dashboard for ALL Reconnect sessions
+        // Universal Landing on HomeScreen Dashboard for ALL Reconnect sessions (Rule 2 & 4)
         if (completedReconnectSession || currentLanguage == "ENGLISH") {
             showLayout(layoutDashboard)
         } else {
@@ -706,7 +750,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         refreshDashboardUI()
         logEvent("WebRTC", "Session ended. Talk time: ${callDurationSec}s")
 
-        // Handle Rule 30 Abuse UI Outcomes on Main Thread
         when (abuseResult) {
             CooldownManager.AbuseActionResult.TIER1_WARNING -> {
                 Toast.makeText(
@@ -749,6 +792,15 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             val qualified = prefs.getInt("beginner_qualified_calls", 0) + 1
             editor.putInt("beginner_qualified_calls", qualified)
             logEvent("Progression", "Advanced unlock: $qualified / 20")
+        }
+
+        // Female Pass Practice Quest Tracking: calls >= 120 seconds in English (Phase 3 readiness)
+        if (currentLanguage == "ENGLISH" && durationSec >= 120) {
+            val passCalls = prefs.getInt("female_pass_qualified_calls", 0)
+            if (passCalls < 5) {
+                editor.putInt("female_pass_qualified_calls", passCalls + 1)
+                logEvent("FemalePassQuest", "Qualifying call recorded: ${passCalls + 1}/5")
+            }
         }
 
         // Daily Streak: calls >= 60 seconds on consecutive calendar days (Rule 7)
@@ -860,17 +912,13 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             RewardedAd.load(this, "ca-app-pub-3940256099942544/5224354917", adRequest, object : RewardedAdLoadCallback() {
                 override fun onAdLoaded(ad: RewardedAd) {
                     rewardedAd = ad
-                    logEvent("AdMob", "Rewarded Ad ready")
                 }
 
                 override fun onAdFailedToLoad(error: LoadAdError) {
                     rewardedAd = null
-                    logEvent("AdMob-ERR", "Rewarded Ad failed: ${error.message}")
                 }
             })
-        } catch (e: Throwable) {
-            logEvent("AdMob-ERR", "Load rewarded ad: ${e.message}")
-        }
+        } catch (e: Throwable) {}
     }
 
     private fun showRewardedAd() {

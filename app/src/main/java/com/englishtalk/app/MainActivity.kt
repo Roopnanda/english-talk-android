@@ -151,7 +151,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             diagnosticLogs.removeAt(0)
         }
         
-        // Persist to SharedPreferences so logs survive app exit/restart
         try {
             prefs.edit().putString("saved_persistent_logs", diagnosticLogs.joinToString("\n")).apply()
         } catch (e: Throwable) {}
@@ -176,7 +175,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
 
-        // Restore diagnostic logs across sessions
         val savedLogs = prefs.getString("saved_persistent_logs", "") ?: ""
         if (savedLogs.isNotEmpty()) {
             val lines = savedLogs.split("\n")
@@ -299,7 +297,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         btnWatchAdReward = findViewById(R.id.btnWatchAdReward)
         layoutBannerAd = findViewById(R.id.layoutBannerAd)
 
-        // Show last log entry if available
         if (diagnosticLogs.isNotEmpty()) {
             tvConsoleLogs?.text = diagnosticLogs.last()
         }
@@ -324,7 +321,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             currentLevel = "Beginner"
             currentLanguage = "ENGLISH"
             isCurrentSessionReconnect = false
-            reconnectConsumed = false
             startSearchingFlow()
         }
 
@@ -334,7 +330,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 currentLevel = "Advanced"
                 currentLanguage = "ENGLISH"
                 isCurrentSessionReconnect = false
-                reconnectConsumed = false
                 startSearchingFlow()
             } else {
                 tvLockProgressPopup?.text = "Complete 20 calls (4+ mins each in Beginner) to unlock Advanced. Progress: $qualifiedCalls/20"
@@ -422,7 +417,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 currentLevel = "Native"
                 currentLanguage = langName
                 isCurrentSessionReconnect = false
-                reconnectConsumed = false
                 startRegionalSearchFlow(langName)
             }
         }
@@ -533,16 +527,15 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         startSearchingFlow()
     }
 
+    // Rule 12 Fix: Canceling reconnect search preserves the reconnect token
     private fun cancelSearchAndReturn() {
         SignalingClient.leaveQueue()
         SignalingClient.cancelReconnect()
 
         val wasReconnectAttempt = isCurrentSessionReconnect
         if (wasReconnectAttempt) {
+            // Keep lastCallerPeerId intact so the user can tap Reconnect again!
             isCurrentSessionReconnect = false
-            lastCallerPeerId = ""
-            reconnectConsumed = true
-            btnReconnectLast?.visibility = View.GONE
         }
 
         if (currentLanguage != "ENGLISH" && !wasReconnectAttempt) {
@@ -573,7 +566,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         }
 
         isCurrentSessionReconnect = true
-        reconnectConsumed = true
         tvSearchingStatus?.text = "Reconnecting to last caller..."
         showLayout(layoutSearching)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -639,6 +631,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             isCurrentSessionReconnect = isReconnect || isCurrentSessionReconnect
 
             if (isCurrentSessionReconnect) {
+                // Now that the call is connected, mark reconnect as consumed
                 lastCallerPeerId = ""
                 reconnectConsumed = true
                 btnReconnectLast?.visibility = View.GONE

@@ -104,7 +104,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private var isCurrentSessionReconnect = false
     private var reconnectConsumed = false
 
-    // Diagnostic In-Memory Event Log
+    // Persistent Diagnostic Logs (Rule 27 & 33)
     private val diagnosticLogs = Collections.synchronizedList(mutableListOf<String>())
 
     // Timing & Mute Handlers
@@ -147,9 +147,15 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         val time = SimpleDateFormat("HH:mm:ss", Locale.US).format(Date())
         val entry = "[$time][$tag] $message"
         diagnosticLogs.add(entry)
-        if (diagnosticLogs.size > 200) {
+        if (diagnosticLogs.size > 250) {
             diagnosticLogs.removeAt(0)
         }
+        
+        // Persist to SharedPreferences so logs survive app exit/restart
+        try {
+            prefs.edit().putString("saved_persistent_logs", diagnosticLogs.joinToString("\n")).apply()
+        } catch (e: Throwable) {}
+
         runOnUiThread {
             tvConsoleLogs?.text = entry
         }
@@ -169,6 +175,14 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+
+        // Restore diagnostic logs across sessions
+        val savedLogs = prefs.getString("saved_persistent_logs", "") ?: ""
+        if (savedLogs.isNotEmpty()) {
+            val lines = savedLogs.split("\n")
+            diagnosticLogs.clear()
+            diagnosticLogs.addAll(lines.takeLast(250))
+        }
 
         try {
             proximitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY)
@@ -200,7 +214,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         logEvent("SYS", "English Talk initialized successfully")
     }
 
-    // Rule 34: Layer 1 Mandatory Onboarding Profile Gender Lock (With visible RadioGroup)
     private fun checkAndEnforceGenderSelection() {
         val savedGender = prefs.getString("user_gender", "NOT_SET") ?: "NOT_SET"
         if (savedGender == "NOT_SET") {
@@ -285,6 +298,11 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         btnBackFromLanguages = findViewById(R.id.btnBackFromLanguages)
         btnWatchAdReward = findViewById(R.id.btnWatchAdReward)
         layoutBannerAd = findViewById(R.id.layoutBannerAd)
+
+        // Show last log entry if available
+        if (diagnosticLogs.isNotEmpty()) {
+            tvConsoleLogs?.text = diagnosticLogs.last()
+        }
     }
 
     private fun setupBannerAd() {
@@ -434,6 +452,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             .setPositiveButton("Close", null)
             .setNeutralButton("Clear Logs") { _, _ ->
                 diagnosticLogs.clear()
+                prefs.edit().remove("saved_persistent_logs").apply()
                 tvConsoleLogs?.text = "Tap to view saved logs / diagnostic trace..."
                 Toast.makeText(this, "Logs cleared", Toast.LENGTH_SHORT).show()
             }

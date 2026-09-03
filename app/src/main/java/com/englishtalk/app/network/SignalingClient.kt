@@ -11,7 +11,7 @@ import java.util.concurrent.TimeUnit
 
 object SignalingClient {
 
-    private const val SERVER_URL = "ws://10.0.2.2:8080" // or production signaling URL
+    private const val SERVER_URL = "wss://english-talk-server-5pm7.onrender.com"
     private val client = OkHttpClient.Builder()
         .readTimeout(30, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)

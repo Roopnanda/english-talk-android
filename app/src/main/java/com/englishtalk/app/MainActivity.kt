@@ -200,25 +200,42 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         logEvent("SYS", "English Talk initialized successfully")
     }
 
-    // Rule 34: Layer 1 Mandatory Onboarding Profile Gender Lock
+    // Rule 34: Layer 1 Mandatory Onboarding Profile Gender Lock (With visible RadioGroup)
     private fun checkAndEnforceGenderSelection() {
         val savedGender = prefs.getString("user_gender", "NOT_SET") ?: "NOT_SET"
         if (savedGender == "NOT_SET") {
-            val genderOptions = arrayOf("Male", "Female", "Other")
-            var selectedChoice = 0
+            val container = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(50, 40, 50, 20)
+            }
+
+            val descText = TextView(this).apply {
+                text = "To ensure fair matchmaking, please select your gender. This selection cannot be changed later."
+                textSize = 14f
+                setPadding(0, 0, 0, 30)
+            }
+            container.addView(descText)
+
+            val radioGroup = RadioGroup(this)
+            val rbMale = RadioButton(this).apply { text = "Male"; id = View.generateViewId() }
+            val rbFemale = RadioButton(this).apply { text = "Female"; id = View.generateViewId() }
+            val rbOther = RadioButton(this).apply { text = "Other"; id = View.generateViewId() }
+
+            radioGroup.addView(rbMale)
+            radioGroup.addView(rbFemale)
+            radioGroup.addView(rbOther)
+            rbMale.isChecked = true
+            container.addView(radioGroup)
 
             AlertDialog.Builder(this)
                 .setTitle("Select Your Gender")
-                .setMessage("To ensure fair and accurate matchmaking, please select your gender. This selection cannot be changed later.")
+                .setView(container)
                 .setCancelable(false)
-                .setSingleChoiceItems(genderOptions, 0) { _, which ->
-                    selectedChoice = which
-                }
                 .setPositiveButton("Confirm") { dialog, _ ->
-                    val chosenGender = when (selectedChoice) {
-                        0 -> "MALE"
-                        1 -> "FEMALE"
-                        else -> "OTHER"
+                    val chosenGender = when (radioGroup.checkedRadioButtonId) {
+                        rbFemale.id -> "FEMALE"
+                        rbOther.id -> "OTHER"
+                        else -> "MALE"
                     }
                     prefs.edit().putString("user_gender", chosenGender).apply()
                     logEvent("Profile", "Gender permanently locked as $chosenGender")
@@ -547,7 +564,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         logEvent("Reconnect", "Calling peer: $lastCallerPeerId in pool: $lastCallerLanguage")
     }
 
-    // Rule 35: Layer 3 Peer Reporting ("Partner is Not Female" support)
     private fun showReportUserDialog() {
         if (lastCallerPeerId.isEmpty()) {
             Toast.makeText(this, "No recent caller available to report.", Toast.LENGTH_SHORT).show()
@@ -613,7 +629,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 reconnectConsumed = false
             }
 
-            // If user consumed their single-use Female Pass on an English call with female filter on
             if (switchFemaleFilter?.isChecked == true && prefs.getBoolean("has_female_pass", false)) {
                 prefs.edit().putBoolean("has_female_pass", false).apply()
                 logEvent("FemalePass", "Female Match Pass consumed for this call")
@@ -740,7 +755,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             btnReconnectLast?.visibility = View.GONE
         }
 
-        // Universal Landing on HomeScreen Dashboard for ALL Reconnect sessions (Rule 2 & 4)
         if (completedReconnectSession || currentLanguage == "ENGLISH") {
             showLayout(layoutDashboard)
         } else {
@@ -780,21 +794,18 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         editor.putLong("total_practice_seconds", totalSec)
         editor.putInt("total_calls_count", totalCalls)
 
-        // Award Talk Coin for English calls >= 60 seconds (Rule 5)
         if (currentLanguage == "ENGLISH" && durationSec >= 60) {
             val currentCoins = prefs.getInt("talk_coins", 0) + 1
             editor.putInt("talk_coins", currentCoins)
             logEvent("Coins", "+1 Talk Coin earned (Total: $currentCoins)")
         }
 
-        // Beginner to Advanced Unlock: calls >= 240 seconds (Rule 11)
         if (currentLanguage == "ENGLISH" && currentLevel == "Beginner" && durationSec >= 240) {
             val qualified = prefs.getInt("beginner_qualified_calls", 0) + 1
             editor.putInt("beginner_qualified_calls", qualified)
             logEvent("Progression", "Advanced unlock: $qualified / 20")
         }
 
-        // Female Pass Practice Quest Tracking: calls >= 120 seconds in English (Phase 3 readiness)
         if (currentLanguage == "ENGLISH" && durationSec >= 120) {
             val passCalls = prefs.getInt("female_pass_qualified_calls", 0)
             if (passCalls < 5) {
@@ -803,7 +814,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             }
         }
 
-        // Daily Streak: calls >= 60 seconds on consecutive calendar days (Rule 7)
         if (durationSec >= 60) {
             val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
             val lastActiveDate = prefs.getString("last_active_date", "") ?: ""

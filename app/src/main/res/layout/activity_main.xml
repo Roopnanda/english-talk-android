@@ -1,515 +1,408 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#0A0E1A">
+    android:background="#0F172A">
 
-    <!-- Top Action Bar -->
-    <RelativeLayout
-        android:id="@+id/layoutHeader"
+    <!-- 1. DASHBOARD CONTAINER -->
+    <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="56dp"
-        android:paddingHorizontal="16dp">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_centerVertical="true"
-            android:text="English Talk"
-            android:textColor="#FFFFFF"
-            android:textSize="20sp"
-            android:textStyle="bold" />
+        android:layout_height="match_parent"
+        android:fillViewport="true">
 
         <LinearLayout
-            android:layout_width="wrap_content"
+            android:id="@+id/layoutDashboard"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_alignParentEnd="true"
-            android:layout_centerVertical="true"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
+            android:orientation="vertical"
+            android:padding="20dp">
 
-            <!-- Talk Coins Badge -->
-            <TextView
-                android:id="@+id/tvTalkCoinsBadge"
-                android:layout_width="wrap_content"
+            <!-- Header Row -->
+            <RelativeLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="12dp"
+                android:layout_marginBottom="24dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentStart="true"
+                    android:layout_centerVertical="true"
+                    android:text="English Talk"
+                    android:textColor="#FFFFFF"
+                    android:textSize="22sp"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentEnd="true"
+                    android:layout_centerVertical="true"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/tvTalkCoinsBadge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="#1E293B"
+                        android:paddingStart="12dp"
+                        android:paddingTop="6dp"
+                        android:paddingEnd="12dp"
+                        android:paddingBottom="6dp"
+                        android:text="🪙 Talk Coins: 0"
+                        android:textColor="#FBBF24"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
+
+                    <Button
+                        android:id="@+id/btnVip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="36dp"
+                        android:layout_marginStart="8dp"
+                        android:backgroundTint="#CA8A04"
+                        android:minWidth="0dp"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:text="👑 GO VIP"
+                        android:textColor="#000000"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+            </RelativeLayout>
+
+            <!-- Metrics Card -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="24dp"
                 android:background="#1E293B"
-                android:paddingHorizontal="10dp"
-                android:paddingVertical="6dp"
-                android:text="🪙 Talk Coins: 0"
-                android:textColor="#FBBF24"
+                android:orientation="horizontal"
+                android:padding="16dp"
+                android:weightSum="3">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/tvStreakVal"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🔥 0"
+                        android:textColor="#FFFFFF"
+                        android:textSize="18sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Day Streak"
+                        android:textColor="#94A3B8"
+                        android:textSize="11sp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/tvTotalMinutesVal"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="⏱️ 0m"
+                        android:textColor="#FFFFFF"
+                        android:textSize="18sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Practiced"
+                        android:textColor="#94A3B8"
+                        android:textSize="11sp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/tvTotalCallsVal"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="📞 0"
+                        android:textColor="#FFFFFF"
+                        android:textSize="18sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Total Calls"
+                        android:textColor="#94A3B8"
+                        android:textSize="11sp" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Beginner Level Button -->
+            <Button
+                android:id="@+id/btnBeginner"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginBottom="14dp"
+                android:backgroundTint="#16A34A"
+                android:text="BEGINNER (TAP TO CALL)"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <!-- Advanced Level Button -->
+            <Button
+                android:id="@+id/btnAdvanced"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginBottom="6dp"
+                android:backgroundTint="#334155"
+                android:text="🔒 ADVANCED (0/20)"
+                android:textColor="#94A3B8"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvLockProgressPopup"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="14dp"
+                android:gravity="center"
+                android:textColor="#38BDF8"
+                android:textSize="12sp"
+                android:visibility="gone" />
+
+            <!-- Regional Languages Button -->
+            <Button
+                android:id="@+id/btnOtherLanguages"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginBottom="14dp"
+                android:backgroundTint="#7C3AED"
+                android:text="🌐 OTHER LANGUAGES"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <!-- Native Share Button -->
+            <Button
+                android:id="@+id/btnShareApp"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginBottom="14dp"
+                android:backgroundTint="#0D9488"
+                android:text="📢 SHARE APP WITH FRIENDS"
+                android:textColor="#FFFFFF"
                 android:textSize="13sp"
                 android:textStyle="bold" />
 
-            <Button
-                android:id="@+id/btnVip"
-                android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:background="#EAB308"
-                android:text="👑 GO VIP"
-                android:textColor="#000000"
-                android:textStyle="bold" />
-        </LinearLayout>
-    </RelativeLayout>
+            <!-- Female Filter Switch -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginBottom="14dp"
+                android:background="#1E293B"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp">
 
-    <!-- Content Area -->
-    <FrameLayout
-        android:id="@+id/containerContent"
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Talk to Female Only (VIP)"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp" />
+
+                <Switch
+                    android:id="@+id/switchFemaleFilter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" />
+            </LinearLayout>
+
+            <!-- Reconnect to Last Caller -->
+            <Button
+                android:id="@+id/btnReconnectLast"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginBottom="10dp"
+                android:backgroundTint="#E11D48"
+                android:text="🔄 RECONNECT TO LAST CALLER"
+                android:textColor="#FFFFFF"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+
+            <!-- Dedicated Dashboard Report Button -->
+            <Button
+                android:id="@+id/btnDashboardReportLast"
+                android:layout_width="match_parent"
+                android:layout_height="46dp"
+                android:layout_marginBottom="16dp"
+                android:backgroundTint="#475569"
+                android:text="⚠️ REPORT LAST CALLER"
+                android:textColor="#FCA5A5"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+
+            <!-- Diagnostic Console -->
+            <TextView
+                android:id="@+id/tvConsoleLogs"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:background="#050811"
+                android:padding="12dp"
+                android:text="Tap to view diagnostic trace..."
+                android:textColor="#38BDF8"
+                android:textSize="11sp" />
+
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- 2. REGIONAL LANGUAGES SELECTION CONTAINER -->
+    <ScrollView
+        android:id="@+id/layoutLanguages"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_above="@+id/layoutBannerAd"
-        android:layout_below="@id/layoutHeader">
+        android:background="#0F172A"
+        android:fillViewport="true"
+        android:visibility="gone">
 
-        <!-- 1. DASHBOARD VIEW -->
-        <ScrollView
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:fillViewport="true">
-
-            <LinearLayout
-                android:id="@+id/layoutDashboard"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center_horizontal"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <!-- User Stats & Habit Card -->
-                <LinearLayout
-                    android:id="@+id/cardUserStats"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="16dp"
-                    android:background="#111827"
-                    android:orientation="horizontal"
-                    android:padding="12dp"
-                    android:weightSum="3">
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:gravity="center"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:id="@+id/tvStreakVal"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="🔥 0"
-                            android:textColor="#F97316"
-                            android:textSize="16sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="2dp"
-                            android:text="Day Streak"
-                            android:textColor="#94A3B8"
-                            android:textSize="11sp" />
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:gravity="center"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:id="@+id/tvTotalMinutesVal"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="⏱️ 0m"
-                            android:textColor="#38BDF8"
-                            android:textSize="16sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="2dp"
-                            android:text="Practiced"
-                            android:textColor="#94A3B8"
-                            android:textSize="11sp" />
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:gravity="center"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:id="@+id/tvTotalCallsVal"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="📞 0"
-                            android:textColor="#4ADE80"
-                            android:textSize="16sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="2dp"
-                            android:text="Total Calls"
-                            android:textColor="#94A3B8"
-                            android:textSize="11sp" />
-                    </LinearLayout>
-                </LinearLayout>
-
-                <TextView
-                    android:id="@+id/tvLockProgressPopup"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="16dp"
-                    android:background="#DC2626"
-                    android:gravity="center"
-                    android:padding="12dp"
-                    android:text="Complete 20 calls (4+ mins each in Beginner) to unlock Advanced."
-                    android:textColor="#FFFFFF"
-                    android:textSize="13sp"
-                    android:textStyle="bold"
-                    android:visibility="gone" />
-
-                <!-- English Call Levels -->
-                <Button
-                    android:id="@+id/btnBeginner"
-                    android:layout_width="match_parent"
-                    android:layout_height="56dp"
-                    android:layout_marginBottom="12dp"
-                    android:background="#16A34A"
-                    android:text="BEGINNER (TAP TO CALL)"
-                    android:textColor="#FFFFFF"
-                    android:textSize="15sp"
-                    android:textStyle="bold" />
-
-                <Button
-                    android:id="@+id/btnAdvanced"
-                    android:layout_width="match_parent"
-                    android:layout_height="56dp"
-                    android:layout_marginBottom="12dp"
-                    android:background="#1E293B"
-                    android:text="🔒 ADVANCED"
-                    android:textColor="#94A3B8"
-                    android:textSize="15sp"
-                    android:textStyle="bold" />
-
-                <!-- Other Languages Entry Button -->
-                <Button
-                    android:id="@+id/btnOtherLanguages"
-                    android:layout_width="match_parent"
-                    android:layout_height="56dp"
-                    android:layout_marginBottom="12dp"
-                    android:background="#9333EA"
-                    android:text="🌐 OTHER LANGUAGES"
-                    android:textColor="#FFFFFF"
-                    android:textSize="15sp"
-                    android:textStyle="bold" />
-
-                <!-- Share App Button -->
-                <Button
-                    android:id="@+id/btnShareApp"
-                    android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    android:layout_marginBottom="12dp"
-                    android:background="#059669"
-                    android:text="📢 SHARE APP WITH FRIENDS"
-                    android:textColor="#FFFFFF"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-
-                <!-- Single-Use Reconnect Button -->
-                <Button
-                    android:id="@+id/btnReconnectLast"
-                    android:layout_width="match_parent"
-                    android:layout_height="50dp"
-                    android:layout_marginBottom="14dp"
-                    android:background="#0284C7"
-                    android:text="🔄 Reconnect to the Last Caller"
-                    android:textColor="#FFFFFF"
-                    android:textSize="14sp"
-                    android:textStyle="bold"
-                    android:visibility="gone" />
-
-                <!-- VIP Female Filter -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:background="#111827"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:padding="12dp">
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="Talk to Female Only (VIP)"
-                        android:textColor="#E5E7EB"
-                        android:textSize="14sp" />
-
-                    <Switch
-                        android:id="@+id/switchFemaleFilter"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" />
-                </LinearLayout>
-
-                <!-- Saved Persistent Log Viewer Bar -->
-                <TextView
-                    android:id="@+id/tvConsoleLogs"
-                    android:layout_width="match_parent"
-                    android:layout_height="70dp"
-                    android:layout_marginTop="16dp"
-                    android:background="#050811"
-                    android:fontFamily="monospace"
-                    android:padding="8dp"
-                    android:text="Tap to view saved logs / diagnostic trace..."
-                    android:textColor="#38BDF8"
-                    android:textSize="10sp" />
-            </LinearLayout>
-        </ScrollView>
-
-        <!-- 2. OTHER LANGUAGES SCREEN -->
-        <ScrollView
-            android:id="@+id/layoutLanguages"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:fillViewport="true"
-            android:visibility="gone">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <RelativeLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="12dp">
-
-                    <Button
-                        android:id="@+id/btnBackFromLanguages"
-                        android:layout_width="wrap_content"
-                        android:layout_height="40dp"
-                        android:background="#334155"
-                        android:text="← BACK"
-                        android:textColor="#FFFFFF"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_centerInParent="true"
-                        android:text="Select Language"
-                        android:textColor="#FFFFFF"
-                        android:textSize="16sp"
-                        android:textStyle="bold" />
-                </RelativeLayout>
-
-                <!-- Rewarded Ad Coin Booster Button -->
-                <Button
-                    android:id="@+id/btnWatchAdReward"
-                    android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    android:layout_marginBottom="14dp"
-                    android:background="#D97706"
-                    android:text="🎬 WATCH AD FOR +2 TALK COINS"
-                    android:textColor="#FFFFFF"
-                    android:textSize="13sp"
-                    android:textStyle="bold" />
-
-                <!-- Grid of 12 Regional Languages -->
-                <Button
-                    android:id="@+id/btnLangHindi"
-                    android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    android:layout_marginBottom="8dp"
-                    android:background="#1E293B"
-                    android:text="🇮🇳 HINDI"
-                    android:textColor="#FFFFFF"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-
-                <Button
-                    android:id="@+id/btnLangPunjabi"
-                    android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    android:layout_marginBottom="8dp"
-                    android:background="#1E293B"
-                    android:text="🇮🇳 PUNJABI"
-                    android:textColor="#FFFFFF"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-
-                <Button
-                    android:id="@+id/btnLangMarathi"
-                    android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    android:layout_marginBottom="8dp"
-                    android:background="#1E293B"
-                    android:text="🇮🇳 MARATHI"
-                    android:textColor="#FFFFFF"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-
-                <Button
-                    android:id="@+id/btnLangBengali"
-                    android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    android:layout_marginBottom="8dp"
-                    android:background="#1E293B"
-                    android:text="🇮🇳 BENGALI"
-                    android:textColor="#FFFFFF"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-
-                <Button
-                    android:id="@+id/btnLangBhojpuri"
-                    android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    android:layout_marginBottom="8dp"
-                    android:background="#1E293B"
-                    android:text="🇮🇳 BHOJPURI"
-                    android:textColor="#FFFFFF"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-
-                <Button
-                    android:id="@+id/btnLangGujarati"
-                    android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    android:layout_marginBottom="8dp"
-                    android:background="#1E293B"
-                    android:text="🇮🇳 GUJARATI"
-                    android:textColor="#FFFFFF"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-
-                <Button
-                    android:id="@+id/btnLangKannada"
-                    android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    android:layout_marginBottom="8dp"
-                    android:background="#1E293B"
-                    android:text="🇮🇳 KANNADA"
-                    android:textColor="#FFFFFF"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-
-                <Button
-                    android:id="@+id/btnLangMalayalam"
-                    android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    android:layout_marginBottom="8dp"
-                    android:background="#1E293B"
-                    android:text="🇮🇳 MALAYALAM"
-                    android:textColor="#FFFFFF"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-
-                <Button
-                    android:id="@+id/btnLangTamil"
-                    android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    android:layout_marginBottom="8dp"
-                    android:background="#1E293B"
-                    android:text="🇮🇳 TAMIL"
-                    android:textColor="#FFFFFF"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-
-                <Button
-                    android:id="@+id/btnLangTelugu"
-                    android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    android:layout_marginBottom="8dp"
-                    android:background="#1E293B"
-                    android:text="🇮🇳 TELUGU"
-                    android:textColor="#FFFFFF"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-
-                <Button
-                    android:id="@+id/btnLangUrdu"
-                    android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    android:layout_marginBottom="8dp"
-                    android:background="#1E293B"
-                    android:text="🇮🇳 URDU"
-                    android:textColor="#FFFFFF"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-
-                <Button
-                    android:id="@+id/btnLangArabic"
-                    android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    android:layout_marginBottom="16dp"
-                    android:background="#1E293B"
-                    android:text="🇦🇪 ARABIC"
-                    android:textColor="#FFFFFF"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-        </ScrollView>
-
-        <!-- 3. SEARCHING SCREEN -->
         <LinearLayout
-            android:id="@+id/layoutSearching"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:gravity="center"
+            android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="24dp"
-            android:visibility="gone">
-
-            <ProgressBar
-                android:layout_width="64dp"
-                android:layout_height="64dp"
-                android:layout_marginBottom="24dp" />
-
-            <TextView
-                android:id="@+id/tvSearchingStatus"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="32dp"
-                android:gravity="center"
-                android:text="Searching for a conversation partner..."
-                android:textColor="#FFFFFF"
-                android:textSize="16sp" />
+            android:padding="20dp">
 
             <Button
-                android:id="@+id/btnCancelSearch"
-                android:layout_width="200dp"
-                android:layout_height="48dp"
-                android:background="#EF4444"
-                android:text="CANCEL SEARCH"
-                android:textColor="#FFFFFF"
-                android:textStyle="bold" />
-        </LinearLayout>
+                android:id="@+id/btnBackFromLanguages"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                android:backgroundTint="#334155"
+                android:text="← BACK TO ENGLISH"
+                android:textColor="#FFFFFF" />
 
-        <!-- 4. ACTIVE CALL VIEW -->
+            <Button
+                android:id="@+id/btnWatchAdReward"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:layout_marginBottom="20dp"
+                android:backgroundTint="#EAB308"
+                android:text="🎁 WATCH AD (+2 COINS)"
+                android:textColor="#000000"
+                android:textStyle="bold" />
+
+            <GridLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:columnCount="2"
+                android:useDefaultMargins="true">
+
+                <Button android:id="@+id/btnLangHindi" android:layout_width="0dp" android:layout_columnWeight="1" android:text="HINDI" android:backgroundTint="#1E293B" android:textColor="#FFFFFF" />
+                <Button android:id="@+id/btnLangPunjabi" android:layout_width="0dp" android:layout_columnWeight="1" android:text="PUNJABI" android:backgroundTint="#1E293B" android:textColor="#FFFFFF" />
+                <Button android:id="@+id/btnLangMarathi" android:layout_width="0dp" android:layout_columnWeight="1" android:text="MARATHI" android:backgroundTint="#1E293B" android:textColor="#FFFFFF" />
+                <Button android:id="@+id/btnLangBengali" android:layout_width="0dp" android:layout_columnWeight="1" android:text="BENGALI" android:backgroundTint="#1E293B" android:textColor="#FFFFFF" />
+                <Button android:id="@+id/btnLangBhojpuri" android:layout_width="0dp" android:layout_columnWeight="1" android:text="BHOJPURI" android:backgroundTint="#1E293B" android:textColor="#FFFFFF" />
+                <Button android:id="@+id/btnLangGujarati" android:layout_width="0dp" android:layout_columnWeight="1" android:text="GUJARATI" android:backgroundTint="#1E293B" android:textColor="#FFFFFF" />
+                <Button android:id="@+id/btnLangKannada" android:layout_width="0dp" android:layout_columnWeight="1" android:text="KANNADA" android:backgroundTint="#1E293B" android:textColor="#FFFFFF" />
+                <Button android:id="@+id/btnLangMalayalam" android:layout_width="0dp" android:layout_columnWeight="1" android:text="MALAYALAM" android:backgroundTint="#1E293B" android:textColor="#FFFFFF" />
+                <Button android:id="@+id/btnLangTamil" android:layout_width="0dp" android:layout_columnWeight="1" android:text="TAMIL" android:backgroundTint="#1E293B" android:textColor="#FFFFFF" />
+                <Button android:id="@+id/btnLangTelugu" android:layout_width="0dp" android:layout_columnWeight="1" android:text="TELUGU" android:backgroundTint="#1E293B" android:textColor="#FFFFFF" />
+                <Button android:id="@+id/btnLangUrdu" android:layout_width="0dp" android:layout_columnWeight="1" android:text="URDU" android:backgroundTint="#1E293B" android:textColor="#FFFFFF" />
+                <Button android:id="@+id/btnLangArabic" android:layout_width="0dp" android:layout_columnWeight="1" android:text="ARABIC" android:backgroundTint="#1E293B" android:textColor="#FFFFFF" />
+            </GridLayout>
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- 3. SEARCHING RADAR CONTAINER -->
+    <LinearLayout
+        android:id="@+id/layoutSearching"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#0F172A"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="24dp"
+        android:visibility="gone">
+
+        <ProgressBar
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:indeterminateTint="#38BDF8" />
+
+        <TextView
+            android:id="@+id/tvSearchingStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:layout_marginBottom="32dp"
+            android:text="Searching for a partner..."
+            android:textColor="#FFFFFF"
+            android:textSize="16sp" />
+
+        <Button
+            android:id="@+id/btnCancelSearch"
+            android:layout_width="200dp"
+            android:layout_height="50dp"
+            android:backgroundTint="#E11D48"
+            android:text="CANCEL"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- 4. ACTIVE CALL CONTAINER -->
+    <RelativeLayout
+        android:id="@+id/layoutCall"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#090D16"
+        android:padding="24dp"
+        android:visibility="gone">
+
+        <!-- Top In-Call Female Flag Button (Shown only during female filter calls) -->
+        <Button
+            android:id="@+id/btnInCallReport"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_alignParentEnd="true"
+            android:layout_alignParentTop="true"
+            android:backgroundTint="#334155"
+            android:padding="0dp"
+            android:text="⚐"
+            android:textColor="#EF4444"
+            android:textSize="20sp"
+            android:visibility="gone" />
+
         <LinearLayout
-            android:id="@+id/layoutCall"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:gravity="center_horizontal"
-            android:orientation="vertical"
-            android:padding="24dp"
-            android:visibility="gone">
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerInParent="true"
+            android:gravity="center"
+            android:orientation="vertical">
 
             <TextView
                 android:id="@+id/tvCallPartnerName"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="40dp"
                 android:text="Connected"
                 android:textColor="#FFFFFF"
                 android:textSize="22sp"
@@ -519,64 +412,54 @@
                 android:id="@+id/tvCallTimer"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
+                android:layout_marginTop="12dp"
                 android:text="00:00"
                 android:textColor="#38BDF8"
-                android:textSize="36sp"
-                android:textStyle="bold" />
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="1" />
-
-            <!-- In-Call Controls -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center"
-                android:orientation="horizontal">
-
-                <Button
-                    android:id="@+id/btnMute"
-                    android:layout_width="64dp"
-                    android:layout_height="64dp"
-                    android:layout_marginEnd="24dp"
-                    android:background="#334155"
-                    android:text="🎤"
-                    android:textSize="22sp" />
-
-                <Button
-                    android:id="@+id/btnSpeaker"
-                    android:layout_width="64dp"
-                    android:layout_height="64dp"
-                    android:layout_marginStart="24dp"
-                    android:background="#334155"
-                    android:text="🔈"
-                    android:textSize="22sp" />
-            </LinearLayout>
-
-            <Button
-                android:id="@+id/btnEndCall"
-                android:layout_width="match_parent"
-                android:layout_height="54dp"
-                android:layout_marginTop="40dp"
-                android:layout_marginBottom="24dp"
-                android:background="#DC2626"
-                android:text="END CALL"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"
+                android:textSize="28sp"
                 android:textStyle="bold" />
         </LinearLayout>
 
-    </FrameLayout>
+        <!-- Call Control Actions -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_alignParentBottom="true"
+            android:gravity="center"
+            android:orientation="horizontal">
 
-    <!-- Bottom Banner Ad -->
+            <Button
+                android:id="@+id/btnMute"
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:layout_marginEnd="16dp"
+                android:backgroundTint="#1E293B"
+                android:text="🎤"
+                android:textSize="22sp" />
+
+            <Button
+                android:id="@+id/btnSpeaker"
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:layout_marginEnd="16dp"
+                android:backgroundTint="#1E293B"
+                android:text="🔈"
+                android:textSize="22sp" />
+
+            <Button
+                android:id="@+id/btnEndCall"
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:backgroundTint="#DC2626"
+                android:text="📞"
+                android:textSize="22sp" />
+        </LinearLayout>
+    </RelativeLayout>
+
+    <!-- Bottom Banner Container -->
     <FrameLayout
         android:id="@+id/layoutBannerAd"
         android:layout_width="match_parent"
-        android:layout_height="50dp"
-        android:layout_alignParentBottom="true"
-        android:background="#0F172A" />
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom" />
 
-</RelativeLayout>
+</FrameLayout>

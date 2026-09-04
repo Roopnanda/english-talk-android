@@ -395,7 +395,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             }
         }
 
-        // Rule 37: Strict Toggle Interception on Switch (Flaw 2 Fix)
+        // Rule 37: Strict Toggle Interception on Switch
         switchFemaleFilter?.setOnCheckedChangeListener { _, isChecked ->
             if (isUpdatingToggleProgrammatically) return@setOnCheckedChangeListener
 
@@ -403,7 +403,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             val isVip = prefs.getBoolean("is_vip", false)
 
             if (isChecked && !hasPass && !isVip) {
-                // Revert toggle immediately and display Quest
                 isUpdatingToggleProgrammatically = true
                 switchFemaleFilter?.isChecked = false
                 isUpdatingToggleProgrammatically = false
@@ -430,7 +429,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         checkAndRewardFemalePass()
     }
 
-    // Rule 37: Quest Evaluation & Reward Engine (Flaw 1 Fix)
     private fun checkAndRewardFemalePass() {
         val hasPass = prefs.getBoolean("has_female_pass", false)
         if (hasPass) return
@@ -441,8 +439,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         if (shared && qualifiedCalls >= 5) {
             prefs.edit()
                 .putBoolean("has_female_pass", true)
-                .putInt("female_pass_qualified_calls", 0) // reset calls for next cycle
-                .putBoolean("has_shared_app", false)       // reset share for next cycle
+                .putInt("female_pass_qualified_calls", 0)
+                .putBoolean("has_shared_app", false)
                 .apply()
 
             runOnUiThread {
@@ -743,7 +741,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 reconnectConsumed = false
             }
 
-            // Only consume Female Pass if the call actually connected while the female filter remained ON
             if (switchFemaleFilter?.isChecked == true && wasSearchingWithFemalePass) {
                 prefs.edit().putBoolean("has_female_pass", false).apply()
                 isUpdatingToggleProgrammatically = true
@@ -835,7 +832,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         }
     }
 
-    // Rule 36: 35s Fallback Handshake
     override fun onVipQueueTimeout() {
         runOnUiThread {
             AlertDialog.Builder(this)
@@ -847,7 +843,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                     dialog.dismiss()
                 }
                 .setNegativeButton("Connect with Anyone") { dialog, _ ->
-                    // Turn off female filter for this session to match general, but do NOT consume the pass
                     isUpdatingToggleProgrammatically = true
                     switchFemaleFilter?.isChecked = false
                     isUpdatingToggleProgrammatically = false
@@ -863,6 +858,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         }
     }
 
+    // Rule 20: Immediate signaling broadcast before local teardown
     private fun endActiveCall() {
         SignalingClient.endCall()
         teardownCallSession(isRemoteDisconnect = false)
@@ -904,7 +900,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             logEvent("Reconnect", "Single-use reconnect session completed. Button locked and destroyed.")
         } else if (lastCallerPeerId.isNotEmpty() && !reconnectConsumed) {
             btnReconnectLast?.visibility = View.VISIBLE
-            logEvent("Reconnect", "Single-use reconnect token armed for pool: $lastCallerLanguage")
+            btnReconnectLast?.bringToFront()
+            logEvent("Reconnect", "Single-use reconnect token armed for pool: $lastCallerLanguage (Peer: $lastCallerPeerId)")
         } else {
             btnReconnectLast?.visibility = View.GONE
         }
@@ -918,7 +915,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         refreshDashboardUI()
         logEvent("WebRTC", "Session ended. Talk time: ${callDurationSec}s")
 
-        // Rule 37 (Trigger 2): Milestone Dialog on Dashboard for qualifying call > 300s (5+ mins)
         if (currentLanguage == "ENGLISH" && callDurationSec >= 300) {
             val hasPass = prefs.getBoolean("has_female_pass", false)
             val isVip = prefs.getBoolean("is_vip", false)
@@ -969,7 +965,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             logEvent("Progression", "Advanced unlock: $qualified / 20")
         }
 
-        // Rule 37: 5-Call Quest Progress (Calls >= 120s in English)
         val hasPass = prefs.getBoolean("has_female_pass", false)
         if (!hasPass && currentLanguage == "ENGLISH" && durationSec >= 120) {
             val passCalls = prefs.getInt("female_pass_qualified_calls", 0)
@@ -1039,6 +1034,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
         if (lastCallerPeerId.isNotEmpty() && !reconnectConsumed) {
             btnReconnectLast?.visibility = View.VISIBLE
+            btnReconnectLast?.bringToFront()
         } else {
             btnReconnectLast?.visibility = View.GONE
         }

@@ -104,6 +104,9 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private var isCurrentSessionReconnect = false
     private var reconnectConsumed = false
 
+    // Female Pass Active Session Tracking
+    private var wasSearchingWithFemalePass = false
+
     // Persistent Diagnostic Logs (Rule 27 & 33)
     private val diagnosticLogs = Collections.synchronizedList(mutableListOf<String>())
 
@@ -111,6 +114,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private val mainHandler = Handler(Looper.getMainLooper())
     private var backgroundAutoMuteRunnable: Runnable? = null
     private var isAppInBackground = false
+    private var isUpdatingToggleProgrammatically = false
 
     private val callTimerRunnable = object : Runnable {
         override fun run() {
@@ -383,19 +387,29 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         }
 
         btnVip?.setOnClickListener {
-            showVipOrQuestDialog()
+            val hasPass = prefs.getBoolean("has_female_pass", false)
+            if (hasPass) {
+                showActivePassDialog()
+            } else {
+                showVipOrQuestDialog()
+            }
         }
 
-        // Rule 37 (Trigger 1): Intercept toggle click if user lacks VIP or Female Pass
-        switchFemaleFilter?.setOnClickListener {
+        // Rule 37: Strict Toggle Interception on Switch (Flaw 2 Fix)
+        switchFemaleFilter?.setOnCheckedChangeListener { _, isChecked ->
+            if (isUpdatingToggleProgrammatically) return@setOnCheckedChangeListener
+
             val hasPass = prefs.getBoolean("has_female_pass", false)
             val isVip = prefs.getBoolean("is_vip", false)
 
-            if (!hasPass && !isVip) {
+            if (isChecked && !hasPass && !isVip) {
+                // Revert toggle immediately and display Quest
+                isUpdatingToggleProgrammatically = true
                 switchFemaleFilter?.isChecked = false
+                isUpdatingToggleProgrammatically = false
                 showPracticeQuestDialog(fromInterception = true)
             } else {
-                logEvent("Filter", "Talk to Female filter set to: ${switchFemaleFilter?.isChecked}")
+                logEvent("Filter", "Talk to Female filter set to: $isChecked")
             }
         }
 
@@ -416,7 +430,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         checkAndRewardFemalePass()
     }
 
-    // Rule 37: Quest Evaluation & Reward Engine
+    // Rule 37: Quest Evaluation & Reward Engine (Flaw 1 Fix)
     private fun checkAndRewardFemalePass() {
         val hasPass = prefs.getBoolean("has_female_pass", false)
         if (hasPass) return
@@ -427,11 +441,14 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         if (shared && qualifiedCalls >= 5) {
             prefs.edit()
                 .putBoolean("has_female_pass", true)
-                .putInt("female_pass_qualified_calls", 0) // reset for next cycle
+                .putInt("female_pass_qualified_calls", 0) // reset calls for next cycle
+                .putBoolean("has_shared_app", false)       // reset share for next cycle
                 .apply()
 
             runOnUiThread {
+                isUpdatingToggleProgrammatically = true
                 switchFemaleFilter?.isChecked = true
+                isUpdatingToggleProgrammatically = false
                 refreshDashboardUI()
                 AlertDialog.Builder(this)
                     .setTitle("🎉 Quest Complete!")
@@ -441,6 +458,14 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 logEvent("Quest", "Granted 1 Female Match Pass to user")
             }
         }
+    }
+
+    private fun showActivePassDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("✨ Pass Active")
+            .setMessage("Your Free Female Match Pass is ready! Turn on the 'Talk to Female Only' switch and tap Beginner or Advanced to connect with a female partner.")
+            .setPositiveButton("Got it!", null)
+            .show()
     }
 
     private fun showPracticeQuestDialog(fromInterception: Boolean) {
@@ -563,14 +588,16 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             return
         }
 
-        tvSearchingStatus?.text = if (switchFemaleFilter?.isChecked == true) "Searching for a female partner..." else "Searching for a conversation partner..."
+        val isFemaleOnly = switchFemaleFilter?.isChecked == true
+        tvSearchingStatus?.text = if (isFemaleOnly) "Searching for a female partner..." else "Searching for a conversation partner..."
         showLayout(layoutSearching)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        val isFemaleOnly = switchFemaleFilter?.isChecked == true
         val isVip = prefs.getBoolean("is_vip", false)
         val hasFemalePass = prefs.getBoolean("has_female_pass", false)
         val userGender = prefs.getString("user_gender", "MALE") ?: "MALE"
+
+        wasSearchingWithFemalePass = isFemaleOnly && hasFemalePass
 
         SignalingClient.joinQueue(
             level = currentLevel,
@@ -716,11 +743,14 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 reconnectConsumed = false
             }
 
-            // Consume Female Match Pass upon match establishment
-            if (switchFemaleFilter?.isChecked == true && prefs.getBoolean("has_female_pass", false)) {
+            // Only consume Female Pass if the call actually connected while the female filter remained ON
+            if (switchFemaleFilter?.isChecked == true && wasSearchingWithFemalePass) {
                 prefs.edit().putBoolean("has_female_pass", false).apply()
+                isUpdatingToggleProgrammatically = true
                 switchFemaleFilter?.isChecked = false
-                logEvent("FemalePass", "Female Match Pass consumed for this call")
+                isUpdatingToggleProgrammatically = false
+                wasSearchingWithFemalePass = false
+                logEvent("FemalePass", "Female Match Pass consumed for this female call")
             }
 
             isCallInProgress = true
@@ -798,7 +828,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         }
     }
 
-    // Rule 36: 20-35s Search Radar Expansion
     override fun onVipSearchExpanding() {
         runOnUiThread {
             tvSearchingStatus?.text = "High demand right now. Expanding search..."
@@ -806,7 +835,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         }
     }
 
-    // Rule 36: 35s Fallback Dialog Handshake
+    // Rule 36: 35s Fallback Handshake
     override fun onVipQueueTimeout() {
         runOnUiThread {
             AlertDialog.Builder(this)
@@ -818,7 +847,12 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                     dialog.dismiss()
                 }
                 .setNegativeButton("Connect with Anyone") { dialog, _ ->
+                    // Turn off female filter for this session to match general, but do NOT consume the pass
+                    isUpdatingToggleProgrammatically = true
                     switchFemaleFilter?.isChecked = false
+                    isUpdatingToggleProgrammatically = false
+                    wasSearchingWithFemalePass = false
+
                     SignalingClient.fallbackToGeneral()
                     tvSearchingStatus?.text = "Connecting with next available peer..."
                     dialog.dismiss()
@@ -875,7 +909,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             btnReconnectLast?.visibility = View.GONE
         }
 
-        // Universal Return to Dashboard for English calls & all Reconnect calls (Rule 2 & 4)
         if (completedReconnectSession || currentLanguage == "ENGLISH") {
             showLayout(layoutDashboard)
         } else {
@@ -937,7 +970,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         }
 
         // Rule 37: 5-Call Quest Progress (Calls >= 120s in English)
-        if (currentLanguage == "ENGLISH" && durationSec >= 120) {
+        val hasPass = prefs.getBoolean("has_female_pass", false)
+        if (!hasPass && currentLanguage == "ENGLISH" && durationSec >= 120) {
             val passCalls = prefs.getInt("female_pass_qualified_calls", 0)
             if (passCalls < 5) {
                 editor.putInt("female_pass_qualified_calls", passCalls + 1)
@@ -984,8 +1018,15 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         if (hasPass) {
             btnVip?.text = "PASS ACTIVE"
             btnVip?.setBackgroundColor(Color.parseColor("#EAB308"))
+            btnVip?.setTextColor(Color.BLACK)
         } else if (questCalls > 0) {
             btnVip?.text = "QUEST ($questCalls/5)"
+            btnVip?.setBackgroundColor(Color.parseColor("#3B82F6"))
+            btnVip?.setTextColor(Color.WHITE)
+        } else {
+            btnVip?.text = "👑 GO VIP"
+            btnVip?.setBackgroundColor(Color.parseColor("#CA8A04"))
+            btnVip?.setTextColor(Color.BLACK)
         }
 
         if (qualifiedCalls >= 20) {

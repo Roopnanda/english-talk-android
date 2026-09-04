@@ -30,6 +30,8 @@ object SignalingClient {
         fun onReconnectWaiting()
         fun onReconnectFailed(reason: String)
         fun onServerCooldown(remainingSeconds: Long)
+        fun onVipQueueTimeout()
+        fun onVipSearchExpanding()
     }
 
     fun setListener(listener: SignalingListener) {
@@ -107,6 +109,12 @@ object SignalingClient {
                     val remaining = json.optLong("remainingSeconds", 180L)
                     listener?.onServerCooldown(remaining)
                 }
+                "vip_search_expanding" -> {
+                    listener?.onVipSearchExpanding()
+                }
+                "vip_queue_timeout" -> {
+                    listener?.onVipQueueTimeout()
+                }
             }
         } catch (e: Throwable) {
             AppLogger.log("Signaling-ERR", "Parse error: ${e.message}")
@@ -123,6 +131,16 @@ object SignalingClient {
             put("isVip", isVip || hasFemalePass)
             put("hasFemalePass", hasFemalePass)
         }
+        send(json.toString())
+    }
+
+    fun extendVipWait() {
+        val json = JSONObject().apply { put("action", "extend_vip_wait") }
+        send(json.toString())
+    }
+
+    fun fallbackToGeneral() {
+        val json = JSONObject().apply { put("action", "fallback_to_general") }
         send(json.toString())
     }
 

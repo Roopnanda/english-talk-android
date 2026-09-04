@@ -66,6 +66,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private var btnOtherLanguages: Button? = null
     private var btnShareApp: Button? = null
     private var btnReconnectLast: Button? = null
+    private var btnDashboardReportLast: Button? = null
     private var btnVip: Button? = null
     private var switchFemaleFilter: Switch? = null
     private var tvConsoleLogs: TextView? = null
@@ -80,6 +81,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private var btnMute: Button? = null
     private var btnSpeaker: Button? = null
     private var btnEndCall: Button? = null
+    private var btnInCallReport: Button? = null
 
     // Languages UI
     private var btnBackFromLanguages: Button? = null
@@ -104,8 +106,11 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private var isCurrentSessionReconnect = false
     private var reconnectConsumed = false
 
-    // Female Pass Active Session Tracking
+    // Reporting & Female Filter Context State (Rule 35)
     private var wasSearchingWithFemalePass = false
+    private var isCurrentCallFemaleFiltered = false
+    private var lastCallerWasFemaleFiltered = false
+    private var hasReportedLastCaller = false
 
     // Persistent Diagnostic Logs (Rule 27 & 33)
     private val diagnosticLogs = Collections.synchronizedList(mutableListOf<String>())
@@ -284,6 +289,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         btnOtherLanguages = findViewById(R.id.btnOtherLanguages)
         btnShareApp = findViewById(R.id.btnShareApp)
         btnReconnectLast = findViewById(R.id.btnReconnectLast)
+        btnDashboardReportLast = findViewById(R.id.btnDashboardReportLast)
         btnVip = findViewById(R.id.btnVip)
         switchFemaleFilter = findViewById(R.id.switchFemaleFilter)
         tvConsoleLogs = findViewById(R.id.tvConsoleLogs)
@@ -296,6 +302,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         btnMute = findViewById(R.id.btnMute)
         btnSpeaker = findViewById(R.id.btnSpeaker)
         btnEndCall = findViewById(R.id.btnEndCall)
+        btnInCallReport = findViewById(R.id.btnInCallReport)
 
         btnBackFromLanguages = findViewById(R.id.btnBackFromLanguages)
         btnWatchAdReward = findViewById(R.id.btnWatchAdReward)
@@ -378,6 +385,16 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             }
         }
 
+        // Dedicated Dashboard Report Button Listener
+        btnDashboardReportLast?.setOnClickListener {
+            showReportUserDialog(isInCall = false)
+        }
+
+        // In-Call Flag Report Button Listener
+        btnInCallReport?.setOnClickListener {
+            showReportUserDialog(isInCall = true)
+        }
+
         btnShareApp?.setOnClickListener {
             triggerShareIntent()
         }
@@ -395,7 +412,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             }
         }
 
-        // Rule 37: Strict Toggle Interception on Switch
         switchFemaleFilter?.setOnCheckedChangeListener { _, isChecked ->
             if (isUpdatingToggleProgrammatically) return@setOnCheckedChangeListener
 
@@ -551,9 +567,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 tvConsoleLogs?.text = "Tap to view saved logs / diagnostic trace..."
                 Toast.makeText(this, "Logs cleared", Toast.LENGTH_SHORT).show()
             }
-            .setNegativeButton("Report Last Peer") { _, _ ->
-                showReportUserDialog()
-            }
             .show()
     }
 
@@ -596,6 +609,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         val userGender = prefs.getString("user_gender", "MALE") ?: "MALE"
 
         wasSearchingWithFemalePass = isFemaleOnly && hasFemalePass
+        isCurrentCallFemaleFiltered = isFemaleOnly
 
         SignalingClient.joinQueue(
             level = currentLevel,
@@ -676,29 +690,48 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         logEvent("Reconnect", "Calling peer: $lastCallerPeerId in pool: $lastCallerLanguage")
     }
 
-    private fun showReportUserDialog() {
-        if (lastCallerPeerId.isEmpty()) {
-            Toast.makeText(this, "No recent caller available to report.", Toast.LENGTH_SHORT).show()
+    // Rule 35: Deduplicated Dynamic Report Action
+    private fun showReportUserDialog(isInCall: Boolean) {
+        val targetPeerId = lastCallerPeerId
+        if (targetPeerId.isEmpty()) {
+            Toast.makeText(this, "No caller available to report.", Toast.LENGTH_SHORT).show()
             return
         }
 
-        val reportOptions = arrayOf("Harassment / Abusive Behavior", "Partner is Not Female (Gender Mismatch)")
-        var selectedReason = 0
+        if (hasReportedLastCaller) {
+            Toast.makeText(this, "You have already submitted a report for this caller.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val isFemaleSession = if (isInCall) isCurrentCallFemaleFiltered else lastCallerWasFemaleFiltered
+
+        val reportOptions = if (isFemaleSession) {
+            arrayOf("Partner is Not Female (Wrong Gender)", "Harassment / Abusive Behavior", "Spam / Commercial Ads")
+        } else {
+            arrayOf("Harassment / Abusive Behavior", "Spam / Commercial Ads", "Inappropriate Speech")
+        }
+
+        var selectedIndex = 0
 
         AlertDialog.Builder(this)
-            .setTitle("Report Last Caller")
+            .setTitle("Report Caller")
             .setSingleChoiceItems(reportOptions, 0) { _, which ->
-                selectedReason = which
+                selectedIndex = which
             }
             .setPositiveButton("Submit Report") { _, _ ->
-                if (selectedReason == 0) {
-                    SignalingClient.reportUser(lastCallerPeerId)
-                    logEvent("Report", "Reported harassment: $lastCallerPeerId")
+                val selectedText = reportOptions[selectedIndex]
+                if (selectedText.contains("Not Female")) {
+                    SignalingClient.reportGenderMismatch(targetPeerId)
+                    logEvent("Report", "Reported gender mismatch for: $targetPeerId")
                 } else {
-                    SignalingClient.reportGenderMismatch(lastCallerPeerId)
-                    logEvent("Report", "Reported gender mismatch: $lastCallerPeerId")
+                    SignalingClient.reportUser(targetPeerId)
+                    logEvent("Report", "Reported violation ($selectedText) for: $targetPeerId")
                 }
+
+                hasReportedLastCaller = true
                 Toast.makeText(this, "Report submitted. Thank you for keeping our community safe.", Toast.LENGTH_LONG).show()
+
+                // Non-terminating: If in call, the conversation continues uninterrupted!
             }
             .setNegativeButton("Cancel", null)
             .show()
@@ -735,9 +768,12 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 lastCallerPeerId = ""
                 reconnectConsumed = true
                 btnReconnectLast?.visibility = View.GONE
+                btnDashboardReportLast?.visibility = View.GONE
             } else {
                 lastCallerPeerId = peerId
                 lastCallerLanguage = currentLanguage
+                lastCallerWasFemaleFiltered = isCurrentCallFemaleFiltered
+                hasReportedLastCaller = false // Fresh caller, reset report flag!
                 reconnectConsumed = false
             }
 
@@ -758,6 +794,9 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             showLayout(layoutCall)
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
+            // Show in-call report flag ONLY if female filtered
+            btnInCallReport?.visibility = if (isCurrentCallFemaleFiltered) View.VISIBLE else View.GONE
+
             audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
             audioManager.isSpeakerphoneOn = false
             WebRtcAudioClient.setMuted(false)
@@ -776,7 +815,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             mainHandler.removeCallbacks(callTimerRunnable)
             mainHandler.post(callTimerRunnable)
             WebRtcAudioClient.startPeerConnection(roomId, isInitiator, this)
-            logEvent("CallView", "Live call connected at 00:00 (Pool: $currentLanguage, Reconnect: $isCurrentSessionReconnect)")
+            logEvent("CallView", "Live call connected at 00:00 (Pool: $currentLanguage, Reconnect: $isCurrentSessionReconnect, FemaleFilter: $isCurrentCallFemaleFiltered)")
         }
     }
 
@@ -847,6 +886,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                     switchFemaleFilter?.isChecked = false
                     isUpdatingToggleProgrammatically = false
                     wasSearchingWithFemalePass = false
+                    isCurrentCallFemaleFiltered = false
 
                     SignalingClient.fallbackToGeneral()
                     tvSearchingStatus?.text = "Connecting with next available peer..."
@@ -858,7 +898,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         }
     }
 
-    // Rule 20: Immediate signaling broadcast before local teardown
     private fun endActiveCall() {
         SignalingClient.endCall()
         teardownCallSession(isRemoteDisconnect = false)
@@ -897,13 +936,17 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             isCurrentSessionReconnect = false
             reconnectConsumed = true
             btnReconnectLast?.visibility = View.GONE
+            btnDashboardReportLast?.visibility = View.GONE
             logEvent("Reconnect", "Single-use reconnect session completed. Button locked and destroyed.")
         } else if (lastCallerPeerId.isNotEmpty() && !reconnectConsumed) {
             btnReconnectLast?.visibility = View.VISIBLE
             btnReconnectLast?.bringToFront()
+            btnDashboardReportLast?.visibility = View.VISIBLE
+            btnDashboardReportLast?.bringToFront()
             logEvent("Reconnect", "Single-use reconnect token armed for pool: $lastCallerLanguage (Peer: $lastCallerPeerId)")
         } else {
             btnReconnectLast?.visibility = View.GONE
+            btnDashboardReportLast?.visibility = View.GONE
         }
 
         if (completedReconnectSession || currentLanguage == "ENGLISH") {
@@ -1035,8 +1078,11 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         if (lastCallerPeerId.isNotEmpty() && !reconnectConsumed) {
             btnReconnectLast?.visibility = View.VISIBLE
             btnReconnectLast?.bringToFront()
+            btnDashboardReportLast?.visibility = View.VISIBLE
+            btnDashboardReportLast?.bringToFront()
         } else {
             btnReconnectLast?.visibility = View.GONE
+            btnDashboardReportLast?.visibility = View.GONE
         }
     }
 

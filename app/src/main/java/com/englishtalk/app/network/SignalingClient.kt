@@ -5,7 +5,6 @@ import android.os.Looper
 import okhttp3.*
 import org.json.JSONObject
 import org.webrtc.IceCandidate
-import org.webrtc.SessionDescription
 import java.util.concurrent.TimeUnit
 
 object SignalingClient {
@@ -21,7 +20,6 @@ object SignalingClient {
     private var isConnected = false
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    // Auto-reconnect and Heartbeat
     private var isReconnecting = false
     private val heartbeatRunnable = object : Runnable {
         override fun run() {
@@ -37,8 +35,8 @@ object SignalingClient {
 
     interface SignalingListener {
         fun onMatchFound(roomId: String, isInitiator: Boolean, peerLevel: String, peerId: String, isReconnect: Boolean)
-        fun onOfferReceived(sdp: SessionDescription)
-        fun onAnswerReceived(sdp: SessionDescription)
+        fun onOfferReceived(sdp: String)
+        fun onAnswerReceived(sdp: String)
         fun onIceCandidateReceived(candidate: IceCandidate)
         fun onCallEnded()
         fun onReconnectWaiting()
@@ -129,11 +127,11 @@ object SignalingClient {
                     }
                     "offer" -> {
                         val sdp = json.getString("sdp")
-                        listener?.onOfferReceived(SessionDescription(SessionDescription.Type.OFFER, sdp))
+                        listener?.onOfferReceived(sdp)
                     }
                     "answer" -> {
                         val sdp = json.getString("sdp")
-                        listener?.onAnswerReceived(SessionDescription(SessionDescription.Type.ANSWER, sdp))
+                        listener?.onAnswerReceived(sdp)
                     }
                     "ice_candidate" -> {
                         val sdpMid = json.getString("sdpMid")

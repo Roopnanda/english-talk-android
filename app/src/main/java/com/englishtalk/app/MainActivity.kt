@@ -112,6 +112,9 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private var lastCallerWasFemaleFiltered = false
     private var hasReportedLastCaller = false
 
+    // Rule 37: Cooldown & Quest Initiation Gate
+    private var callStartedAfterCooldownExpired = false
+
     // Persistent Diagnostic Logs (Rule 27 & 33)
     private val diagnosticLogs = Collections.synchronizedList(mutableListOf<String>())
 
@@ -192,7 +195,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         }
 
         try {
-            proximitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY)
+            proximitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_PROF_PROXIMITY_DEPRECATED ?: Sensor.TYPE_PROXIMITY)
         } catch (e: Throwable) {}
 
         setupWakeLock()
@@ -385,33 +388,38 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             }
         }
 
-        // Dedicated Dashboard Report Button Listener
         btnDashboardReportLast?.setOnClickListener {
             showReportUserDialog(isInCall = false)
         }
 
-        // In-Call Flag Report Button Listener
         btnInCallReport?.setOnClickListener {
             showReportUserDialog(isInCall = true)
         }
 
+        // Rule 8: Standalone General Share Button on Dashboard
         btnShareApp?.setOnClickListener {
-            triggerShareIntent()
+            triggerGeneralAppShare()
         }
 
         btnWatchAdReward?.setOnClickListener {
             showRewardedAd()
         }
 
+        // Rule 37: Pure VIP Details or Active Quest Status (Zero Quest Promotion)
         btnVip?.setOnClickListener {
             val hasPass = prefs.getBoolean("has_female_pass", false)
+            val isQuestActive = prefs.getBoolean("is_quest_active", false)
+
             if (hasPass) {
                 showActivePassDialog()
+            } else if (isQuestActive) {
+                showPracticeQuestProgressDialog()
             } else {
-                showVipOrQuestDialog()
+                showPureVipDialog()
             }
         }
 
+        // Rule 37: Switch Interception - Clean VIP Membership Notice
         switchFemaleFilter?.setOnCheckedChangeListener { _, isChecked ->
             if (isUpdatingToggleProgrammatically) return@setOnCheckedChangeListener
 
@@ -422,7 +430,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 isUpdatingToggleProgrammatically = true
                 switchFemaleFilter?.isChecked = false
                 isUpdatingToggleProgrammatically = false
-                showPracticeQuestDialog(fromInterception = true)
+                showFemaleFilterLockedDialog()
             } else {
                 logEvent("Filter", "Talk to Female filter set to: $isChecked")
             }
@@ -433,21 +441,51 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         }
     }
 
-    private fun triggerShareIntent() {
+    private fun showFemaleFilterLockedDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("VIP Feature")
+            .setMessage("Talk to Female is a VIP feature. Get a VIP membership to enable this feature.")
+            .setPositiveButton("Get VIP") { _, _ -> showPureVipDialog() }
+            .setNegativeButton("OK", null)
+            .show()
+    }
+
+    private fun showPureVipDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("👑 English Talk VIP")
+            .setMessage("Upgrade to VIP for unlimited Talk to Female filtering, priority matching, and an ad-free conversation experience.")
+            .setPositiveButton("Subscribe Now", null)
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
+    private fun triggerGeneralAppShare() {
         val sendIntent = Intent().apply {
             action = Intent.ACTION_SEND
-            putExtra(Intent.EXTRA_TEXT, "Practice English with me on English Talk! Download here: https://play.google.com/store/apps/details?id=$packageName")
+            putExtra(Intent.EXTRA_TEXT, "Practice English speaking with real people on English Talk! Download here: https://play.google.com/store/apps/details?id=$packageName")
+            type = "text/plain"
+        }
+        logEvent("Share", "General App Share launched from dashboard")
+        startActivity(Intent.createChooser(sendIntent, "Share English Talk"))
+    }
+
+    // Rule 37: Quest Share Intent (Invoked ONLY from Quest modal)
+    private fun triggerQuestShareIntent() {
+        val sendIntent = Intent().apply {
+            action = Intent.ACTION_SEND
+            putExtra(Intent.EXTRA_TEXT, "Practice English speaking with real people on English Talk! Download here: https://play.google.com/store/apps/details?id=$packageName")
             type = "text/plain"
         }
         prefs.edit().putBoolean("has_shared_app", true).apply()
-        logEvent("Share", "App share intent triggered - share flag saved")
+        logEvent("Share", "Quest share verified - share flag saved")
         startActivity(Intent.createChooser(sendIntent, "Share English Talk"))
         checkAndRewardFemalePass()
     }
 
     private fun checkAndRewardFemalePass() {
         val hasPass = prefs.getBoolean("has_female_pass", false)
-        if (hasPass) return
+        val isQuestActive = prefs.getBoolean("is_quest_active", false)
+        if (hasPass || !isQuestActive) return
 
         val shared = prefs.getBoolean("has_shared_app", false)
         val qualifiedCalls = prefs.getInt("female_pass_qualified_calls", 0)
@@ -455,6 +493,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         if (shared && qualifiedCalls >= 5) {
             prefs.edit()
                 .putBoolean("has_female_pass", true)
+                .putBoolean("is_quest_active", false)
                 .putInt("female_pass_qualified_calls", 0)
                 .putBoolean("has_shared_app", false)
                 .apply()
@@ -482,33 +521,39 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             .show()
     }
 
-    private fun showPracticeQuestDialog(fromInterception: Boolean) {
+    // Rule 37: 10-Minute Organic Milestone Dialog
+    private fun showMilestoneQuestOfferDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("🏆 10-Minute Speaking Milestone!")
+            .setMessage("Amazing dedication! You just completed a 10+ minute English conversation.\n\nWould you like to accept the Community Practice Challenge to earn 1 Free Female Match Pass?")
+            .setPositiveButton("Accept Challenge") { _, _ ->
+                prefs.edit().putBoolean("is_quest_active", true).putInt("female_pass_qualified_calls", 0).apply()
+                refreshDashboardUI()
+                logEvent("Quest", "User accepted Community Practice Quest")
+                showPracticeQuestProgressDialog()
+            }
+            .setNegativeButton("Maybe Later", null)
+            .show()
+    }
+
+    private fun showPracticeQuestProgressDialog() {
         val shared = prefs.getBoolean("has_shared_app", false)
         val calls = prefs.getInt("female_pass_qualified_calls", 0)
 
         val shareStatus = if (shared) "✅ Completed" else "⏳ Tap below to Share"
-        val callsStatus = if (calls >= 5) "✅ 5/5 Completed" else "⏳ $calls/5 Calls (min 2 mins each)"
+        val callsStatus = if (calls >= 5) "✅ 5/5 Completed" else "⏳ $calls/5 Calls (min 2 mins each in English)"
 
-        val message = "Unlock 1 Free Female Match Connection by completing this practice challenge:\n\n" +
+        val message = "Complete these practice goals to unlock 1 Free Female Match Pass:\n\n" +
                 "1. Share English Talk: $shareStatus\n" +
-                "2. Complete 5 Practice Calls: $callsStatus\n\n" +
+                "2. Complete 5 English Calls: $callsStatus\n\n" +
                 "Proves serious practice intent and protects community learners."
 
         AlertDialog.Builder(this)
-            .setTitle(if (fromInterception) "🎯 Community Practice Quest" else "🎯 Speaking Milestone Unlocked!")
+            .setTitle("🎯 Community Practice Quest")
             .setMessage(message)
             .setPositiveButton(if (!shared) "Share App" else "Keep Practicing") { _, _ ->
-                if (!shared) triggerShareIntent()
+                if (!shared) triggerQuestShareIntent()
             }
-            .setNegativeButton("Close", null)
-            .show()
-    }
-
-    private fun showVipOrQuestDialog() {
-        AlertDialog.Builder(this)
-            .setTitle("👑 VIP Membership")
-            .setMessage("VIP members enjoy unlimited Talk to Female filtering. You can also unlock a Free Female Match Pass via the Practice Quest!")
-            .setPositiveButton("View Quest") { _, _ -> showPracticeQuestDialog(fromInterception = true) }
             .setNegativeButton("Close", null)
             .show()
     }
@@ -599,6 +644,11 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             return
         }
 
+        // Rule 37 Gate Check: Evaluated at the exact moment the call is initiated!
+        val lastFemaleCallEndTime = prefs.getLong("last_female_call_end_time_ms", 0L)
+        val cooldownRemainingMs = 1800000L - (System.currentTimeMillis() - lastFemaleCallEndTime)
+        callStartedAfterCooldownExpired = cooldownRemainingMs <= 0L
+
         val isFemaleOnly = switchFemaleFilter?.isChecked == true
         tvSearchingStatus?.text = if (isFemaleOnly) "Searching for a female partner..." else "Searching for a conversation partner..."
         showLayout(layoutSearching)
@@ -680,6 +730,11 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             return
         }
 
+        // Reconnects preserve strict cooldown evaluation
+        val lastFemaleCallEndTime = prefs.getLong("last_female_call_end_time_ms", 0L)
+        val cooldownRemainingMs = 1800000L - (System.currentTimeMillis() - lastFemaleCallEndTime)
+        callStartedAfterCooldownExpired = cooldownRemainingMs <= 0L
+
         isCurrentSessionReconnect = true
         tvSearchingStatus?.text = "Reconnecting to last caller..."
         showLayout(layoutSearching)
@@ -690,7 +745,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         logEvent("Reconnect", "Calling peer: $lastCallerPeerId in pool: $lastCallerLanguage")
     }
 
-    // Rule 35: Deduplicated Dynamic Report Action
     private fun showReportUserDialog(isInCall: Boolean) {
         val targetPeerId = lastCallerPeerId
         if (targetPeerId.isEmpty()) {
@@ -730,8 +784,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
                 hasReportedLastCaller = true
                 Toast.makeText(this, "Report submitted. Thank you for keeping our community safe.", Toast.LENGTH_LONG).show()
-
-                // Non-terminating: If in call, the conversation continues uninterrupted!
             }
             .setNegativeButton("Cancel", null)
             .show()
@@ -773,7 +825,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 lastCallerPeerId = peerId
                 lastCallerLanguage = currentLanguage
                 lastCallerWasFemaleFiltered = isCurrentCallFemaleFiltered
-                hasReportedLastCaller = false // Fresh caller, reset report flag!
+                hasReportedLastCaller = false
                 reconnectConsumed = false
             }
 
@@ -783,7 +835,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 switchFemaleFilter?.isChecked = false
                 isUpdatingToggleProgrammatically = false
                 wasSearchingWithFemalePass = false
-                logEvent("FemalePass", "Female Match Pass consumed for this female call")
+                logEvent("FemalePass", "Female Match Pass consumed for this live call")
             }
 
             isCallInProgress = true
@@ -794,7 +846,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             showLayout(layoutCall)
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-            // Show in-call report flag ONLY if female filtered
             btnInCallReport?.visibility = if (isCurrentCallFemaleFiltered) View.VISIBLE else View.GONE
 
             audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
@@ -924,6 +975,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             isLocalInitiatorHangup = !isRemoteDisconnect
         )
 
+        val wasFemaleSession = isCurrentCallFemaleFiltered
+
         updateSessionStats(callDurationSec)
         WebRtcAudioClient.close()
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -949,6 +1002,13 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             btnDashboardReportLast?.visibility = View.GONE
         }
 
+        // Rule 37: If this was a female pass call, start the 30-minute cooldown the exact millisecond it tears down!
+        if (wasFemaleSession) {
+            val teardownTime = System.currentTimeMillis()
+            prefs.edit().putLong("last_female_call_end_time_ms", teardownTime).apply()
+            logEvent("QuestCooldown", "Female pass session ended. 30-minute post-pass cooldown started.")
+        }
+
         if (completedReconnectSession || currentLanguage == "ENGLISH") {
             showLayout(layoutDashboard)
         } else {
@@ -958,11 +1018,16 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         refreshDashboardUI()
         logEvent("WebRTC", "Session ended. Talk time: ${callDurationSec}s")
 
-        if (currentLanguage == "ENGLISH" && callDurationSec >= 300) {
+        // Rule 37: 10-Minute Organic Milestone Challenge Trigger
+        // Criteria: English pool, duration >= 600s, not currently on a pass, no active quest, AND call started after previous cooldown expired!
+        if (currentLanguage == "ENGLISH" && callDurationSec >= 600) {
             val hasPass = prefs.getBoolean("has_female_pass", false)
-            val isVip = prefs.getBoolean("is_vip", false)
-            if (!hasPass && !isVip) {
-                showPracticeQuestDialog(fromInterception = false)
+            val isQuestActive = prefs.getBoolean("is_quest_active", false)
+
+            if (!hasPass && !isQuestActive && callStartedAfterCooldownExpired) {
+                showMilestoneQuestOfferDialog()
+            } else {
+                logEvent("QuestMilestone", "10m milestone reached but disqualified (In cooldown, pass active, or already in quest)")
             }
         }
 
@@ -1008,12 +1073,13 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             logEvent("Progression", "Advanced unlock: $qualified / 20")
         }
 
-        val hasPass = prefs.getBoolean("has_female_pass", false)
-        if (!hasPass && currentLanguage == "ENGLISH" && durationSec >= 120) {
+        // Rule 37: 5 Practice Calls Tracking for Active Quest
+        val isQuestActive = prefs.getBoolean("is_quest_active", false)
+        if (isQuestActive && currentLanguage == "ENGLISH" && durationSec >= 120) {
             val passCalls = prefs.getInt("female_pass_qualified_calls", 0)
             if (passCalls < 5) {
                 editor.putInt("female_pass_qualified_calls", passCalls + 1)
-                logEvent("FemalePassQuest", "Qualifying call recorded: ${passCalls + 1}/5")
+                logEvent("FemalePassQuest", "Qualifying quest call recorded: ${passCalls + 1}/5")
             }
         }
 
@@ -1046,6 +1112,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         val totalCalls = prefs.getInt("total_calls_count", 0)
         val qualifiedCalls = prefs.getInt("beginner_qualified_calls", 0)
         val hasPass = prefs.getBoolean("has_female_pass", false)
+        val isQuestActive = prefs.getBoolean("is_quest_active", false)
         val questCalls = prefs.getInt("female_pass_qualified_calls", 0)
 
         tvTalkCoinsBadge?.text = "🪙 Talk Coins: $coins"
@@ -1057,7 +1124,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             btnVip?.text = "PASS ACTIVE"
             btnVip?.setBackgroundColor(Color.parseColor("#EAB308"))
             btnVip?.setTextColor(Color.BLACK)
-        } else if (questCalls > 0) {
+        } else if (isQuestActive) {
             btnVip?.text = "QUEST ($questCalls/5)"
             btnVip?.setBackgroundColor(Color.parseColor("#3B82F6"))
             btnVip?.setTextColor(Color.WHITE)
@@ -1127,7 +1194,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     }
 
     override fun onSensorChanged(event: SensorEvent?) {
-        if (event?.sensor?.type == Sensor.TYPE_PROXIMITY && isCallInProgress) {
+        if (event?.sensor?.type == (Sensor.TYPE_PROXIMITY) && isCallInProgress) {
             val distance = event.values[0]
             val maxRange = proximitySensor?.maximumRange ?: 5f
             if (distance < maxRange) {

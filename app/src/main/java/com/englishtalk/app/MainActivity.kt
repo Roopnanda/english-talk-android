@@ -36,6 +36,7 @@ import com.google.android.gms.ads.MobileAds
 import com.google.android.gms.ads.rewarded.RewardedAd
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
 import org.webrtc.IceCandidate
+import org.webrtc.SessionDescription
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -395,7 +396,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             showReportUserDialog(isInCall = true)
         }
 
-        // Rule 8: Standalone General Share Button on Dashboard
         btnShareApp?.setOnClickListener {
             triggerGeneralAppShare()
         }
@@ -404,7 +404,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             showRewardedAd()
         }
 
-        // Rule 37: Pure VIP Details or Active Quest Status
         btnVip?.setOnClickListener {
             val hasPass = prefs.getBoolean("has_female_pass", false)
             val isQuestActive = prefs.getBoolean("is_quest_active", false)
@@ -418,7 +417,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             }
         }
 
-        // Rule 37: Switch Interception - Clean VIP Notice
         switchFemaleFilter?.setOnCheckedChangeListener { _, isChecked ->
             if (isUpdatingToggleProgrammatically) return@setOnCheckedChangeListener
 
@@ -468,7 +466,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         startActivity(Intent.createChooser(sendIntent, "Share English Talk"))
     }
 
-    // Rule 37: Quest Share Intent
     private fun triggerQuestShareIntent() {
         val sendIntent = Intent().apply {
             action = Intent.ACTION_SEND
@@ -520,7 +517,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             .show()
     }
 
-    // Rule 37: 10-Minute Organic Milestone Dialog
     private fun showMilestoneQuestOfferDialog() {
         AlertDialog.Builder(this)
             .setTitle("🏆 10-Minute Speaking Milestone!")
@@ -643,7 +639,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             return
         }
 
-        // Rule 37 Gate Check
         val lastFemaleCallEndTime = prefs.getLong("last_female_call_end_time_ms", 0L)
         val cooldownRemainingMs = 1800000L - (System.currentTimeMillis() - lastFemaleCallEndTime)
         callStartedAfterCooldownExpired = cooldownRemainingMs <= 0L
@@ -868,12 +863,12 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         }
     }
 
-    // Synchronized to String to match WebRtcAudioClient.kt signatures exactly
-    override fun onOfferReceived(sdp: String) {
+    // Direct SessionDescription handshake with WebRtcAudioClient
+    override fun onOfferReceived(sdp: SessionDescription) {
         WebRtcAudioClient.handleRemoteOffer(sdp)
     }
 
-    override fun onAnswerReceived(sdp: String) {
+    override fun onAnswerReceived(sdp: SessionDescription) {
         WebRtcAudioClient.handleRemoteAnswer(sdp)
     }
 

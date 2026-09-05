@@ -195,7 +195,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         }
 
         try {
-            proximitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_PROF_PROXIMITY_DEPRECATED ?: Sensor.TYPE_PROXIMITY)
+            proximitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY)
         } catch (e: Throwable) {}
 
         setupWakeLock()
@@ -405,7 +405,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             showRewardedAd()
         }
 
-        // Rule 37: Pure VIP Details or Active Quest Status (Zero Quest Promotion)
+        // Rule 37: Pure VIP Details or Active Quest Status
         btnVip?.setOnClickListener {
             val hasPass = prefs.getBoolean("has_female_pass", false)
             val isQuestActive = prefs.getBoolean("is_quest_active", false)
@@ -419,7 +419,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             }
         }
 
-        // Rule 37: Switch Interception - Clean VIP Membership Notice
+        // Rule 37: Switch Interception - Clean VIP Notice
         switchFemaleFilter?.setOnCheckedChangeListener { _, isChecked ->
             if (isUpdatingToggleProgrammatically) return@setOnCheckedChangeListener
 
@@ -469,7 +469,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         startActivity(Intent.createChooser(sendIntent, "Share English Talk"))
     }
 
-    // Rule 37: Quest Share Intent (Invoked ONLY from Quest modal)
+    // Rule 37: Quest Share Intent
     private fun triggerQuestShareIntent() {
         val sendIntent = Intent().apply {
             action = Intent.ACTION_SEND
@@ -644,7 +644,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             return
         }
 
-        // Rule 37 Gate Check: Evaluated at the exact moment the call is initiated!
+        // Rule 37 Gate Check
         val lastFemaleCallEndTime = prefs.getLong("last_female_call_end_time_ms", 0L)
         val cooldownRemainingMs = 1800000L - (System.currentTimeMillis() - lastFemaleCallEndTime)
         callStartedAfterCooldownExpired = cooldownRemainingMs <= 0L
@@ -730,7 +730,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             return
         }
 
-        // Reconnects preserve strict cooldown evaluation
         val lastFemaleCallEndTime = prefs.getLong("last_female_call_end_time_ms", 0L)
         val cooldownRemainingMs = 1800000L - (System.currentTimeMillis() - lastFemaleCallEndTime)
         callStartedAfterCooldownExpired = cooldownRemainingMs <= 0L
@@ -1002,7 +1001,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             btnDashboardReportLast?.visibility = View.GONE
         }
 
-        // Rule 37: If this was a female pass call, start the 30-minute cooldown the exact millisecond it tears down!
+        // Rule 37: Start 30-minute cooldown immediately upon teardown of female session
         if (wasFemaleSession) {
             val teardownTime = System.currentTimeMillis()
             prefs.edit().putLong("last_female_call_end_time_ms", teardownTime).apply()
@@ -1018,8 +1017,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         refreshDashboardUI()
         logEvent("WebRTC", "Session ended. Talk time: ${callDurationSec}s")
 
-        // Rule 37: 10-Minute Organic Milestone Challenge Trigger
-        // Criteria: English pool, duration >= 600s, not currently on a pass, no active quest, AND call started after previous cooldown expired!
+        // Rule 37: 10-Minute Speaking Milestone Gate
         if (currentLanguage == "ENGLISH" && callDurationSec >= 600) {
             val hasPass = prefs.getBoolean("has_female_pass", false)
             val isQuestActive = prefs.getBoolean("is_quest_active", false)
@@ -1073,7 +1071,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             logEvent("Progression", "Advanced unlock: $qualified / 20")
         }
 
-        // Rule 37: 5 Practice Calls Tracking for Active Quest
+        // Rule 37: Quest calls tracking
         val isQuestActive = prefs.getBoolean("is_quest_active", false)
         if (isQuestActive && currentLanguage == "ENGLISH" && durationSec >= 120) {
             val passCalls = prefs.getInt("female_pass_qualified_calls", 0)
@@ -1194,7 +1192,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     }
 
     override fun onSensorChanged(event: SensorEvent?) {
-        if (event?.sensor?.type == (Sensor.TYPE_PROXIMITY) && isCallInProgress) {
+        if (event?.sensor?.type == Sensor.TYPE_PROXIMITY && isCallInProgress) {
             val distance = event.values[0]
             val maxRange = proximitySensor?.maximumRange ?: 5f
             if (distance < maxRange) {

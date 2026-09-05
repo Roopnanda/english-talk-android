@@ -36,7 +36,6 @@ import com.google.android.gms.ads.MobileAds
 import com.google.android.gms.ads.rewarded.RewardedAd
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
 import org.webrtc.IceCandidate
-import org.webrtc.SessionDescription
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -869,11 +868,12 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         }
     }
 
-    override fun onOfferReceived(sdp: SessionDescription) {
+    // Synchronized to String to match WebRtcAudioClient.kt signatures exactly
+    override fun onOfferReceived(sdp: String) {
         WebRtcAudioClient.handleRemoteOffer(sdp)
     }
 
-    override fun onAnswerReceived(sdp: SessionDescription) {
+    override fun onAnswerReceived(sdp: String) {
         WebRtcAudioClient.handleRemoteAnswer(sdp)
     }
 
@@ -1001,7 +1001,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             btnDashboardReportLast?.visibility = View.GONE
         }
 
-        // Rule 37: Start 30-minute cooldown immediately upon teardown of female session
         if (wasFemaleSession) {
             val teardownTime = System.currentTimeMillis()
             prefs.edit().putLong("last_female_call_end_time_ms", teardownTime).apply()
@@ -1017,7 +1016,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         refreshDashboardUI()
         logEvent("WebRTC", "Session ended. Talk time: ${callDurationSec}s")
 
-        // Rule 37: 10-Minute Speaking Milestone Gate
         if (currentLanguage == "ENGLISH" && callDurationSec >= 600) {
             val hasPass = prefs.getBoolean("has_female_pass", false)
             val isQuestActive = prefs.getBoolean("is_quest_active", false)
@@ -1071,7 +1069,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             logEvent("Progression", "Advanced unlock: $qualified / 20")
         }
 
-        // Rule 37: Quest calls tracking
         val isQuestActive = prefs.getBoolean("is_quest_active", false)
         if (isQuestActive && currentLanguage == "ENGLISH" && durationSec >= 120) {
             val passCalls = prefs.getInt("female_pass_qualified_calls", 0)

@@ -10,7 +10,7 @@ import java.util.concurrent.TimeUnit
 
 object SignalingClient {
 
-    private const val SERVER_URL = "wss://english-talk-server-5mn7.onrender.com"
+    private const val SERVER_URL = "wss://english-talk-server-5pm7.onrender.com"
     private var webSocket: WebSocket? = null
     private val client = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
@@ -149,7 +149,7 @@ object SignalingClient {
                     "server_cooldown" -> listener?.onServerCooldown(json.optLong("remainingSeconds", 180L))
                     "vip_search_expanding" -> listener?.onVipSearchExpanding()
                     "vip_queue_timeout" -> listener?.onVipQueueTimeout()
-                    "pong" -> { /* Keepalive confirmation */ }
+                    "pong" -> { /* Keepalive */ }
                 }
             }
         } catch (e: Throwable) {}

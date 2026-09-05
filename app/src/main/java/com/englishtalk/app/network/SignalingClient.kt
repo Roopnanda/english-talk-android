@@ -5,6 +5,7 @@ import android.os.Looper
 import okhttp3.*
 import org.json.JSONObject
 import org.webrtc.IceCandidate
+import org.webrtc.SessionDescription
 import java.util.concurrent.TimeUnit
 
 object SignalingClient {
@@ -35,8 +36,8 @@ object SignalingClient {
 
     interface SignalingListener {
         fun onMatchFound(roomId: String, isInitiator: Boolean, peerLevel: String, peerId: String, isReconnect: Boolean)
-        fun onOfferReceived(sdp: String)
-        fun onAnswerReceived(sdp: String)
+        fun onOfferReceived(sdp: SessionDescription)
+        fun onAnswerReceived(sdp: SessionDescription)
         fun onIceCandidateReceived(candidate: IceCandidate)
         fun onCallEnded()
         fun onReconnectWaiting()
@@ -127,11 +128,11 @@ object SignalingClient {
                     }
                     "offer" -> {
                         val sdp = json.getString("sdp")
-                        listener?.onOfferReceived(sdp)
+                        listener?.onOfferReceived(SessionDescription(SessionDescription.Type.OFFER, sdp))
                     }
                     "answer" -> {
                         val sdp = json.getString("sdp")
-                        listener?.onAnswerReceived(sdp)
+                        listener?.onAnswerReceived(SessionDescription(SessionDescription.Type.ANSWER, sdp))
                     }
                     "ice_candidate" -> {
                         val sdpMid = json.getString("sdpMid")

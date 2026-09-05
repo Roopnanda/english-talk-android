@@ -173,6 +173,10 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         AppLogger.log(tag, message)
     }
 
+    override fun onSignalingLog(tag: String, message: String) {
+        logEvent(tag, message)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -213,7 +217,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         try {
             SignalingClient.setListener(this)
             SignalingClient.connect()
-            WebRtcAudioClient.init(applicationContext)
+            WebRtcAudioClient.init(applicationContext)[span_42](start_span)[span_42](end_span)
         } catch (e: Throwable) {
             logEvent("Init-ERR", "Signaling/WebRTC init: ${e.message}")
         }
@@ -369,8 +373,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         }
 
         btnMute?.setOnClickListener {
-            val newMuteState = !WebRtcAudioClient.isMuted
-            WebRtcAudioClient.setMuted(newMuteState)
+            val newMuteState = !WebRtcAudioClient.isMuted[span_43](start_span)[span_43](end_span)
+            WebRtcAudioClient.setMuted(newMuteState)[span_44](start_span)[span_44](end_span)
             btnMute?.text = if (newMuteState) "🔇" else "🎤"
         }
 
@@ -753,9 +757,9 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         val isFemaleSession = if (isInCall) isCurrentCallFemaleFiltered else lastCallerWasFemaleFiltered
 
         val reportOptions = if (isFemaleSession) {
-            arrayOf("Partner is Not Female (Wrong Gender)", "Harassment / Abusive Behavior", "Spam / Commercial Ads")
+            arrayOf("Partner is Not Female (Wrong Gender)", "Harassment / Abuse", "Spam / Ads")
         } else {
-            arrayOf("Harassment / Abusive Behavior", "Spam / Commercial Ads", "Inappropriate Speech")
+            arrayOf("Harassment / Abuse", "Spam / Ads", "Inappropriate Behavior")
         }
 
         var selectedIndex = 0
@@ -843,7 +847,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
             audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
             audioManager.isSpeakerphoneOn = false
-            WebRtcAudioClient.setMuted(false)
+            WebRtcAudioClient.setMuted(false)[span_45](start_span)[span_45](end_span)
             btnMute?.text = "🎤"
             btnSpeaker?.text = "🔈"
 
@@ -858,22 +862,21 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
             mainHandler.removeCallbacks(callTimerRunnable)
             mainHandler.post(callTimerRunnable)
-            WebRtcAudioClient.startPeerConnection(roomId, isInitiator, this)
+            WebRtcAudioClient.startPeerConnection(roomId, isInitiator, this)[span_46](start_span)[span_46](end_span)
             logEvent("CallView", "Live call connected at 00:00 (Pool: $currentLanguage, Reconnect: $isCurrentSessionReconnect, FemaleFilter: $isCurrentCallFemaleFiltered)")
         }
     }
 
-    // Direct SessionDescription handshake with WebRtcAudioClient
     override fun onOfferReceived(sdp: SessionDescription) {
-        WebRtcAudioClient.handleRemoteOffer(sdp)
+        WebRtcAudioClient.handleRemoteOffer(sdp)[span_47](start_span)[span_47](end_span)
     }
 
     override fun onAnswerReceived(sdp: SessionDescription) {
-        WebRtcAudioClient.handleRemoteAnswer(sdp)
+        WebRtcAudioClient.handleRemoteAnswer(sdp)[span_48](start_span)[span_48](end_span)
     }
 
     override fun onIceCandidateReceived(candidate: IceCandidate) {
-        WebRtcAudioClient.handleRemoteIceCandidate(candidate)
+        WebRtcAudioClient.handleRemoteIceCandidate(candidate)[span_49](start_span)[span_49](end_span)
     }
 
     override fun onCallEnded() {
@@ -972,7 +975,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         val wasFemaleSession = isCurrentCallFemaleFiltered
 
         updateSessionStats(callDurationSec)
-        WebRtcAudioClient.close()
+        WebRtcAudioClient.close()[span_50](start_span)[span_50](end_span)
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         val completedReconnectSession = isCurrentSessionReconnect
@@ -1159,7 +1162,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 isAppInBackground = true
                 backgroundAutoMuteRunnable = Runnable {
                     if (isAppInBackground && isCallInProgress) {
-                        WebRtcAudioClient.setMuted(true)
+                        WebRtcAudioClient.setMuted(true)[span_51](start_span)[span_51](end_span)
                         logEvent("AutoMute", "Microphone muted after 30s in background")
                     }
                 }
@@ -1175,8 +1178,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         super.onResume()
         isAppInBackground = false
         backgroundAutoMuteRunnable?.let { mainHandler.removeCallbacks(it) }
-        if (isCallInProgress && WebRtcAudioClient.isMuted) {
-            WebRtcAudioClient.setMuted(false)
+        if (isCallInProgress && WebRtcAudioClient.isMuted)[span_52](start_span)[span_52](end_span) {
+            WebRtcAudioClient.setMuted(false)[span_53](start_span)[span_53](end_span)
             btnMute?.text = "🎤"
             logEvent("AutoMute", "Microphone unmuted upon app foreground")
         }

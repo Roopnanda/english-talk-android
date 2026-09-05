@@ -173,10 +173,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         AppLogger.log(tag, message)
     }
 
-    override fun onSignalingLog(tag: String, message: String) {
-        logEvent(tag, message)
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -757,9 +753,9 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         val isFemaleSession = if (isInCall) isCurrentCallFemaleFiltered else lastCallerWasFemaleFiltered
 
         val reportOptions = if (isFemaleSession) {
-            arrayOf("Partner is Not Female (Wrong Gender)", "Harassment / Abuse", "Spam / Ads")
+            arrayOf("Partner is Not Female (Wrong Gender)", "Harassment / Abusive Behavior", "Spam / Commercial Ads")
         } else {
-            arrayOf("Harassment / Abuse", "Spam / Ads", "Inappropriate Behavior")
+            arrayOf("Harassment / Abusive Behavior", "Spam / Commercial Ads", "Inappropriate Speech")
         }
 
         var selectedIndex = 0

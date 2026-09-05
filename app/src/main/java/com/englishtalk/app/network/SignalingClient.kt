@@ -10,7 +10,7 @@ import java.util.concurrent.TimeUnit
 
 object SignalingClient {
 
-    private const val SERVER_URL = "wss://english-talk-server.onrender.com"
+    private const val SERVER_URL = "wss://english-talk-server-5mn7.onrender.com"
     private var webSocket: WebSocket? = null
     private val client = OkHttpClient.Builder()
         .readTimeout(0, TimeUnit.MILLISECONDS)

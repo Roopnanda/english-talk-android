@@ -49,24 +49,15 @@ object SignalingClient {
         fun onServerCooldown(remainingSeconds: Long)
         fun onVipSearchExpanding()
         fun onVipQueueTimeout()
-        fun onSignalingLog(tag: String, message: String)
     }
 
     fun setListener(l: SignalingListener) {
         this.listener = l
     }
 
-    private fun notifyLog(tag: String, message: String) {
-        mainHandler.post {
-            listener?.onSignalingLog(tag, message)
-        }
-    }
-
     fun connect() {
         if (isConnected || isReconnecting) return
         isReconnecting = true
-
-        notifyLog("WS", "Initiating handshake with Render...")
 
         try {
             val request = Request.Builder().url(SERVER_URL).build()
@@ -74,7 +65,6 @@ object SignalingClient {
                 override fun onOpen(ws: WebSocket, response: Response) {
                     isConnected = true
                     isReconnecting = false
-                    notifyLog("WS", "Connected to Render signaling server successfully")
                     mainHandler.removeCallbacks(heartbeatRunnable)
                     mainHandler.post(heartbeatRunnable)
 
@@ -88,24 +78,20 @@ object SignalingClient {
 
                 override fun onClosing(ws: WebSocket, code: Int, reason: String) {
                     isConnected = false
-                    notifyLog("WS", "Socket closing: code=$code, reason=$reason")
                 }
 
                 override fun onClosed(ws: WebSocket, code: Int, reason: String) {
                     isConnected = false
-                    notifyLog("WS", "Socket closed. Scheduling auto-reconnect...")
                     scheduleReconnect()
                 }
 
                 override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
                     isConnected = false
-                    notifyLog("WS-ERR", "Socket failure: ${t.message}")
                     scheduleReconnect()
                 }
             })
         } catch (e: Throwable) {
             isConnected = false
-            notifyLog("WS-ERR", "Connection exception: ${e.message}")
             scheduleReconnect()
         }
     }
@@ -163,12 +149,10 @@ object SignalingClient {
                     "server_cooldown" -> listener?.onServerCooldown(json.optLong("remainingSeconds", 180L))
                     "vip_search_expanding" -> listener?.onVipSearchExpanding()
                     "vip_queue_timeout" -> listener?.onVipQueueTimeout()
-                    "pong" -> { /* Heartbeat ACK */ }
+                    "pong" -> { /* Keepalive confirmation */ }
                 }
             }
-        } catch (e: Throwable) {
-            notifyLog("WS-ERR", "JSON parse error: ${e.message}")
-        }
+        } catch (e: Throwable) {}
     }
 
     fun joinQueue(level: String, language: String, userGender: String, isFemaleOnly: Boolean, isVip: Boolean, hasFemalePass: Boolean) {
@@ -183,11 +167,8 @@ object SignalingClient {
                     put("isVip", isVip)
                     put("hasFemalePass", hasFemalePass)
                 }
-                val sent = webSocket?.send(json.toString()) ?: false
-                notifyLog("WS", "join_queue dispatched (sent=$sent)")
-            } catch (e: Throwable) {
-                notifyLog("WS-ERR", "Failed sending join_queue: ${e.message}")
-            }
+                webSocket?.send(json.toString())
+            } catch (e: Throwable) {}
         }
     }
 
@@ -196,7 +177,6 @@ object SignalingClient {
         try {
             val json = JSONObject().put("action", "leave_queue")
             webSocket?.send(json.toString())
-            notifyLog("WS", "leave_queue dispatched")
         } catch (e: Throwable) {}
     }
 

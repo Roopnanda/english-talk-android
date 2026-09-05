@@ -213,7 +213,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         try {
             SignalingClient.setListener(this)
             SignalingClient.connect()
-            WebRtcAudioClient.init(applicationContext)[span_44](start_span)[span_44](end_span)
+            WebRtcAudioClient.init(applicationContext)
         } catch (e: Throwable) {
             logEvent("Init-ERR", "Signaling/WebRTC init: ${e.message}")
         }
@@ -369,8 +369,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         }
 
         btnMute?.setOnClickListener {
-            val newMuteState = !WebRtcAudioClient.isMuted[span_45](start_span)[span_45](end_span)
-            WebRtcAudioClient.setMuted(newMuteState)[span_46](start_span)[span_46](end_span)
+            val newMuteState = !WebRtcAudioClient.isMuted
+            WebRtcAudioClient.setMuted(newMuteState)
             btnMute?.text = if (newMuteState) "🔇" else "🎤"
         }
 
@@ -843,7 +843,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
             audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
             audioManager.isSpeakerphoneOn = false
-            WebRtcAudioClient.setMuted(false)[span_47](start_span)[span_47](end_span)
+            WebRtcAudioClient.setMuted(false)
             btnMute?.text = "🎤"
             btnSpeaker?.text = "🔈"
 
@@ -858,21 +858,21 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
             mainHandler.removeCallbacks(callTimerRunnable)
             mainHandler.post(callTimerRunnable)
-            WebRtcAudioClient.startPeerConnection(roomId, isInitiator, this)[span_48](start_span)[span_48](end_span)
+            WebRtcAudioClient.startPeerConnection(roomId, isInitiator, this)
             logEvent("CallView", "Live call connected at 00:00 (Pool: $currentLanguage, Reconnect: $isCurrentSessionReconnect, FemaleFilter: $isCurrentCallFemaleFiltered)")
         }
     }
 
     override fun onOfferReceived(sdp: SessionDescription) {
-        WebRtcAudioClient.handleRemoteOffer(sdp)[span_49](start_span)[span_49](end_span)
+        WebRtcAudioClient.handleRemoteOffer(sdp)
     }
 
     override fun onAnswerReceived(sdp: SessionDescription) {
-        WebRtcAudioClient.handleRemoteAnswer(sdp)[span_50](start_span)[span_50](end_span)
+        WebRtcAudioClient.handleRemoteAnswer(sdp)
     }
 
     override fun onIceCandidateReceived(candidate: IceCandidate) {
-        WebRtcAudioClient.handleRemoteIceCandidate(candidate)[span_51](start_span)[span_51](end_span)
+        WebRtcAudioClient.handleRemoteIceCandidate(candidate)
     }
 
     override fun onCallEnded() {
@@ -971,7 +971,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         val wasFemaleSession = isCurrentCallFemaleFiltered
 
         updateSessionStats(callDurationSec)
-        WebRtcAudioClient.close()[span_52](start_span)[span_52](end_span)
+        WebRtcAudioClient.close()
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         val completedReconnectSession = isCurrentSessionReconnect
@@ -1158,7 +1158,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 isAppInBackground = true
                 backgroundAutoMuteRunnable = Runnable {
                     if (isAppInBackground && isCallInProgress) {
-                        WebRtcAudioClient.setMuted(true)[span_53](start_span)[span_53](end_span)
+                        WebRtcAudioClient.setMuted(true)
                         logEvent("AutoMute", "Microphone muted after 30s in background")
                     }
                 }
@@ -1174,8 +1174,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         super.onResume()
         isAppInBackground = false
         backgroundAutoMuteRunnable?.let { mainHandler.removeCallbacks(it) }
-        if (isCallInProgress && WebRtcAudioClient.isMuted)[span_54](start_span)[span_54](end_span) {
-            WebRtcAudioClient.setMuted(false)[span_55](start_span)[span_55](end_span)
+        if (isCallInProgress && WebRtcAudioClient.isMuted) {
+            WebRtcAudioClient.setMuted(false)
             btnMute?.text = "🎤"
             logEvent("AutoMute", "Microphone unmuted upon app foreground")
         }

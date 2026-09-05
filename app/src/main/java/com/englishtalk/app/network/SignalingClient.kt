@@ -2,24 +2,18 @@ package com.englishtalk.app.network
 
 import android.os.Handler
 import android.os.Looper
-import com.englishtalk.app.utils.AppLogger
 import okhttp3.*
 import org.json.JSONObject
 import org.webrtc.IceCandidate
 import org.webrtc.SessionDescription
-import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 object SignalingClient {
 
-    private const val SERVER_HOST = "english-talk-server-5mn7.onrender.com"
-    private const val SERVER_URL = "wss://$SERVER_HOST"
-    private const val HEALTH_URL = "https://$SERVER_HOST/health"
-
+    private const val SERVER_URL = "wss://english-talk-server-5mn7.onrender.com"
     private var webSocket: WebSocket? = null
     private val client = OkHttpClient.Builder()
-        .connectionSpecs(listOf(ConnectionSpec.MODERN_TLS, ConnectionSpec.CLEARTEXT))
-        .connectTimeout(30, TimeUnit.SECONDS)
+        .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.MILLISECONDS)
         .pingInterval(15, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
@@ -30,15 +24,15 @@ object SignalingClient {
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private var isReconnecting = false
+    private var pendingQueueAction: (() -> Unit)? = null
+
     private val heartbeatRunnable = object : Runnable {
         override fun run() {
             if (isConnected && webSocket != null) {
                 try {
                     val ping = JSONObject().put("action", "ping")
                     webSocket?.send(ping.toString())
-                } catch (e: Throwable) {
-                    AppLogger.log("WS-PING", "Heartbeat send failed: ${e.message}")
-                }
+                } catch (e: Throwable) {}
             }
             mainHandler.postDelayed(this, 15000L)
         }
@@ -55,73 +49,64 @@ object SignalingClient {
         fun onServerCooldown(remainingSeconds: Long)
         fun onVipSearchExpanding()
         fun onVipQueueTimeout()
+        fun onSignalingLog(tag: String, message: String)
     }
 
     fun setListener(l: SignalingListener) {
         this.listener = l
     }
 
+    private fun notifyLog(tag: String, message: String) {
+        mainHandler.post {
+            listener?.onSignalingLog(tag, message)
+        }
+    }
+
     fun connect() {
         if (isConnected || isReconnecting) return
         isReconnecting = true
 
-        AppLogger.log("WS", "Waking up server & initiating handshake...")
+        notifyLog("WS", "Initiating handshake with Render...")
 
-        // Step 1: Send an HTTP GET to ensure Render spins up from sleep
-        val healthRequest = Request.Builder().url(HEALTH_URL).build()
-        client.newCall(healthRequest).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                AppLogger.log("WS-HTTP", "Health check failed: ${e.message}. Proceeding to socket.")
-                openSocket()
-            }
+        try {
+            val request = Request.Builder().url(SERVER_URL).build()
+            webSocket = client.newWebSocket(request, object : WebSocketListener() {
+                override fun onOpen(ws: WebSocket, response: Response) {
+                    isConnected = true
+                    isReconnecting = false
+                    notifyLog("WS", "Connected to Render signaling server successfully")
+                    mainHandler.removeCallbacks(heartbeatRunnable)
+                    mainHandler.post(heartbeatRunnable)
 
-            override fun onResponse(call: Call, response: Response) {
-                response.close()
-                AppLogger.log("WS-HTTP", "Server is awake and healthy. Opening socket.")
-                openSocket()
-            }
-        })
-    }
+                    pendingQueueAction?.invoke()
+                    pendingQueueAction = null
+                }
 
-    private fun openSocket() {
-        mainHandler.post {
-            try {
-                val request = Request.Builder().url(SERVER_URL).build()
-                webSocket = client.newWebSocket(request, object : WebSocketListener() {
-                    override fun onOpen(ws: WebSocket, response: Response) {
-                        isConnected = true
-                        isReconnecting = false
-                        AppLogger.log("WS", "Connected to Render signaling server successfully")
-                        mainHandler.removeCallbacks(heartbeatRunnable)
-                        mainHandler.post(heartbeatRunnable)
-                    }
+                override fun onMessage(ws: WebSocket, text: String) {
+                    handleIncomingMessage(text)
+                }
 
-                    override fun onMessage(ws: WebSocket, text: String) {
-                        handleIncomingMessage(text)
-                    }
+                override fun onClosing(ws: WebSocket, code: Int, reason: String) {
+                    isConnected = false
+                    notifyLog("WS", "Socket closing: code=$code, reason=$reason")
+                }
 
-                    override fun onClosing(ws: WebSocket, code: Int, reason: String) {
-                        isConnected = false
-                        AppLogger.log("WS", "Socket closing: code=$code, reason=$reason")
-                    }
+                override fun onClosed(ws: WebSocket, code: Int, reason: String) {
+                    isConnected = false
+                    notifyLog("WS", "Socket closed. Scheduling auto-reconnect...")
+                    scheduleReconnect()
+                }
 
-                    override fun onClosed(ws: WebSocket, code: Int, reason: String) {
-                        isConnected = false
-                        AppLogger.log("WS", "Socket closed cleanly. Scheduling reconnect...")
-                        scheduleReconnect()
-                    }
-
-                    override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
-                        isConnected = false
-                        AppLogger.log("WS-ERR", "Socket failure: ${t.message}. Response code=${response?.code}")
-                        scheduleReconnect()
-                    }
-                })
-            } catch (e: Throwable) {
-                isConnected = false
-                AppLogger.log("WS-ERR", "Immediate socket exception: ${e.message}")
-                scheduleReconnect()
-            }
+                override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
+                    isConnected = false
+                    notifyLog("WS-ERR", "Socket failure: ${t.message}")
+                    scheduleReconnect()
+                }
+            })
+        } catch (e: Throwable) {
+            isConnected = false
+            notifyLog("WS-ERR", "Connection exception: ${e.message}")
+            scheduleReconnect()
         }
     }
 
@@ -138,14 +123,8 @@ object SignalingClient {
         if (isConnected && webSocket != null) {
             onReady()
         } else {
+            pendingQueueAction = onReady
             connect()
-            mainHandler.postDelayed({
-                if (isConnected && webSocket != null) {
-                    onReady()
-                } else {
-                    AppLogger.log("WS-WARN", "Not connected yet - retrying command on next tick")
-                }
-            }, 1200L)
         }
     }
 
@@ -184,11 +163,11 @@ object SignalingClient {
                     "server_cooldown" -> listener?.onServerCooldown(json.optLong("remainingSeconds", 180L))
                     "vip_search_expanding" -> listener?.onVipSearchExpanding()
                     "vip_queue_timeout" -> listener?.onVipQueueTimeout()
-                    "pong" -> { /* Keepalive response */ }
+                    "pong" -> { /* Heartbeat ACK */ }
                 }
             }
         } catch (e: Throwable) {
-            AppLogger.log("WS-PARSE", "Error parsing message: ${e.message}")
+            notifyLog("WS-ERR", "JSON parse error: ${e.message}")
         }
     }
 
@@ -205,17 +184,19 @@ object SignalingClient {
                     put("hasFemalePass", hasFemalePass)
                 }
                 val sent = webSocket?.send(json.toString()) ?: false
-                AppLogger.log("WS", "join_queue dispatched (success=$sent)")
+                notifyLog("WS", "join_queue dispatched (sent=$sent)")
             } catch (e: Throwable) {
-                AppLogger.log("WS-ERR", "joinQueue error: ${e.message}")
+                notifyLog("WS-ERR", "Failed sending join_queue: ${e.message}")
             }
         }
     }
 
     fun leaveQueue() {
+        pendingQueueAction = null
         try {
             val json = JSONObject().put("action", "leave_queue")
             webSocket?.send(json.toString())
+            notifyLog("WS", "leave_queue dispatched")
         } catch (e: Throwable) {}
     }
 
@@ -251,6 +232,7 @@ object SignalingClient {
     }
 
     fun cancelReconnect() {
+        pendingQueueAction = null
         try {
             val json = JSONObject().put("action", "cancel_reconnect")
             webSocket?.send(json.toString())

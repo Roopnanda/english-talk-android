@@ -12,10 +12,12 @@ object SignalingClient {
 
     private const val SERVER_URL = "wss://english-talk-server-5pm7.onrender.com"
     private var webSocket: WebSocket? = null
+    
     private val client = OkHttpClient.Builder()
-        .connectTimeout(20, TimeUnit.SECONDS)
+        .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.MILLISECONDS)
-        .pingInterval(15, TimeUnit.SECONDS)
+        .writeTimeout(15, TimeUnit.SECONDS)
+        .pingInterval(10, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
         .build()
 
@@ -25,6 +27,7 @@ object SignalingClient {
 
     private var isReconnecting = false
     private var pendingQueueAction: (() -> Unit)? = null
+    private var activeQueuePayload: JSONObject? = null
 
     private val heartbeatRunnable = object : Runnable {
         override fun run() {
@@ -34,7 +37,7 @@ object SignalingClient {
                     webSocket?.send(ping.toString())
                 } catch (e: Throwable) {}
             }
-            mainHandler.postDelayed(this, 15000L)
+            mainHandler.postDelayed(this, 10000L)
         }
     }
 
@@ -68,8 +71,14 @@ object SignalingClient {
                     mainHandler.removeCallbacks(heartbeatRunnable)
                     mainHandler.post(heartbeatRunnable)
 
-                    pendingQueueAction?.invoke()
-                    pendingQueueAction = null
+                    if (pendingQueueAction != null) {
+                        pendingQueueAction?.invoke()
+                        pendingQueueAction = null
+                    } else if (activeQueuePayload != null) {
+                        try {
+                            ws.send(activeQueuePayload.toString())
+                        } catch (e: Throwable) {}
+                    }
                 }
 
                 override fun onMessage(ws: WebSocket, text: String) {
@@ -102,7 +111,7 @@ object SignalingClient {
         mainHandler.postDelayed({
             isReconnecting = false
             connect()
-        }, 3000L)
+        }, 2000L)
     }
 
     private fun ensureConnected(onReady: () -> Unit) {
@@ -122,6 +131,7 @@ object SignalingClient {
             mainHandler.post {
                 when (type) {
                     "match_found" -> {
+                        activeQueuePayload = null
                         val roomId = json.getString("roomId")
                         val isInitiator = json.getBoolean("isInitiator")
                         val peerLevel = json.optString("peerLevel", "Beginner")
@@ -145,34 +155,43 @@ object SignalingClient {
                     }
                     "call_ended" -> listener?.onCallEnded()
                     "reconnect_waiting" -> listener?.onReconnectWaiting()
-                    "reconnect_failed" -> listener?.onReconnectFailed(json.optString("reason", "unknown"))
-                    "server_cooldown" -> listener?.onServerCooldown(json.optLong("remainingSeconds", 180L))
+                    "reconnect_failed" -> {
+                        activeQueuePayload = null
+                        listener?.onReconnectFailed(json.optString("reason", "unknown"))
+                    }
+                    "server_cooldown" -> {
+                        activeQueuePayload = null
+                        listener?.onServerCooldown(json.optLong("remainingSeconds", 180L))
+                    }
                     "vip_search_expanding" -> listener?.onVipSearchExpanding()
                     "vip_queue_timeout" -> listener?.onVipQueueTimeout()
-                    "pong" -> { /* Keepalive */ }
+                    "pong" -> {}
                 }
             }
         } catch (e: Throwable) {}
     }
 
     fun joinQueue(level: String, language: String, userGender: String, isFemaleOnly: Boolean, isVip: Boolean, hasFemalePass: Boolean) {
+        val json = JSONObject().apply {
+            put("action", "join_queue")
+            put("level", level)
+            put("language", language)
+            put("gender", userGender)
+            put("femaleOnly", isFemaleOnly)
+            put("isVip", isVip)
+            put("hasFemalePass", hasFemalePass)
+        }
+        activeQueuePayload = json
+
         ensureConnected {
             try {
-                val json = JSONObject().apply {
-                    put("action", "join_queue")
-                    put("level", level)
-                    put("language", language)
-                    put("gender", userGender)
-                    put("femaleOnly", isFemaleOnly)
-                    put("isVip", isVip)
-                    put("hasFemalePass", hasFemalePass)
-                }
                 webSocket?.send(json.toString())
             } catch (e: Throwable) {}
         }
     }
 
     fun leaveQueue() {
+        activeQueuePayload = null
         pendingQueueAction = null
         try {
             val json = JSONObject().put("action", "leave_queue")
@@ -199,19 +218,22 @@ object SignalingClient {
     }
 
     fun requestReconnect(targetPeerId: String, level: String) {
+        val json = JSONObject().apply {
+            put("action", "request_reconnect")
+            put("targetPeerId", targetPeerId)
+            put("level", level)
+        }
+        activeQueuePayload = json
+
         ensureConnected {
             try {
-                val json = JSONObject().apply {
-                    put("action", "request_reconnect")
-                    put("targetPeerId", targetPeerId)
-                    put("level", level)
-                }
                 webSocket?.send(json.toString())
             } catch (e: Throwable) {}
         }
     }
 
     fun cancelReconnect() {
+        activeQueuePayload = null
         pendingQueueAction = null
         try {
             val json = JSONObject().put("action", "cancel_reconnect")
@@ -252,6 +274,7 @@ object SignalingClient {
     }
 
     fun endCall() {
+        activeQueuePayload = null
         try {
             val json = JSONObject().put("action", "end_call")
             webSocket?.send(json.toString())

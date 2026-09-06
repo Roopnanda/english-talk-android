@@ -58,6 +58,12 @@ object SignalingClient {
         this.listener = l
     }
 
+    fun ensureActiveConnection() {
+        if (!isConnected && !isReconnecting) {
+            connect()
+        }
+    }
+
     fun connect() {
         if (isConnected || isReconnecting) return
         isReconnecting = true

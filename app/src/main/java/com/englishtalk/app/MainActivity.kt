@@ -626,6 +626,29 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         }
     }
 
+    private fun startSearchingForegroundService() {
+        try {
+            val serviceIntent = Intent(this, CallService::class.java).apply {
+                action = "START_SEARCHING"
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
+            }
+            logEvent("Service", "Foreground service activated for search screen")
+        } catch (e: Throwable) {
+            logEvent("Service-ERR", "Could not start search foreground service: ${e.message}")
+        }
+    }
+
+    private fun stopSearchingForegroundService() {
+        try {
+            stopService(Intent(this, CallService::class.java))
+            logEvent("Service", "Foreground service stopped")
+        } catch (e: Throwable) {}
+    }
+
     private fun startSearchingFlow() {
         if (CooldownManager.isUnderCooldown(this)) {
             val remSec = CooldownManager.getRemainingCooldownSeconds(this)
@@ -647,6 +670,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         tvSearchingStatus?.text = if (isFemaleOnly) "Searching for a female partner..." else "Searching for a conversation partner..."
         showLayout(layoutSearching)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+        startSearchingForegroundService()
 
         val isVip = prefs.getBoolean("is_vip", false)
         val hasFemalePass = prefs.getBoolean("has_female_pass", false)
@@ -689,6 +714,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     }
 
     private fun cancelSearchAndReturn() {
+        stopSearchingForegroundService()
         SignalingClient.leaveQueue()
         SignalingClient.cancelReconnect()
 
@@ -732,6 +758,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         tvSearchingStatus?.text = "Reconnecting to last caller..."
         showLayout(layoutSearching)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+        startSearchingForegroundService()
 
         val reconnectLevel = if (lastCallerLanguage == "ENGLISH") currentLevel else "Native"
         SignalingClient.requestReconnect(lastCallerPeerId, reconnectLevel)
@@ -851,7 +879,10 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             tvCallTimer?.text = "00:00"
 
             try {
-                startService(Intent(this, CallService::class.java))
+                val serviceIntent = Intent(this, CallService::class.java).apply {
+                    action = "START_CALL"
+                }
+                startService(serviceIntent)
             } catch (e: Throwable) {}
 
             proximitySensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI) }
@@ -955,9 +986,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         isCallInProgress = false
         mainHandler.removeCallbacks(callTimerRunnable)
 
-        try {
-            stopService(Intent(this, CallService::class.java))
-        } catch (e: Throwable) {}
+        stopSearchingForegroundService()
 
         sensorManager.unregisterListener(this)
         if (wakeLock?.isHeld == true) wakeLock?.release()
@@ -1174,6 +1203,10 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         super.onResume()
         isAppInBackground = false
         backgroundAutoMuteRunnable?.let { mainHandler.removeCallbacks(it) }
+        
+        SignalingClient.ensureActiveConnection()
+        logEvent("SYS", "onResume: Verified signaling socket connection")
+
         if (isCallInProgress && WebRtcAudioClient.isMuted) {
             WebRtcAudioClient.setMuted(false)
             btnMute?.text = "🎤"

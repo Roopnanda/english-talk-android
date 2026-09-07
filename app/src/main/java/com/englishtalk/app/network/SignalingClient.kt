@@ -1,11 +1,13 @@
 package com.englishtalk.app.network
 
+import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import okhttp3.*
 import org.json.JSONObject
 import org.webrtc.IceCandidate
 import org.webrtc.SessionDescription
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 object SignalingClient {
@@ -28,6 +30,7 @@ object SignalingClient {
     private var isReconnecting = false
     private var pendingQueueAction: (() -> Unit)? = null
     private var activeQueuePayload: JSONObject? = null
+    private var cachedDeviceId: String = ""
 
     private val heartbeatRunnable = object : Runnable {
         override fun run() {
@@ -65,13 +68,22 @@ object SignalingClient {
         this.listener = l
     }
 
+    fun init(context: Context) {
+        val prefs = context.getSharedPreferences("EnglishTalkPrefs", Context.MODE_PRIVATE)
+        var devId = prefs.getString("unique_device_id", "") ?: ""
+        if (devId.isEmpty()) {
+            devId = "dev_" + UUID.randomUUID().toString().substring(0, 8)
+            prefs.edit().putString("unique_device_id", devId).apply()
+        }
+        cachedDeviceId = devId
+    }
+
     fun ensureActiveConnection() {
         if (webSocket == null || !isConnected) {
             forceReconnect()
             return
         }
 
-        // Active socket probe to detect silent OS-level freeze
         try {
             val ping = JSONObject().put("action", "ping")
             val active = webSocket?.send(ping.toString()) ?: false
@@ -211,6 +223,7 @@ object SignalingClient {
     fun joinQueue(level: String, language: String, userGender: String, isFemaleOnly: Boolean, isVip: Boolean, hasFemalePass: Boolean) {
         val json = JSONObject().apply {
             put("action", "join_queue")
+            put("deviceId", cachedDeviceId)
             put("level", level)
             put("language", language)
             put("gender", userGender)
@@ -257,6 +270,7 @@ object SignalingClient {
     fun requestReconnect(targetPeerId: String, level: String) {
         val json = JSONObject().apply {
             put("action", "request_reconnect")
+            put("deviceId", cachedDeviceId)
             put("targetPeerId", targetPeerId)
             put("level", level)
         }

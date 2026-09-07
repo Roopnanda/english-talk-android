@@ -8,6 +8,9 @@ import org.json.JSONObject
 import org.webrtc.IceCandidate
 import org.webrtc.SessionDescription
 import java.util.UUID
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 
 object SignalingClient {
@@ -19,7 +22,7 @@ object SignalingClient {
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.MILLISECONDS)
         .writeTimeout(10, TimeUnit.SECONDS)
-        .pingInterval(10, TimeUnit.SECONDS)
+        .pingInterval(8, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
         .build()
 
@@ -32,24 +35,11 @@ object SignalingClient {
     private var activeQueuePayload: JSONObject? = null
     private var cachedDeviceId: String = ""
 
-    private val heartbeatRunnable = object : Runnable {
-        override fun run() {
-            if (isConnected && webSocket != null) {
-                try {
-                    val ping = JSONObject().put("action", "ping")
-                    val sent = webSocket?.send(ping.toString()) ?: false
-                    if (!sent) {
-                        isConnected = false
-                        forceReconnect()
-                    }
-                } catch (e: Throwable) {
-                    isConnected = false
-                    forceReconnect()
-                }
-            }
-            mainHandler.postDelayed(this, 10000L)
-        }
+    // Dedicated background thread pool immune to Android screen-off UI Looper freezing
+    private val backgroundExecutor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor { r ->
+        Thread(r, "Signaling-Ping-Thread").apply { isDaemon = true }
     }
+    private var pingTask: ScheduledFuture<*>? = null
 
     interface SignalingListener {
         fun onMatchFound(roomId: String, isInitiator: Boolean, peerLevel: String, peerId: String, isReconnect: Boolean)
@@ -78,24 +68,51 @@ object SignalingClient {
         cachedDeviceId = devId
     }
 
+    private fun startBackgroundPing() {
+        stopBackgroundPing()
+        pingTask = backgroundExecutor.scheduleWithFixedDelay({
+            if (isConnected && webSocket != null) {
+                try {
+                    val ping = JSONObject().put("action", "ping")
+                    val sent = webSocket?.send(ping.toString()) ?: false
+                    if (!sent) {
+                        isConnected = false
+                        forceReconnect()
+                    }
+                } catch (e: Throwable) {
+                    isConnected = false
+                    forceReconnect()
+                }
+            }
+        }, 5, 8, TimeUnit.SECONDS)
+    }
+
+    private fun stopBackgroundPing() {
+        pingTask?.cancel(true)
+        pingTask = null
+    }
+
     fun ensureActiveConnection() {
         if (webSocket == null || !isConnected) {
             forceReconnect()
             return
         }
 
-        try {
-            val ping = JSONObject().put("action", "ping")
-            val active = webSocket?.send(ping.toString()) ?: false
-            if (!active) {
+        backgroundExecutor.execute {
+            try {
+                val ping = JSONObject().put("action", "ping")
+                val active = webSocket?.send(ping.toString()) ?: false
+                if (!active) {
+                    forceReconnect()
+                }
+            } catch (e: Throwable) {
                 forceReconnect()
             }
-        } catch (e: Throwable) {
-            forceReconnect()
         }
     }
 
     fun forceReconnect() {
+        stopBackgroundPing()
         try {
             webSocket?.cancel()
         } catch (e: Throwable) {}
@@ -115,12 +132,12 @@ object SignalingClient {
                 override fun onOpen(ws: WebSocket, response: Response) {
                     isConnected = true
                     isReconnecting = false
-                    mainHandler.removeCallbacks(heartbeatRunnable)
-                    mainHandler.post(heartbeatRunnable)
+                    startBackgroundPing()
 
                     if (pendingQueueAction != null) {
-                        pendingQueueAction?.invoke()
+                        val act = pendingQueueAction
                         pendingQueueAction = null
+                        act?.invoke()
                     } else if (activeQueuePayload != null) {
                         try {
                             ws.send(activeQueuePayload.toString())
@@ -138,16 +155,19 @@ object SignalingClient {
 
                 override fun onClosed(ws: WebSocket, code: Int, reason: String) {
                     isConnected = false
+                    stopBackgroundPing()
                     scheduleReconnect()
                 }
 
                 override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
                     isConnected = false
+                    stopBackgroundPing()
                     scheduleReconnect()
                 }
             })
         } catch (e: Throwable) {
             isConnected = false
+            stopBackgroundPing()
             scheduleReconnect()
         }
     }
@@ -155,10 +175,10 @@ object SignalingClient {
     private fun scheduleReconnect() {
         if (isReconnecting) return
         isReconnecting = true
-        mainHandler.postDelayed({
+        backgroundExecutor.schedule({
             isReconnecting = false
             connect()
-        }, 1500L)
+        }, 1500L, TimeUnit.MILLISECONDS)
     }
 
     private fun ensureConnected(onReady: () -> Unit) {

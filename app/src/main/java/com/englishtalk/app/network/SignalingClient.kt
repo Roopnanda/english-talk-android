@@ -14,9 +14,9 @@ object SignalingClient {
     private var webSocket: WebSocket? = null
     
     private val client = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
+        .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.MILLISECONDS)
-        .writeTimeout(15, TimeUnit.SECONDS)
+        .writeTimeout(10, TimeUnit.SECONDS)
         .pingInterval(10, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
         .build()
@@ -34,8 +34,15 @@ object SignalingClient {
             if (isConnected && webSocket != null) {
                 try {
                     val ping = JSONObject().put("action", "ping")
-                    webSocket?.send(ping.toString())
-                } catch (e: Throwable) {}
+                    val sent = webSocket?.send(ping.toString()) ?: false
+                    if (!sent) {
+                        isConnected = false
+                        forceReconnect()
+                    }
+                } catch (e: Throwable) {
+                    isConnected = false
+                    forceReconnect()
+                }
             }
             mainHandler.postDelayed(this, 10000L)
         }
@@ -59,9 +66,31 @@ object SignalingClient {
     }
 
     fun ensureActiveConnection() {
-        if (!isConnected && !isReconnecting) {
-            connect()
+        if (webSocket == null || !isConnected) {
+            forceReconnect()
+            return
         }
+
+        // Active socket probe to detect silent OS-level freeze
+        try {
+            val ping = JSONObject().put("action", "ping")
+            val active = webSocket?.send(ping.toString()) ?: false
+            if (!active) {
+                forceReconnect()
+            }
+        } catch (e: Throwable) {
+            forceReconnect()
+        }
+    }
+
+    fun forceReconnect() {
+        try {
+            webSocket?.cancel()
+        } catch (e: Throwable) {}
+        webSocket = null
+        isConnected = false
+        isReconnecting = false
+        connect()
     }
 
     fun connect() {
@@ -117,7 +146,7 @@ object SignalingClient {
         mainHandler.postDelayed({
             isReconnecting = false
             connect()
-        }, 2000L)
+        }, 1500L)
     }
 
     private fun ensureConnected(onReady: () -> Unit) {
@@ -125,7 +154,7 @@ object SignalingClient {
             onReady()
         } else {
             pendingQueueAction = onReady
-            connect()
+            forceReconnect()
         }
     }
 
@@ -171,7 +200,9 @@ object SignalingClient {
                     }
                     "vip_search_expanding" -> listener?.onVipSearchExpanding()
                     "vip_queue_timeout" -> listener?.onVipQueueTimeout()
-                    "pong" -> {}
+                    "pong" -> {
+                        isConnected = true
+                    }
                 }
             }
         } catch (e: Throwable) {}

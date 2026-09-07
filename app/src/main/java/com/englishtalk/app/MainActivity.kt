@@ -1204,8 +1204,9 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         isAppInBackground = false
         backgroundAutoMuteRunnable?.let { mainHandler.removeCallbacks(it) }
         
+        // Active probe to ensure socket alive when unlocking screen or switching from recent apps
         SignalingClient.ensureActiveConnection()
-        logEvent("SYS", "onResume: Verified signaling socket connection")
+        logEvent("SYS", "onResume: Active connection probe completed")
 
         if (isCallInProgress && WebRtcAudioClient.isMuted) {
             WebRtcAudioClient.setMuted(false)

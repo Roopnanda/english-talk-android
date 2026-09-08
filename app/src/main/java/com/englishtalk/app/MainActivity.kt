@@ -73,10 +73,19 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     }
 
     // Layout Containers
+    private var layoutGenderOnboarding: View? = null
+    private var scrollDashboard: View? = null
     private var layoutDashboard: View? = null
     private var layoutLanguages: View? = null
     private var layoutSearching: View? = null
     private var layoutCall: View? = null
+
+    // Dedicated Gender Onboarding UI (Rule 34)
+    private var btnSelectMale: Button? = null
+    private var btnSelectFemale: Button? = null
+    private var btnSelectOther: Button? = null
+    private var btnConfirmGender: Button? = null
+    private var tempSelectedGender: String? = null
 
     // Dashboard UI
     private var tvTalkCoinsBadge: TextView? = null
@@ -313,44 +322,37 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private fun checkAndEnforceGenderSelection() {
         val savedGender = prefs.getString("user_gender", "NOT_SET") ?: "NOT_SET"
         if (savedGender == "NOT_SET") {
-            val container = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(50, 40, 50, 20)
-            }
+            layoutGenderOnboarding?.visibility = View.VISIBLE
+            scrollDashboard?.visibility = View.GONE
+            setupOnboardingGenderListeners()
+        } else {
+            layoutGenderOnboarding?.visibility = View.GONE
+            scrollDashboard?.visibility = View.VISIBLE
+        }
+    }
 
-            val descText = TextView(this).apply {
-                text = "To ensure fair matchmaking, please select your gender. This selection cannot be changed later."
-                textSize = 14f
-                setPadding(0, 0, 0, 30)
-            }
-            container.addView(descText)
+    private fun setupOnboardingGenderListeners() {
+        fun updateGenderCardSelection(selectedGender: String) {
+            tempSelectedGender = selectedGender
+            btnSelectMale?.setBackgroundColor(if (selectedGender == "MALE") Color.parseColor("#3B82F6") else Color.parseColor("#1E293B"))
+            btnSelectFemale?.setBackgroundColor(if (selectedGender == "FEMALE") Color.parseColor("#EC4899") else Color.parseColor("#1E293B"))
+            btnSelectOther?.setBackgroundColor(if (selectedGender == "OTHER") Color.parseColor("#8B5CF6") else Color.parseColor("#1E293B"))
+            btnConfirmGender?.isEnabled = true
+            btnConfirmGender?.setBackgroundColor(Color.parseColor("#16A34A"))
+        }
 
-            val radioGroup = RadioGroup(this)
-            val rbMale = RadioButton(this).apply { text = "Male"; id = View.generateViewId() }
-            val rbFemale = RadioButton(this).apply { text = "Female"; id = View.generateViewId() }
-            val rbOther = RadioButton(this).apply { text = "Other"; id = View.generateViewId() }
+        btnSelectMale?.setOnClickListener { updateGenderCardSelection("MALE") }
+        btnSelectFemale?.setOnClickListener { updateGenderCardSelection("FEMALE") }
+        btnSelectOther?.setOnClickListener { updateGenderCardSelection("OTHER") }
 
-            radioGroup.addView(rbMale)
-            radioGroup.addView(rbFemale)
-            radioGroup.addView(rbOther)
-            rbMale.isChecked = true
-            container.addView(radioGroup)
+        btnConfirmGender?.setOnClickListener {
+            val finalChoice = tempSelectedGender ?: "MALE"
+            prefs.edit().putString("user_gender", finalChoice).apply()
+            logEvent("Profile", "Gender permanently locked as $finalChoice via dedicated onboarding screen")
 
-            AlertDialog.Builder(this)
-                .setTitle("Select Your Gender")
-                .setView(container)
-                .setCancelable(false)
-                .setPositiveButton("Confirm") { dialog, _ ->
-                    val chosenGender = when (radioGroup.checkedRadioButtonId) {
-                        rbFemale.id -> "FEMALE"
-                        rbOther.id -> "OTHER"
-                        else -> "MALE"
-                    }
-                    prefs.edit().putString("user_gender", chosenGender).apply()
-                    logEvent("Profile", "Gender permanently locked as $chosenGender")
-                    dialog.dismiss()
-                }
-                .show()
+            layoutGenderOnboarding?.visibility = View.GONE
+            scrollDashboard?.visibility = View.VISIBLE
+            refreshDashboardUI()
         }
     }
 
@@ -363,10 +365,17 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     }
 
     private fun initViews() {
+        layoutGenderOnboarding = findViewById(R.id.layoutGenderOnboarding)
+        scrollDashboard = findViewById(R.id.scrollDashboard)
         layoutDashboard = findViewById(R.id.layoutDashboard)
         layoutLanguages = findViewById(R.id.layoutLanguages)
         layoutSearching = findViewById(R.id.layoutSearching)
         layoutCall = findViewById(R.id.layoutCall)
+
+        btnSelectMale = findViewById(R.id.btnSelectMale)
+        btnSelectFemale = findViewById(R.id.btnSelectFemale)
+        btnSelectOther = findViewById(R.id.btnSelectOther)
+        btnConfirmGender = findViewById(R.id.btnConfirmGender)
 
         tvTalkCoinsBadge = findViewById(R.id.tvTalkCoinsBadge)
         tvStreakVal = findViewById(R.id.tvStreakVal)
@@ -956,7 +965,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             warningDialogShown = false
             isCallTimerExtended = false
 
-            // Default fresh call to unmuted
             isMutedByUser = false
 
             showLayout(layoutCall)
@@ -1271,8 +1279,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     }
 
     private fun showLayout(activeLayout: View?) {
-        val dashboardScroll = layoutDashboard?.parent as? View
-        dashboardScroll?.visibility = if (activeLayout == layoutDashboard) View.VISIBLE else View.GONE
+        scrollDashboard?.visibility = if (activeLayout == layoutDashboard) View.VISIBLE else View.GONE
         layoutLanguages?.visibility = if (activeLayout == layoutLanguages) View.VISIBLE else View.GONE
         layoutSearching?.visibility = if (activeLayout == layoutSearching) View.VISIBLE else View.GONE
         layoutCall?.visibility = if (activeLayout == layoutCall) View.VISIBLE else View.GONE
@@ -1306,14 +1313,12 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         SignalingClient.ensureActiveConnection()
         logEvent("SYS", "onResume: Active connection probe completed")
 
-        // Rule 15 Fix: Only restore mic if the user did NOT manually mute themselves
         if (isCallInProgress) {
             if (!isMutedByUser && WebRtcAudioClient.isMuted) {
                 WebRtcAudioClient.setMuted(false)
                 btnMute?.text = "🎤"
                 logEvent("AutoMute", "Microphone restored upon returning to foreground")
             } else if (isMutedByUser) {
-                // Ensure hardware stays muted and visual indicator reflects user choice
                 WebRtcAudioClient.setMuted(true)
                 btnMute?.text = "🔇"
                 logEvent("AutoMute", "Preserving manual mute state on resume")

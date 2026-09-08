@@ -4,8 +4,87 @@
     android:layout_height="match_parent"
     android:background="#0F172A">
 
+    <!-- 0. DEDICATED GENDER ONBOARDING OVERLAY -->
+    <LinearLayout
+        android:id="@+id/layoutGenderOnboarding"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#0F172A"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="28dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Welcome to PairTalk"
+            android:textColor="#FFFFFF"
+            android:textSize="26sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:layout_marginBottom="36dp"
+            android:gravity="center"
+            android:text="Select your gender to ensure fair and accurate matchmaking. This cannot be changed later."
+            android:textColor="#94A3B8"
+            android:textSize="14sp" />
+
+        <!-- Card: Male -->
+        <Button
+            android:id="@+id/btnSelectMale"
+            android:layout_width="match_parent"
+            android:layout_height="62dp"
+            android:layout_marginBottom="14dp"
+            android:backgroundTint="#1E293B"
+            android:text="👨   MALE"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <!-- Card: Female -->
+        <Button
+            android:id="@+id/btnSelectFemale"
+            android:layout_width="match_parent"
+            android:layout_height="62dp"
+            android:layout_marginBottom="14dp"
+            android:backgroundTint="#1E293B"
+            android:text="👩   FEMALE"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <!-- Card: Other -->
+        <Button
+            android:id="@+id/btnSelectOther"
+            android:layout_width="match_parent"
+            android:layout_height="62dp"
+            android:layout_marginBottom="32dp"
+            android:backgroundTint="#1E293B"
+            android:text="⚧️   OTHER"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <!-- Confirm CTA -->
+        <Button
+            android:id="@+id/btnConfirmGender"
+            android:layout_width="match_parent"
+            android:layout_height="54dp"
+            android:backgroundTint="#16A34A"
+            android:enabled="false"
+            android:text="CONTINUE TO DASHBOARD"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
     <!-- 1. DASHBOARD CONTAINER -->
     <ScrollView
+        android:id="@+id/scrollDashboard"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:fillViewport="true">
@@ -378,7 +457,6 @@
         android:padding="24dp"
         android:visibility="gone">
 
-        <!-- Top In-Call Female Flag Button (Shown only during female filter calls) -->
         <Button
             android:id="@+id/btnInCallReport"
             android:layout_width="44dp"
@@ -419,7 +497,6 @@
                 android:textStyle="bold" />
         </LinearLayout>
 
-        <!-- Call Control Actions -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

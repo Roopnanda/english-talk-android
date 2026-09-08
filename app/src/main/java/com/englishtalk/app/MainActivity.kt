@@ -125,6 +125,9 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private var isCallTimerExtended = false
     private var warningDialogShown = false
 
+    // Intent-Aware Mute State (Rule 15 Bugfix)
+    private var isMutedByUser = false
+
     // Strict Single-Use Reconnect Guards (Rule 12)
     private var isCurrentSessionReconnect = false
     private var reconnectConsumed = false
@@ -453,8 +456,10 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
         btnMute?.setOnClickListener {
             val newMuteState = !WebRtcAudioClient.isMuted
+            isMutedByUser = newMuteState
             WebRtcAudioClient.setMuted(newMuteState)
             btnMute?.text = if (newMuteState) "🔇" else "🎤"
+            logEvent("Mic", "User manually set mute to: $newMuteState")
         }
 
         btnSpeaker?.setOnClickListener {
@@ -867,9 +872,9 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         val isFemaleSession = if (isInCall) isCurrentCallFemaleFiltered else lastCallerWasFemaleFiltered
 
         val reportOptions = if (isFemaleSession) {
-            arrayOf("Partner is Not Female (Wrong Gender)", "Harassment / Abusive Behavior", "Spam / Commercial Ads")
+            arrayOf("Partner is Not Female (Wrong Gender)", "Harassment / Abuse", "Spam / Commercial Ads")
         } else {
-            arrayOf("Harassment / Abusive Behavior", "Spam / Commercial Ads", "Inappropriate Speech")
+            arrayOf("Harassment / Abuse", "Spam / Commercial Ads", "Inappropriate Speech")
         }
 
         var selectedIndex = 0
@@ -950,6 +955,9 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             callStartTimeMs = System.currentTimeMillis()
             warningDialogShown = false
             isCallTimerExtended = false
+
+            // Default fresh call to unmuted
+            isMutedByUser = false
 
             showLayout(layoutCall)
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -1073,6 +1081,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         val callDurationSec = if (callStartTimeMs > 0L) (System.currentTimeMillis() - callStartTimeMs) / 1000L else 0L
 
         isCallInProgress = false
+        isMutedByUser = false
         mainHandler.removeCallbacks(callTimerRunnable)
 
         stopSearchingForegroundService()
@@ -1278,7 +1287,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 backgroundAutoMuteRunnable = Runnable {
                     if (isAppInBackground && isCallInProgress) {
                         WebRtcAudioClient.setMuted(true)
-                        logEvent("AutoMute", "Microphone muted after 30s in background")
+                        logEvent("AutoMute", "Microphone auto-muted after 30s in background")
                     }
                 }
                 backgroundAutoMuteRunnable?.let { mainHandler.postDelayed(it, 30000L) }
@@ -1297,10 +1306,18 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         SignalingClient.ensureActiveConnection()
         logEvent("SYS", "onResume: Active connection probe completed")
 
-        if (isCallInProgress && WebRtcAudioClient.isMuted) {
-            WebRtcAudioClient.setMuted(false)
-            btnMute?.text = "🎤"
-            logEvent("AutoMute", "Microphone unmuted upon app foreground")
+        // Rule 15 Fix: Only restore mic if the user did NOT manually mute themselves
+        if (isCallInProgress) {
+            if (!isMutedByUser && WebRtcAudioClient.isMuted) {
+                WebRtcAudioClient.setMuted(false)
+                btnMute?.text = "🎤"
+                logEvent("AutoMute", "Microphone restored upon returning to foreground")
+            } else if (isMutedByUser) {
+                // Ensure hardware stays muted and visual indicator reflects user choice
+                WebRtcAudioClient.setMuted(true)
+                btnMute?.text = "🔇"
+                logEvent("AutoMute", "Preserving manual mute state on resume")
+            }
         }
         refreshDashboardUI()
     }

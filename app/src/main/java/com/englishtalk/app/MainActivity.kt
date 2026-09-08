@@ -12,7 +12,9 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.media.AudioAttributes
 import android.media.AudioManager
+import android.media.SoundPool
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -48,6 +50,27 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private var proximitySensor: Sensor? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private lateinit var powerManager: PowerManager
+
+    // Low-Latency Audio Engine via SoundPool (Rule 41)
+    private var soundPool: SoundPool? = null
+    private var soundRadarId: Int = 0
+    private var soundWarningId: Int = 0
+    private var activeRadarStreamId: Int = 0
+    private var isRadarPulsing = false
+    private var isSoundPoolLoaded = false
+
+    private val radarAudioRunnable = object : Runnable {
+        override fun run() {
+            if (isRadarPulsing) {
+                try {
+                    if (isSoundPoolLoaded && soundRadarId != 0) {
+                        activeRadarStreamId = soundPool?.play(soundRadarId, 0.75f, 0.75f, 1, 0, 1.0f) ?: 0
+                    }
+                } catch (e: Throwable) {}
+                mainHandler.postDelayed(this, 1100L)
+            }
+        }
+    }
 
     // Layout Containers
     private var layoutDashboard: View? = null
@@ -138,7 +161,10 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
                 if (elapsedSec >= 840 && !warningDialogShown && !isCallTimerExtended) {
                     warningDialogShown = true
-                    runOnUiThread { showCallExtensionDialog() }
+                    runOnUiThread {
+                        playFourteenMinuteAlertSound()
+                        showCallExtensionDialog()
+                    }
                 }
 
                 val maxLimitSec = if (isCallTimerExtended) 1200L else 900L
@@ -187,6 +213,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
 
+        initSoundPool()
+
         val savedLogs = prefs.getString("saved_persistent_logs", "") ?: ""
         if (savedLogs.isNotEmpty()) {
             val lines = savedLogs.split("\n")
@@ -222,7 +250,61 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         checkAndEnforceGenderSelection()
         refreshDashboardUI()
         checkPermissions()
-        logEvent("SYS", "English Talk initialized successfully")
+        logEvent("SYS", "App initialized successfully with SoundPool engine")
+    }
+
+    private fun initSoundPool() {
+        try {
+            val audioAttributes = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
+
+            soundPool = SoundPool.Builder()
+                .setMaxStreams(3)
+                .setAudioAttributes(audioAttributes)
+                .build()
+
+            soundPool?.setOnLoadCompleteListener { _, _, status ->
+                if (status == 0) {
+                    isSoundPoolLoaded = true
+                }
+            }
+
+            soundRadarId = soundPool?.load(this, R.raw.search_radar, 1) ?: 0
+            soundWarningId = soundPool?.load(this, R.raw.call_warning, 1) ?: 0
+            logEvent("Audio", "SoundPool initialized with custom resources")
+        } catch (e: Throwable) {
+            logEvent("Audio-ERR", "SoundPool init failed: ${e.message}")
+        }
+    }
+
+    private fun startRadarPulseSound() {
+        if (!isRadarPulsing) {
+            isRadarPulsing = true
+            mainHandler.removeCallbacks(radarAudioRunnable)
+            mainHandler.post(radarAudioRunnable)
+        }
+    }
+
+    private fun stopRadarPulseSound() {
+        isRadarPulsing = false
+        mainHandler.removeCallbacks(radarAudioRunnable)
+        if (activeRadarStreamId != 0) {
+            try {
+                soundPool?.stop(activeRadarStreamId)
+            } catch (e: Throwable) {}
+            activeRadarStreamId = 0
+        }
+    }
+
+    private fun playFourteenMinuteAlertSound() {
+        try {
+            if (isSoundPoolLoaded && soundWarningId != 0) {
+                soundPool?.play(soundWarningId, 0.9f, 0.9f, 2, 0, 1.0f)
+                logEvent("Audio", "Played custom 14-minute call warning sound")
+            }
+        } catch (e: Throwable) {}
     }
 
     private fun checkAndEnforceGenderSelection() {
@@ -450,7 +532,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
     private fun showPureVipDialog() {
         AlertDialog.Builder(this)
-            .setTitle("👑 English Talk VIP")
+            .setTitle("👑 VIP Membership")
             .setMessage("Upgrade to VIP for unlimited Talk to Female filtering, priority matching, and an ad-free conversation experience.")
             .setPositiveButton("Subscribe Now", null)
             .setNegativeButton("Close", null)
@@ -460,22 +542,22 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private fun triggerGeneralAppShare() {
         val sendIntent = Intent().apply {
             action = Intent.ACTION_SEND
-            putExtra(Intent.EXTRA_TEXT, "Practice English speaking with real people on English Talk! Download here: https://play.google.com/store/apps/details?id=$packageName")
+            putExtra(Intent.EXTRA_TEXT, "Practice English speaking with real people! Download here: https://play.google.com/store/apps/details?id=$packageName")
             type = "text/plain"
         }
         logEvent("Share", "General App Share launched from dashboard")
-        startActivity(Intent.createChooser(sendIntent, "Share English Talk"))
+        startActivity(Intent.createChooser(sendIntent, "Share App"))
     }
 
     private fun triggerQuestShareIntent() {
         val sendIntent = Intent().apply {
             action = Intent.ACTION_SEND
-            putExtra(Intent.EXTRA_TEXT, "Practice English speaking with real people on English Talk! Download here: https://play.google.com/store/apps/details?id=$packageName")
+            putExtra(Intent.EXTRA_TEXT, "Practice English speaking with real people! Download here: https://play.google.com/store/apps/details?id=$packageName")
             type = "text/plain"
         }
         prefs.edit().putBoolean("has_shared_app", true).apply()
         logEvent("Share", "Quest share verified - share flag saved")
-        startActivity(Intent.createChooser(sendIntent, "Share English Talk"))
+        startActivity(Intent.createChooser(sendIntent, "Share App"))
         checkAndRewardFemalePass()
     }
 
@@ -502,7 +584,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 refreshDashboardUI()
                 AlertDialog.Builder(this)
                     .setTitle("🎉 Quest Complete!")
-                    .setMessage("You've earned 1 Free Female Match Pass! The female filter has been enabled for your next English practice call.")
+                    .setMessage("You've earned 1 Free Female Match Pass! The female filter has been enabled for your next practice call.")
                     .setPositiveButton("Awesome!", null)
                     .show()
                 logEvent("Quest", "Granted 1 Female Match Pass to user")
@@ -540,7 +622,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         val callsStatus = if (calls >= 5) "✅ 5/5 Completed" else "⏳ $calls/5 Calls (min 2 mins each in English)"
 
         val message = "Complete these practice goals to unlock 1 Free Female Match Pass:\n\n" +
-                "1. Share English Talk: $shareStatus\n" +
+                "1. Share App: $shareStatus\n" +
                 "2. Complete 5 English Calls: $callsStatus\n\n" +
                 "Proves serious practice intent and protects community learners."
 
@@ -673,6 +755,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         startSearchingForegroundService()
+        startRadarPulseSound()
 
         val isVip = prefs.getBoolean("is_vip", false)
         val hasFemalePass = prefs.getBoolean("has_female_pass", false)
@@ -715,6 +798,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     }
 
     private fun cancelSearchAndReturn() {
+        stopRadarPulseSound()
         stopSearchingForegroundService()
         SignalingClient.leaveQueue()
         SignalingClient.cancelReconnect()
@@ -761,6 +845,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         startSearchingForegroundService()
+        startRadarPulseSound()
 
         val reconnectLevel = if (lastCallerLanguage == "ENGLISH") currentLevel else "Native"
         SignalingClient.requestReconnect(lastCallerPeerId, reconnectLevel)
@@ -836,6 +921,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
     override fun onMatchFound(roomId: String, isInitiator: Boolean, peerLevel: String, peerId: String, isReconnect: Boolean) {
         runOnUiThread {
+            stopRadarPulseSound()
             isCurrentSessionReconnect = isReconnect || isCurrentSessionReconnect
 
             if (isCurrentSessionReconnect) {
@@ -923,6 +1009,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
     override fun onReconnectFailed(reason: String) {
         runOnUiThread {
+            stopRadarPulseSound()
             Toast.makeText(this, "Partner is unavailable for reconnect.", Toast.LENGTH_SHORT).show()
             cancelSearchAndReturn()
         }
@@ -930,6 +1017,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
     override fun onServerCooldown(remainingSeconds: Long) {
         runOnUiThread {
+            stopRadarPulseSound()
             CooldownManager.triggerThreeMinuteCooldown(this)
             cancelSearchAndReturn()
             Toast.makeText(
@@ -988,6 +1076,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         mainHandler.removeCallbacks(callTimerRunnable)
 
         stopSearchingForegroundService()
+        stopRadarPulseSound()
 
         sensorManager.unregisterListener(this)
         if (wakeLock?.isHeld == true) wakeLock?.release()
@@ -1279,5 +1368,14 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         if (missing.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, missing.toTypedArray(), 101)
         }
+    }
+
+    override fun onDestroy() {
+        stopRadarPulseSound()
+        try {
+            soundPool?.release()
+            soundPool = null
+        } catch (e: Throwable) {}
+        super.onDestroy()
     }
 }

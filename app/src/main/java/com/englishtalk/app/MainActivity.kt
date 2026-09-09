@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -80,10 +81,13 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private var layoutSearching: View? = null
     private var layoutCall: View? = null
 
-    // Dedicated Gender Onboarding UI (Rule 34)
-    private var btnSelectMale: Button? = null
-    private var btnSelectFemale: Button? = null
-    private var btnSelectOther: Button? = null
+    // Dedicated Modern Gender Onboarding Elements (Rule 34 / Image 1 UI)
+    private var btnSelectMale: View? = null
+    private var btnSelectFemale: View? = null
+    private var btnSelectOther: View? = null
+    private var tvMaleLabel: TextView? = null
+    private var tvFemaleLabel: TextView? = null
+    private var tvOtherLabel: TextView? = null
     private var btnConfirmGender: Button? = null
     private var tempSelectedGender: String? = null
 
@@ -324,21 +328,63 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         if (savedGender == "NOT_SET") {
             layoutGenderOnboarding?.visibility = View.VISIBLE
             scrollDashboard?.visibility = View.GONE
+            layoutBannerAd?.visibility = View.GONE // Ad-free onboarding
+
+            btnConfirmGender?.isEnabled = false
+            btnConfirmGender?.text = "SELECT GENDER TO CONTINUE"
+            btnConfirmGender?.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#CBD5E1"))
+            btnConfirmGender?.setTextColor(Color.parseColor("#64748B"))
+
             setupOnboardingGenderListeners()
         } else {
             layoutGenderOnboarding?.visibility = View.GONE
             scrollDashboard?.visibility = View.VISIBLE
+            layoutBannerAd?.visibility = View.VISIBLE
         }
     }
 
     private fun setupOnboardingGenderListeners() {
         fun updateGenderCardSelection(selectedGender: String) {
             tempSelectedGender = selectedGender
-            btnSelectMale?.setBackgroundColor(if (selectedGender == "MALE") Color.parseColor("#3B82F6") else Color.parseColor("#1E293B"))
-            btnSelectFemale?.setBackgroundColor(if (selectedGender == "FEMALE") Color.parseColor("#EC4899") else Color.parseColor("#1E293B"))
-            btnSelectOther?.setBackgroundColor(if (selectedGender == "OTHER") Color.parseColor("#8B5CF6") else Color.parseColor("#1E293B"))
+
+            // Male Selection State
+            if (selectedGender == "MALE") {
+                btnSelectMale?.setBackgroundColor(Color.parseColor("#EFF6FF"))
+                tvMaleLabel?.setTextColor(Color.parseColor("#2563EB"))
+                tvMaleLabel?.text = "Male  ✓"
+            } else {
+                btnSelectMale?.setBackgroundColor(Color.parseColor("#FFFFFF"))
+                tvMaleLabel?.setTextColor(Color.parseColor("#1E293B"))
+                tvMaleLabel?.text = "Male"
+            }
+
+            // Female Selection State
+            if (selectedGender == "FEMALE") {
+                btnSelectFemale?.setBackgroundColor(Color.parseColor("#FDF2F8"))
+                tvFemaleLabel?.setTextColor(Color.parseColor("#DB2777"))
+                tvFemaleLabel?.text = "Female  ✓"
+            } else {
+                btnSelectFemale?.setBackgroundColor(Color.parseColor("#FFFFFF"))
+                tvFemaleLabel?.setTextColor(Color.parseColor("#1E293B"))
+                tvFemaleLabel?.text = "Female"
+            }
+
+            // Other Selection State
+            if (selectedGender == "OTHER") {
+                btnSelectOther?.setBackgroundColor(Color.parseColor("#FAF5FF"))
+                tvOtherLabel?.setTextColor(Color.parseColor("#7C3AED"))
+                tvOtherLabel?.text = "Other / Non-Binary  ✓"
+            } else {
+                btnSelectOther?.setBackgroundColor(Color.parseColor("#FFFFFF"))
+                tvOtherLabel?.setTextColor(Color.parseColor("#1E293B"))
+                tvOtherLabel?.text = "Other / Non-Binary"
+            }
+
+            // Enable Vibrant CTA Button
             btnConfirmGender?.isEnabled = true
-            btnConfirmGender?.setBackgroundColor(Color.parseColor("#16A34A"))
+            btnConfirmGender?.text = "CONTINUE TO DASHBOARD →"
+            btnConfirmGender?.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#10B981"))
+            btnConfirmGender?.setTextColor(Color.WHITE)
         }
 
         btnSelectMale?.setOnClickListener { updateGenderCardSelection("MALE") }
@@ -346,12 +392,13 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         btnSelectOther?.setOnClickListener { updateGenderCardSelection("OTHER") }
 
         btnConfirmGender?.setOnClickListener {
-            val finalChoice = tempSelectedGender ?: "MALE"
+            val finalChoice = tempSelectedGender ?: return@setOnClickListener
             prefs.edit().putString("user_gender", finalChoice).apply()
-            logEvent("Profile", "Gender permanently locked as $finalChoice via dedicated onboarding screen")
+            logEvent("Profile", "Gender permanently locked as $finalChoice via modern onboarding")
 
             layoutGenderOnboarding?.visibility = View.GONE
             scrollDashboard?.visibility = View.VISIBLE
+            layoutBannerAd?.visibility = View.VISIBLE
             refreshDashboardUI()
         }
     }
@@ -375,6 +422,9 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         btnSelectMale = findViewById(R.id.btnSelectMale)
         btnSelectFemale = findViewById(R.id.btnSelectFemale)
         btnSelectOther = findViewById(R.id.btnSelectOther)
+        tvMaleLabel = findViewById(R.id.tvMaleLabel)
+        tvFemaleLabel = findViewById(R.id.tvFemaleLabel)
+        tvOtherLabel = findViewById(R.id.tvOtherLabel)
         btnConfirmGender = findViewById(R.id.btnConfirmGender)
 
         tvTalkCoinsBadge = findViewById(R.id.tvTalkCoinsBadge)

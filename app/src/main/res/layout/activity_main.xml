@@ -1,176 +1,297 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#0F172A">
 
-    <!-- 0. MODERN LIGHT GENDER ONBOARDING OVERLAY (IMAGE 1 DESIGN) -->
-    <LinearLayout
+    <!-- 0. EXACT 1:1 IMAGE 1 MODERN ONBOARDING VIEW -->
+    <RelativeLayout
         android:id="@+id/layoutGenderOnboarding"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#F8FAFC"
-        android:gravity="center"
-        android:orientation="vertical"
+        android:background="#F4F7FB"
         android:paddingStart="24dp"
         android:paddingEnd="24dp"
         android:visibility="gone">
 
-        <!-- Top Header Icon -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            android:text="💖"
-            android:textSize="38sp" />
-
-        <!-- Title -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Welcome to PairTalk"
-            android:textColor="#0F172A"
-            android:textSize="26sp"
-            android:textStyle="bold" />
-
-        <!-- Subtitle -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:layout_marginBottom="36dp"
-            android:gravity="center"
-            android:text="Select your gender for fair matchmaking"
-            android:textColor="#64748B"
-            android:textSize="15sp" />
-
-        <!-- 2-COLUMN BALANCED ROW FOR MALE & FEMALE -->
+        <!-- Top Content Section -->
         <LinearLayout
+            android:id="@+id/layoutHeaderSection"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            android:baselineAligned="false"
-            android:orientation="horizontal">
+            android:layout_alignParentTop="true"
+            android:layout_marginTop="64dp"
+            android:gravity="center_horizontal"
+            android:orientation="vertical">
 
-            <!-- Card: Male -->
-            <LinearLayout
-                android:id="@+id/btnSelectMale"
-                android:layout_width="0dp"
-                android:layout_height="160dp"
-                android:layout_marginEnd="8dp"
-                android:layout_weight="1"
-                android:background="#FFFFFF"
-                android:clickable="true"
-                android:elevation="4dp"
-                android:focusable="true"
-                android:gravity="center"
-                android:orientation="vertical"
-                android:padding="12dp">
+            <!-- Heart Bubble Icon Matching Image 1 -->
+            <RelativeLayout
+                android:layout_width="60dp"
+                android:layout_height="50dp"
+                android:layout_marginBottom="24dp">
+
+                <!-- Left Coral Heart Bubble -->
+                <View
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:layout_alignParentStart="true"
+                    android:layout_alignParentTop="true"
+                    android:background="#FF6B81" />
+
+                <!-- Right Violet Floating Heart Bubble -->
+                <View
+                    android:layout_width="26dp"
+                    android:layout_height="26dp"
+                    android:layout_alignParentEnd="true"
+                    android:layout_alignParentBottom="true"
+                    android:background="#A29BFE" />
 
                 <TextView
-                    android:id="@+id/tvMaleAvatar"
-                    android:layout_width="68dp"
-                    android:layout_height="68dp"
-                    android:background="#DBEAFE"
-                    android:gravity="center"
-                    android:text="👨"
-                    android:textSize="32sp" />
-
-                <TextView
-                    android:id="@+id/tvMaleLabel"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:text="Male"
-                    android:textColor="#1E293B"
-                    android:textSize="16sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-
-            <!-- Card: Female -->
-            <LinearLayout
-                android:id="@+id/btnSelectFemale"
-                android:layout_width="0dp"
-                android:layout_height="160dp"
-                android:layout_marginStart="8dp"
-                android:layout_weight="1"
-                android:background="#FFFFFF"
-                android:clickable="true"
-                android:elevation="4dp"
-                android:focusable="true"
-                android:gravity="center"
-                android:orientation="vertical"
-                android:padding="12dp">
-
-                <TextView
-                    android:id="@+id/tvFemaleAvatar"
-                    android:layout_width="68dp"
-                    android:layout_height="68dp"
-                    android:background="#FCE7F3"
-                    android:gravity="center"
-                    android:text="👩"
+                    android:layout_centerInParent="true"
+                    android:text="💖"
                     android:textSize="32sp" />
+            </RelativeLayout>
 
-                <TextView
-                    android:id="@+id/tvFemaleLabel"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:text="Female"
-                    android:textColor="#1E293B"
-                    android:textSize="16sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-        </LinearLayout>
-
-        <!-- CARD: OTHER / NON-BINARY (CENTERED BELOW) -->
-        <LinearLayout
-            android:id="@+id/btnSelectOther"
-            android:layout_width="match_parent"
-            android:layout_height="68dp"
-            android:layout_marginBottom="40dp"
-            android:background="#FFFFFF"
-            android:clickable="true"
-            android:elevation="4dp"
-            android:focusable="true"
-            android:gravity="center"
-            android:orientation="horizontal"
-            android:paddingStart="20dp"
-            android:paddingEnd="20dp">
-
+            <!-- Exact Heading: Welcome to PairTalk -->
             <TextView
-                android:id="@+id/tvOtherAvatar"
-                android:layout_width="42dp"
-                android:layout_height="42dp"
-                android:background="#F3E8FF"
-                android:gravity="center"
-                android:text="⚧️"
-                android:textSize="20sp" />
-
-            <TextView
-                android:id="@+id/tvOtherLabel"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="14dp"
-                android:text="Other / Non-Binary"
+                android:fontFamily="sans-serif-black"
+                android:text="Welcome to PairTalk"
                 android:textColor="#1E293B"
-                android:textSize="16sp"
+                android:textSize="28sp"
                 android:textStyle="bold" />
+
+            <!-- Exact Subtitle: Select your gender for fair matchmaking -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:fontFamily="sans-serif"
+                android:gravity="center"
+                android:lineSpacingExtra="4dp"
+                android:text="Select your gender for fair\nmatchmaking"
+                android:textColor="#64748B"
+                android:textSize="16sp" />
         </LinearLayout>
 
-        <!-- PROCEED CTA BUTTON -->
+        <!-- Center Cards Section -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/layoutHeaderSection"
+            android:layout_marginTop="36dp"
+            android:orientation="vertical">
+
+            <!-- Top Row: Male and Female Cards Side-by-Side -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="24dp"
+                android:baselineAligned="false"
+                android:orientation="horizontal">
+
+                <!-- MALE CARD CONTAINER WITH BLUE BOTTOM SHADOW -->
+                <RelativeLayout
+                    android:layout_width="0dp"
+                    android:layout_height="200dp"
+                    android:layout_marginEnd="10dp"
+                    android:layout_weight="1">
+
+                    <!-- Blue Bottom Glowing Lip -->
+                    <View
+                        android:id="@+id/lipMale"
+                        android:layout_width="match_parent"
+                        android:layout_height="26dp"
+                        android:layout_alignParentBottom="true"
+                        android:layout_marginStart="8dp"
+                        android:layout_marginEnd="8dp"
+                        android:background="#1D72FE" />
+
+                    <!-- Male Card Surface -->
+                    <androidx.cardview.widget.CardView
+                        android:id="@+id/btnSelectMale"
+                        android:layout_width="match_parent"
+                        android:layout_height="192dp"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:foreground="?android:attr/selectableItemBackground"
+                        app:cardBackgroundColor="#FFFFFF"
+                        app:cardCornerRadius="28dp"
+                        app:cardElevation="8dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:gravity="center"
+                            android:orientation="vertical"
+                            android:padding="16dp">
+
+                            <!-- Avatar Circle in Blue -->
+                            <RelativeLayout
+                                android:id="@+id/circleMale"
+                                android:layout_width="88dp"
+                                android:layout_height="88dp"
+                                android:background="#1D72FE">
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_centerInParent="true"
+                                    android:text="👨"
+                                    android:textSize="48sp" />
+                            </RelativeLayout>
+
+                            <!-- Male Label -->
+                            <TextView
+                                android:id="@+id/tvMaleLabel"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="16dp"
+                                android:fontFamily="sans-serif-black"
+                                android:text="Male"
+                                android:textColor="#1E293B"
+                                android:textSize="18sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                    </androidx.cardview.widget.CardView>
+                </RelativeLayout>
+
+                <!-- FEMALE CARD CONTAINER WITH CORAL PINK BOTTOM SHADOW -->
+                <RelativeLayout
+                    android:layout_width="0dp"
+                    android:layout_height="200dp"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1">
+
+                    <!-- Coral Pink Bottom Glowing Lip -->
+                    <View
+                        android:id="@+id/lipFemale"
+                        android:layout_width="match_parent"
+                        android:layout_height="26dp"
+                        android:layout_alignParentBottom="true"
+                        android:layout_marginStart="8dp"
+                        android:layout_marginEnd="8dp"
+                        android:background="#FF6584" />
+
+                    <!-- Female Card Surface -->
+                    <androidx.cardview.widget.CardView
+                        android:id="@+id/btnSelectFemale"
+                        android:layout_width="match_parent"
+                        android:layout_height="192dp"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:foreground="?android:attr/selectableItemBackground"
+                        app:cardBackgroundColor="#FFFFFF"
+                        app:cardCornerRadius="28dp"
+                        app:cardElevation="8dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:gravity="center"
+                            android:orientation="vertical"
+                            android:padding="16dp">
+
+                            <!-- Avatar Circle in Pink -->
+                            <RelativeLayout
+                                android:id="@+id/circleFemale"
+                                android:layout_width="88dp"
+                                android:layout_height="88dp"
+                                android:background="#FF6584">
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_centerInParent="true"
+                                    android:text="👩"
+                                    android:textSize="48sp" />
+                            </RelativeLayout>
+
+                            <!-- Female Label -->
+                            <TextView
+                                android:id="@+id/tvFemaleLabel"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="16dp"
+                                android:fontFamily="sans-serif-black"
+                                android:text="Female"
+                                android:textColor="#1E293B"
+                                android:textSize="18sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                    </androidx.cardview.widget.CardView>
+                </RelativeLayout>
+            </LinearLayout>
+
+            <!-- Bottom Row: Other / Non-Binary Card Container -->
+            <RelativeLayout
+                android:layout_width="match_parent"
+                android:layout_height="86dp">
+
+                <!-- Purple Bottom Glowing Lip -->
+                <View
+                    android:id="@+id/lipOther"
+                    android:layout_width="match_parent"
+                    android:layout_height="24dp"
+                    android:layout_alignParentBottom="true"
+                    android:layout_marginStart="14dp"
+                    android:layout_marginEnd="14dp"
+                    android:background="#9C88FF" />
+
+                <!-- Other Card Surface -->
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/btnSelectOther"
+                    android:layout_width="match_parent"
+                    android:layout_height="80dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:foreground="?android:attr/selectableItemBackground"
+                    app:cardBackgroundColor="#FFFFFF"
+                    app:cardCornerRadius="24dp"
+                    app:cardElevation="8dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:gravity="center"
+                        android:orientation="horizontal">
+
+                        <!-- Exact Label: Other / Non-Binary -->
+                        <TextView
+                            android:id="@+id/tvOtherLabel"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="sans-serif-black"
+                            android:text="Other / Non-Binary"
+                            android:textColor="#1E293B"
+                            android:textSize="18sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+            </RelativeLayout>
+        </LinearLayout>
+
+        <!-- EXACT CTA PILL BUTTON AT BOTTOM (Image 1 Detail) -->
         <Button
             android:id="@+id/btnConfirmGender"
             android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:backgroundTint="#CBD5E1"
-            android:elevation="2dp"
+            android:layout_height="60dp"
+            android:layout_alignParentBottom="true"
+            android:layout_marginBottom="44dp"
+            android:backgroundTint="#00B894"
+            android:elevation="8dp"
             android:enabled="false"
+            android:fontFamily="sans-serif-black"
+            android:letterSpacing="0.02"
             android:text="CONTINUE TO DASHBOARD →"
             android:textColor="#FFFFFF"
             android:textSize="15sp"
             android:textStyle="bold" />
-    </LinearLayout>
+    </RelativeLayout>
 
     <!-- 1. DASHBOARD CONTAINER -->
     <ScrollView

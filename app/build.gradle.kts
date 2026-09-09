@@ -61,12 +61,14 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
 
+    // UI Architecture - CardView for True Rounded Squircles & Floating Depth
+    implementation("androidx.cardview:cardview:1.0.0")
+
     // WebSockets
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     // WebRTC
     implementation("io.getstream:stream-webrtc-android:1.1.2")
-
 
     // In-App Billing
     implementation("com.android.billingclient:billing-ktx:6.1.0")
@@ -74,4 +76,3 @@ dependencies {
     // Google Mobile Ads (AdMob)
     implementation("com.google.android.gms:play-services-ads:22.6.0")
 }
-

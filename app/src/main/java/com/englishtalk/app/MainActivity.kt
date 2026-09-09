@@ -113,7 +113,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private var btnReconnectLast: Button? = null
     private var btnDashboardReportLast: Button? = null
     private var btnVip: Button? = null
-    private var switchFemaleFilter: Switch? = null
+    private switchFemaleFilter: Switch? = null
     private var tvConsoleLogs: TextView? = null
 
     // Searching UI
@@ -281,17 +281,33 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
     private fun applyModernTypographyOverride() {
         try {
-            // Strict System SANS_SERIF Typeface enforcement to neutralize OEM cursive fonts
-            val standardBold = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
-            val standardNormal = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
+            var boldTypeface: Typeface? = null
+            var mediumTypeface: Typeface? = null
 
-            tvOnboardingTitle?.typeface = standardBold
-            tvOnboardingSubtitle?.typeface = standardNormal
-            tvMaleLabel?.typeface = standardBold
-            tvFemaleLabel?.typeface = standardBold
-            tvOtherLabel?.typeface = standardBold
-            btnConfirmGender?.typeface = standardBold
-        } catch (e: Throwable) {}
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    boldTypeface = resources.getFont(R.font.roboto_bold)
+                    mediumTypeface = resources.getFont(R.font.roboto_medium)
+                }
+            } catch (e: Throwable) {}
+
+            if (boldTypeface == null) {
+                boldTypeface = Typeface.create("sans-serif", Typeface.BOLD)
+            }
+            if (mediumTypeface == null) {
+                mediumTypeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            }
+
+            tvOnboardingTitle?.typeface = boldTypeface
+            tvOnboardingSubtitle?.typeface = mediumTypeface
+            tvMaleLabel?.typeface = boldTypeface
+            tvFemaleLabel?.typeface = boldTypeface
+            tvOtherLabel?.typeface = boldTypeface
+            btnConfirmGender?.typeface = boldTypeface
+            logEvent("Typography", "Explicit Typeface bound to onboarding views")
+        } catch (e: Throwable) {
+            logEvent("Typography-ERR", "Could not apply typeface override: ${e.message}")
+        }
     }
 
     private fun initSoundPool() {

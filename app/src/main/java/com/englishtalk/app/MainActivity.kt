@@ -231,9 +231,12 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             logEvent("CRASH-TRAP", "Uncaught: ${e.message}")
         }
 
+        prefs = getSharedPreferences("EnglishTalkPrefs", Context.MODE_PRIVATE)
+
+        updateWindowAppearanceForCurrentScreen()
+
         setContentView(R.layout.activity_main)
 
-        prefs = getSharedPreferences("EnglishTalkPrefs", Context.MODE_PRIVATE)
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
@@ -277,6 +280,28 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         refreshDashboardUI()
         checkPermissions()
         logEvent("SYS", "App initialized successfully with SoundPool engine")
+    }
+
+    private fun updateWindowAppearanceForCurrentScreen() {
+        val savedGender = prefs.getString("user_gender", "NOT_SET") ?: "NOT_SET"
+        val isOnboardingVisible = (savedGender == "NOT_SET")
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS)
+            window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+
+            if (isOnboardingVisible) {
+                window.statusBarColor = Color.parseColor("#F4F7FB")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+                }
+            } else {
+                window.statusBarColor = Color.parseColor("#0F172A")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    window.decorView.systemUiVisibility = 0
+                }
+            }
+        }
     }
 
     private fun applyModernTypographyOverride() {
@@ -366,6 +391,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
     private fun checkAndEnforceGenderSelection() {
         val savedGender = prefs.getString("user_gender", "NOT_SET") ?: "NOT_SET"
+        updateWindowAppearanceForCurrentScreen()
+
         if (savedGender == "NOT_SET") {
             layoutGenderOnboarding?.visibility = View.VISIBLE
             scrollDashboard?.visibility = View.GONE
@@ -445,6 +472,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             layoutGenderOnboarding?.visibility = View.GONE
             scrollDashboard?.visibility = View.VISIBLE
             layoutBannerAd?.visibility = View.VISIBLE
+            updateWindowAppearanceForCurrentScreen()
             refreshDashboardUI()
         }
     }

@@ -24,6 +24,7 @@ import android.os.PowerManager
 import android.view.View
 import android.view.WindowManager
 import android.widget.*
+import androidx.cardview.widget.CardView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.englishtalk.app.network.SignalingClient
@@ -81,10 +82,10 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private var layoutSearching: View? = null
     private var layoutCall: View? = null
 
-    // Native Image 1 Onboarding Card Elements (Rule 34)
-    private var btnSelectMale: View? = null
-    private var btnSelectFemale: View? = null
-    private var btnSelectOther: View? = null
+    // Exact Image 1 CardView Elements (Rule 34)
+    private var btnSelectMale: CardView? = null
+    private var btnSelectFemale: CardView? = null
+    private var btnSelectOther: CardView? = null
     private var lipMale: View? = null
     private var lipFemale: View? = null
     private var lipOther: View? = null
@@ -331,9 +332,10 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         if (savedGender == "NOT_SET") {
             layoutGenderOnboarding?.visibility = View.VISIBLE
             scrollDashboard?.visibility = View.GONE
-            layoutBannerAd?.visibility = View.GONE // Ad-free onboarding
+            layoutBannerAd?.visibility = View.GONE
 
             btnConfirmGender?.isEnabled = false
+            btnConfirmGender?.text = "CONTINUE TO DASHBOARD →"
             btnConfirmGender?.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#CBD5E1"))
             btnConfirmGender?.setTextColor(Color.parseColor("#94A3B8"))
 
@@ -351,32 +353,32 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
             // Male Selection
             if (selectedGender == "MALE") {
-                btnSelectMale?.setBackgroundColor(Color.parseColor("#F0F6FF"))
+                btnSelectMale?.setCardBackgroundColor(Color.parseColor("#F0F6FF"))
                 tvMaleLabel?.setTextColor(Color.parseColor("#1D72FE"))
             } else {
-                btnSelectMale?.setBackgroundColor(Color.parseColor("#FFFFFF"))
+                btnSelectMale?.setCardBackgroundColor(Color.parseColor("#FFFFFF"))
                 tvMaleLabel?.setTextColor(Color.parseColor("#1E293B"))
             }
 
             // Female Selection
             if (selectedGender == "FEMALE") {
-                btnSelectFemale?.setBackgroundColor(Color.parseColor("#FFF0F3"))
+                btnSelectFemale?.setCardBackgroundColor(Color.parseColor("#FFF0F3"))
                 tvFemaleLabel?.setTextColor(Color.parseColor("#FF6584"))
             } else {
-                btnSelectFemale?.setBackgroundColor(Color.parseColor("#FFFFFF"))
+                btnSelectFemale?.setCardBackgroundColor(Color.parseColor("#FFFFFF"))
                 tvFemaleLabel?.setTextColor(Color.parseColor("#1E293B"))
             }
 
             // Other Selection
             if (selectedGender == "OTHER") {
-                btnSelectOther?.setBackgroundColor(Color.parseColor("#F6F3FF"))
+                btnSelectOther?.setCardBackgroundColor(Color.parseColor("#F6F3FF"))
                 tvOtherLabel?.setTextColor(Color.parseColor("#9C88FF"))
             } else {
-                btnSelectOther?.setBackgroundColor(Color.parseColor("#FFFFFF"))
+                btnSelectOther?.setCardBackgroundColor(Color.parseColor("#FFFFFF"))
                 tvOtherLabel?.setTextColor(Color.parseColor("#1E293B"))
             }
 
-            // Activate Exact Emerald Pill CTA Button
+            // Activate Emerald Pill CTA Button
             btnConfirmGender?.isEnabled = true
             btnConfirmGender?.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#00B894"))
             btnConfirmGender?.setTextColor(Color.WHITE)

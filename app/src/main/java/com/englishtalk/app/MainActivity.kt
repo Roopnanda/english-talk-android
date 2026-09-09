@@ -281,16 +281,16 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
     private fun applyModernTypographyOverride() {
         try {
-            // Force pure modern sans-serif fonts, overriding custom system fonts (cursive/comic)
-            val modernBold = Typeface.create("sans-serif", Typeface.BOLD)
-            val modernMedium = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            // Strict System SANS_SERIF Typeface enforcement to neutralize OEM cursive fonts
+            val standardBold = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+            val standardNormal = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
 
-            tvOnboardingTitle?.typeface = modernBold
-            tvOnboardingSubtitle?.typeface = modernMedium
-            tvMaleLabel?.typeface = modernBold
-            tvFemaleLabel?.typeface = modernBold
-            tvOtherLabel?.typeface = modernBold
-            btnConfirmGender?.typeface = modernBold
+            tvOnboardingTitle?.typeface = standardBold
+            tvOnboardingSubtitle?.typeface = standardNormal
+            tvMaleLabel?.typeface = standardBold
+            tvFemaleLabel?.typeface = standardBold
+            tvOtherLabel?.typeface = standardBold
+            btnConfirmGender?.typeface = standardBold
         } catch (e: Throwable) {}
     }
 
@@ -372,40 +372,46 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         fun updateGenderCardSelection(selectedGender: String) {
             tempSelectedGender = selectedGender
 
-            // Male Selection
+            // Male Selection & Spring Animation
             if (selectedGender == "MALE") {
                 btnSelectMale?.setCardBackgroundColor(Color.parseColor("#F0F6FF"))
                 lipMale?.setCardBackgroundColor(Color.parseColor("#1D72FE"))
                 tvMaleLabel?.setTextColor(Color.parseColor("#1D72FE"))
+                btnSelectMale?.animate()?.scaleX(1.02f)?.scaleY(1.02f)?.setDuration(120)?.start()
             } else {
                 btnSelectMale?.setCardBackgroundColor(Color.parseColor("#FFFFFF"))
                 lipMale?.setCardBackgroundColor(Color.parseColor("#1D72FE"))
                 tvMaleLabel?.setTextColor(Color.parseColor("#1E293B"))
+                btnSelectMale?.animate()?.scaleX(1.0f)?.scaleY(1.0f)?.setDuration(120)?.start()
             }
 
-            // Female Selection
+            // Female Selection & Spring Animation
             if (selectedGender == "FEMALE") {
                 btnSelectFemale?.setCardBackgroundColor(Color.parseColor("#FFF0F3"))
                 lipFemale?.setCardBackgroundColor(Color.parseColor("#FF6584"))
                 tvFemaleLabel?.setTextColor(Color.parseColor("#FF6584"))
+                btnSelectFemale?.animate()?.scaleX(1.02f)?.scaleY(1.02f)?.setDuration(120)?.start()
             } else {
                 btnSelectFemale?.setCardBackgroundColor(Color.parseColor("#FFFFFF"))
                 lipFemale?.setCardBackgroundColor(Color.parseColor("#FF6584"))
                 tvFemaleLabel?.setTextColor(Color.parseColor("#1E293B"))
+                btnSelectFemale?.animate()?.scaleX(1.0f)?.scaleY(1.0f)?.setDuration(120)?.start()
             }
 
-            // Other Selection
+            // Other Selection & Spring Animation
             if (selectedGender == "OTHER") {
                 btnSelectOther?.setCardBackgroundColor(Color.parseColor("#F6F3FF"))
                 lipOther?.setCardBackgroundColor(Color.parseColor("#9C88FF"))
                 tvOtherLabel?.setTextColor(Color.parseColor("#9C88FF"))
+                btnSelectOther?.animate()?.scaleX(1.02f)?.scaleY(1.02f)?.setDuration(120)?.start()
             } else {
                 btnSelectOther?.setCardBackgroundColor(Color.parseColor("#FFFFFF"))
                 lipOther?.setCardBackgroundColor(Color.parseColor("#9C88FF"))
                 tvOtherLabel?.setTextColor(Color.parseColor("#1E293B"))
+                btnSelectOther?.animate()?.scaleX(1.0f)?.scaleY(1.0f)?.setDuration(120)?.start()
             }
 
-            // Activate Pill CTA Button with vibrant Emerald Green
+            // Activate Pill CTA Button
             btnConfirmGender?.isEnabled = true
             cardConfirmGender?.setCardBackgroundColor(Color.parseColor("#00B894"))
             btnConfirmGender?.setTextColor(Color.WHITE)

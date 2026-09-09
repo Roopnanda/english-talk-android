@@ -25,27 +25,36 @@
             android:gravity="center_horizontal"
             android:orientation="vertical">
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                android:text="💞"
-                android:textSize="40sp" />
+            <!-- Dual Bubble Heart Graphic from Image 1 -->
+            <RelativeLayout
+                android:layout_width="56dp"
+                android:layout_height="50dp"
+                android:layout_marginBottom="16dp">
 
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_centerInParent="true"
+                    android:text="💞"
+                    android:textSize="40sp" />
+            </RelativeLayout>
+
+            <!-- Exact Heading: Welcome to PairTalk -->
             <TextView
+                android:id="@+id/tvOnboardingTitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:fontFamily="sans-serif-black"
                 android:text="Welcome to PairTalk"
                 android:textColor="#1E293B"
                 android:textSize="28sp"
                 android:textStyle="bold" />
 
+            <!-- Exact Subtitle: Select your gender for fair matchmaking -->
             <TextView
+                android:id="@+id/tvOnboardingSubtitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:fontFamily="sans-serif"
                 android:gravity="center"
                 android:lineSpacingExtra="4dp"
                 android:text="Select your gender for fair\nmatchmaking"
@@ -61,7 +70,7 @@
             android:layout_marginTop="32dp"
             android:orientation="vertical">
 
-            <!-- Top Row: Male & Female -->
+            <!-- Top Row: Male and Female Cards Side-by-Side -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -69,22 +78,24 @@
                 android:baselineAligned="false"
                 android:orientation="horizontal">
 
-                <!-- MALE CARD CONTAINER WITH BLUE BOTTOM SHADOW LIP -->
+                <!-- MALE CARD CONTAINER -->
                 <RelativeLayout
                     android:layout_width="0dp"
                     android:layout_height="200dp"
                     android:layout_marginEnd="10dp"
                     android:layout_weight="1">
 
-                    <View
+                    <!-- Blue Curved Bottom Lip (matches 28dp radius) -->
+                    <androidx.cardview.widget.CardView
                         android:id="@+id/lipMale"
                         android:layout_width="match_parent"
-                        android:layout_height="28dp"
+                        android:layout_height="40dp"
                         android:layout_alignParentBottom="true"
-                        android:layout_marginStart="8dp"
-                        android:layout_marginEnd="8dp"
-                        android:background="#1D72FE" />
+                        app:cardBackgroundColor="#1D72FE"
+                        app:cardCornerRadius="28dp"
+                        app:cardElevation="0dp" />
 
+                    <!-- Male Card Surface -->
                     <androidx.cardview.widget.CardView
                         android:id="@+id/btnSelectMale"
                         android:layout_width="match_parent"
@@ -94,7 +105,7 @@
                         android:foreground="?android:attr/selectableItemBackground"
                         app:cardBackgroundColor="#FFFFFF"
                         app:cardCornerRadius="28dp"
-                        app:cardElevation="8dp">
+                        app:cardElevation="6dp">
 
                         <LinearLayout
                             android:layout_width="match_parent"
@@ -103,26 +114,27 @@
                             android:orientation="vertical"
                             android:padding="16dp">
 
-                            <RelativeLayout
-                                android:id="@+id/circleMale"
+                            <!-- TRUE CIRCULAR BLUE AVATAR BUBBLE (88dp with 44dp radius) -->
+                            <androidx.cardview.widget.CardView
                                 android:layout_width="88dp"
                                 android:layout_height="88dp"
-                                android:background="#1D72FE">
+                                app:cardBackgroundColor="#1D72FE"
+                                app:cardCornerRadius="44dp"
+                                app:cardElevation="0dp">
 
                                 <TextView
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
-                                    android:layout_centerInParent="true"
+                                    android:layout_gravity="center"
                                     android:text="👨"
                                     android:textSize="44sp" />
-                            </RelativeLayout>
+                            </androidx.cardview.widget.CardView>
 
                             <TextView
                                 android:id="@+id/tvMaleLabel"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="16dp"
-                                android:fontFamily="sans-serif-black"
                                 android:text="Male"
                                 android:textColor="#1E293B"
                                 android:textSize="18sp"
@@ -131,22 +143,24 @@
                     </androidx.cardview.widget.CardView>
                 </RelativeLayout>
 
-                <!-- FEMALE CARD CONTAINER WITH PINK BOTTOM SHADOW LIP -->
+                <!-- FEMALE CARD CONTAINER -->
                 <RelativeLayout
                     android:layout_width="0dp"
                     android:layout_height="200dp"
                     android:layout_marginStart="10dp"
                     android:layout_weight="1">
 
-                    <View
+                    <!-- Coral Pink Curved Bottom Lip (matches 28dp radius) -->
+                    <androidx.cardview.widget.CardView
                         android:id="@+id/lipFemale"
                         android:layout_width="match_parent"
-                        android:layout_height="28dp"
+                        android:layout_height="40dp"
                         android:layout_alignParentBottom="true"
-                        android:layout_marginStart="8dp"
-                        android:layout_marginEnd="8dp"
-                        android:background="#FF6584" />
+                        app:cardBackgroundColor="#FF6584"
+                        app:cardCornerRadius="28dp"
+                        app:cardElevation="0dp" />
 
+                    <!-- Female Card Surface -->
                     <androidx.cardview.widget.CardView
                         android:id="@+id/btnSelectFemale"
                         android:layout_width="match_parent"
@@ -156,7 +170,7 @@
                         android:foreground="?android:attr/selectableItemBackground"
                         app:cardBackgroundColor="#FFFFFF"
                         app:cardCornerRadius="28dp"
-                        app:cardElevation="8dp">
+                        app:cardElevation="6dp">
 
                         <LinearLayout
                             android:layout_width="match_parent"
@@ -165,26 +179,27 @@
                             android:orientation="vertical"
                             android:padding="16dp">
 
-                            <RelativeLayout
-                                android:id="@+id/circleFemale"
+                            <!-- TRUE CIRCULAR CORAL PINK AVATAR BUBBLE (88dp with 44dp radius) -->
+                            <androidx.cardview.widget.CardView
                                 android:layout_width="88dp"
                                 android:layout_height="88dp"
-                                android:background="#FF6584">
+                                app:cardBackgroundColor="#FF6584"
+                                app:cardCornerRadius="44dp"
+                                app:cardElevation="0dp">
 
                                 <TextView
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
-                                    android:layout_centerInParent="true"
+                                    android:layout_gravity="center"
                                     android:text="👩"
                                     android:textSize="44sp" />
-                            </RelativeLayout>
+                            </androidx.cardview.widget.CardView>
 
                             <TextView
                                 android:id="@+id/tvFemaleLabel"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="16dp"
-                                android:fontFamily="sans-serif-black"
                                 android:text="Female"
                                 android:textColor="#1E293B"
                                 android:textSize="18sp"
@@ -199,15 +214,17 @@
                 android:layout_width="match_parent"
                 android:layout_height="86dp">
 
-                <View
+                <!-- Violet Curved Bottom Lip (matches 24dp radius) -->
+                <androidx.cardview.widget.CardView
                     android:id="@+id/lipOther"
                     android:layout_width="match_parent"
-                    android:layout_height="26dp"
+                    android:layout_height="36dp"
                     android:layout_alignParentBottom="true"
-                    android:layout_marginStart="14dp"
-                    android:layout_marginEnd="14dp"
-                    android:background="#9C88FF" />
+                    app:cardBackgroundColor="#9C88FF"
+                    app:cardCornerRadius="24dp"
+                    app:cardElevation="0dp" />
 
+                <!-- Other Card Surface -->
                 <androidx.cardview.widget.CardView
                     android:id="@+id/btnSelectOther"
                     android:layout_width="match_parent"
@@ -217,7 +234,7 @@
                     android:foreground="?android:attr/selectableItemBackground"
                     app:cardBackgroundColor="#FFFFFF"
                     app:cardCornerRadius="24dp"
-                    app:cardElevation="8dp">
+                    app:cardElevation="6dp">
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -229,7 +246,6 @@
                             android:id="@+id/tvOtherLabel"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:fontFamily="sans-serif-black"
                             android:text="Other / Non-Binary"
                             android:textColor="#1E293B"
                             android:textSize="18sp"
@@ -239,22 +255,39 @@
             </RelativeLayout>
         </LinearLayout>
 
-        <!-- EXACT CTA PILL BUTTON AT BOTTOM -->
-        <Button
-            android:id="@+id/btnConfirmGender"
+        <!-- TRUE PILL-SHAPED CTA BUTTON AT BOTTOM (CardView with 30dp Radius) -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/cardConfirmGender"
             android:layout_width="match_parent"
             android:layout_height="60dp"
             android:layout_alignParentBottom="true"
             android:layout_marginBottom="40dp"
-            android:backgroundTint="#CBD5E1"
+            android:clickable="false"
             android:elevation="6dp"
-            android:enabled="false"
-            android:fontFamily="sans-serif-black"
-            android:letterSpacing="0.02"
-            android:text="CONTINUE TO DASHBOARD →"
-            android:textColor="#94A3B8"
-            android:textSize="15sp"
-            android:textStyle="bold" />
+            android:focusable="false"
+            android:foreground="?android:attr/selectableItemBackground"
+            app:cardBackgroundColor="#CBD5E1"
+            app:cardCornerRadius="30dp"
+            app:cardElevation="6dp">
+
+            <RelativeLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+
+                <Button
+                    android:id="@+id/btnConfirmGender"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="#00000000"
+                    android:backgroundTint="#00000000"
+                    android:enabled="false"
+                    android:letterSpacing="0.02"
+                    android:text="CONTINUE TO DASHBOARD →"
+                    android:textColor="#94A3B8"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+            </RelativeLayout>
+        </androidx.cardview.widget.CardView>
     </RelativeLayout>
 
     <!-- 1. DASHBOARD CONTAINER -->

@@ -24,6 +24,7 @@ import android.os.PowerManager
 import android.view.View
 import android.view.WindowManager
 import android.widget.*
+import androidx.cardview.widget.CardView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.englishtalk.app.network.SignalingClient
@@ -81,10 +82,13 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private var layoutSearching: View? = null
     private var layoutCall: View? = null
 
-    // Dedicated Modern Gender Onboarding Elements (Rule 34 / Image 1 UI)
-    private var btnSelectMale: View? = null
-    private var btnSelectFemale: View? = null
-    private var btnSelectOther: View? = null
+    // Exact Image 1 Onboarding Card Elements (Rule 34)
+    private var btnSelectMale: CardView? = null
+    private var btnSelectFemale: CardView? = null
+    private var btnSelectOther: CardView? = null
+    private var lipMale: View? = null
+    private var lipFemale: View? = null
+    private var lipOther: View? = null
     private var tvMaleLabel: TextView? = null
     private var tvFemaleLabel: TextView? = null
     private var tvOtherLabel: TextView? = null
@@ -331,9 +335,9 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             layoutBannerAd?.visibility = View.GONE // Ad-free onboarding
 
             btnConfirmGender?.isEnabled = false
-            btnConfirmGender?.text = "SELECT GENDER TO CONTINUE"
+            btnConfirmGender?.text = "CONTINUE TO DASHBOARD →"
             btnConfirmGender?.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#CBD5E1"))
-            btnConfirmGender?.setTextColor(Color.parseColor("#64748B"))
+            btnConfirmGender?.setTextColor(Color.parseColor("#94A3B8"))
 
             setupOnboardingGenderListeners()
         } else {
@@ -347,43 +351,42 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         fun updateGenderCardSelection(selectedGender: String) {
             tempSelectedGender = selectedGender
 
-            // Male Selection State
+            // Male Selection
             if (selectedGender == "MALE") {
-                btnSelectMale?.setBackgroundColor(Color.parseColor("#EFF6FF"))
-                tvMaleLabel?.setTextColor(Color.parseColor("#2563EB"))
-                tvMaleLabel?.text = "Male  ✓"
+                btnSelectMale?.setCardBackgroundColor(Color.parseColor("#F0F6FF"))
+                lipMale?.visibility = View.VISIBLE
+                tvMaleLabel?.setTextColor(Color.parseColor("#1D72FE"))
             } else {
-                btnSelectMale?.setBackgroundColor(Color.parseColor("#FFFFFF"))
+                btnSelectMale?.setCardBackgroundColor(Color.parseColor("#FFFFFF"))
+                lipMale?.visibility = View.VISIBLE
                 tvMaleLabel?.setTextColor(Color.parseColor("#1E293B"))
-                tvMaleLabel?.text = "Male"
             }
 
-            // Female Selection State
+            // Female Selection
             if (selectedGender == "FEMALE") {
-                btnSelectFemale?.setBackgroundColor(Color.parseColor("#FDF2F8"))
-                tvFemaleLabel?.setTextColor(Color.parseColor("#DB2777"))
-                tvFemaleLabel?.text = "Female  ✓"
+                btnSelectFemale?.setCardBackgroundColor(Color.parseColor("#FFF0F3"))
+                lipFemale?.visibility = View.VISIBLE
+                tvFemaleLabel?.setTextColor(Color.parseColor("#FF6584"))
             } else {
-                btnSelectFemale?.setBackgroundColor(Color.parseColor("#FFFFFF"))
+                btnSelectFemale?.setCardBackgroundColor(Color.parseColor("#FFFFFF"))
+                lipFemale?.visibility = View.VISIBLE
                 tvFemaleLabel?.setTextColor(Color.parseColor("#1E293B"))
-                tvFemaleLabel?.text = "Female"
             }
 
-            // Other Selection State
+            // Other Selection
             if (selectedGender == "OTHER") {
-                btnSelectOther?.setBackgroundColor(Color.parseColor("#FAF5FF"))
-                tvOtherLabel?.setTextColor(Color.parseColor("#7C3AED"))
-                tvOtherLabel?.text = "Other / Non-Binary  ✓"
+                btnSelectOther?.setCardBackgroundColor(Color.parseColor("#F6F3FF"))
+                lipOther?.visibility = View.VISIBLE
+                tvOtherLabel?.setTextColor(Color.parseColor("#9C88FF"))
             } else {
-                btnSelectOther?.setBackgroundColor(Color.parseColor("#FFFFFF"))
+                btnSelectOther?.setCardBackgroundColor(Color.parseColor("#FFFFFF"))
+                lipOther?.visibility = View.VISIBLE
                 tvOtherLabel?.setTextColor(Color.parseColor("#1E293B"))
-                tvOtherLabel?.text = "Other / Non-Binary"
             }
 
-            // Enable Vibrant CTA Button
+            // Activate Exact Emerald Pill CTA Button
             btnConfirmGender?.isEnabled = true
-            btnConfirmGender?.text = "CONTINUE TO DASHBOARD →"
-            btnConfirmGender?.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#10B981"))
+            btnConfirmGender?.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#00B894"))
             btnConfirmGender?.setTextColor(Color.WHITE)
         }
 
@@ -394,7 +397,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         btnConfirmGender?.setOnClickListener {
             val finalChoice = tempSelectedGender ?: return@setOnClickListener
             prefs.edit().putString("user_gender", finalChoice).apply()
-            logEvent("Profile", "Gender permanently locked as $finalChoice via modern onboarding")
+            logEvent("Profile", "Gender permanently locked as $finalChoice via 1:1 Image 1 Layout")
 
             layoutGenderOnboarding?.visibility = View.GONE
             scrollDashboard?.visibility = View.VISIBLE
@@ -422,6 +425,9 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         btnSelectMale = findViewById(R.id.btnSelectMale)
         btnSelectFemale = findViewById(R.id.btnSelectFemale)
         btnSelectOther = findViewById(R.id.btnSelectOther)
+        lipMale = findViewById(R.id.lipMale)
+        lipFemale = findViewById(R.id.lipFemale)
+        lipOther = findViewById(R.id.lipOther)
         tvMaleLabel = findViewById(R.id.tvMaleLabel)
         tvFemaleLabel = findViewById(R.id.tvFemaleLabel)
         tvOtherLabel = findViewById(R.id.tvOtherLabel)

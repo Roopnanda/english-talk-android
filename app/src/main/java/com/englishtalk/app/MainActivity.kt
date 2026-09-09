@@ -7,8 +7,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
-import android.content.res.ColorStateList
 import android.graphics.Color
+import android.graphics.Typeface
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -82,17 +82,22 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private var layoutSearching: View? = null
     private var layoutCall: View? = null
 
-    // Exact Image 1 CardView Elements (Rule 34)
+    // Exact Image 1 Card Elements (Rule 34)
     private var btnSelectMale: CardView? = null
     private var btnSelectFemale: CardView? = null
     private var btnSelectOther: CardView? = null
-    private var lipMale: View? = null
-    private var lipFemale: View? = null
-    private var lipOther: View? = null
+    private var lipMale: CardView? = null
+    private var lipFemale: CardView? = null
+    private var lipOther: CardView? = null
+    private var cardConfirmGender: CardView? = null
+    private var btnConfirmGender: Button? = null
+
+    private var tvOnboardingTitle: TextView? = null
+    private var tvOnboardingSubtitle: TextView? = null
     private var tvMaleLabel: TextView? = null
     private var tvFemaleLabel: TextView? = null
     private var tvOtherLabel: TextView? = null
-    private var btnConfirmGender: Button? = null
+
     private var tempSelectedGender: String? = null
 
     // Dashboard UI
@@ -248,6 +253,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
         setupWakeLock()
         initViews()
+        applyModernTypographyOverride()
         setupListeners()
         setupRegionalLanguageButtons()
 
@@ -271,6 +277,21 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         refreshDashboardUI()
         checkPermissions()
         logEvent("SYS", "App initialized successfully with SoundPool engine")
+    }
+
+    private fun applyModernTypographyOverride() {
+        try {
+            // Force pure modern sans-serif fonts, overriding custom system fonts (cursive/comic)
+            val modernBold = Typeface.create("sans-serif", Typeface.BOLD)
+            val modernMedium = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+
+            tvOnboardingTitle?.typeface = modernBold
+            tvOnboardingSubtitle?.typeface = modernMedium
+            tvMaleLabel?.typeface = modernBold
+            tvFemaleLabel?.typeface = modernBold
+            tvOtherLabel?.typeface = modernBold
+            btnConfirmGender?.typeface = modernBold
+        } catch (e: Throwable) {}
     }
 
     private fun initSoundPool() {
@@ -336,7 +357,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
             btnConfirmGender?.isEnabled = false
             btnConfirmGender?.text = "CONTINUE TO DASHBOARD →"
-            btnConfirmGender?.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#CBD5E1"))
+            cardConfirmGender?.setCardBackgroundColor(Color.parseColor("#CBD5E1"))
             btnConfirmGender?.setTextColor(Color.parseColor("#94A3B8"))
 
             setupOnboardingGenderListeners()
@@ -354,33 +375,39 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             // Male Selection
             if (selectedGender == "MALE") {
                 btnSelectMale?.setCardBackgroundColor(Color.parseColor("#F0F6FF"))
+                lipMale?.setCardBackgroundColor(Color.parseColor("#1D72FE"))
                 tvMaleLabel?.setTextColor(Color.parseColor("#1D72FE"))
             } else {
                 btnSelectMale?.setCardBackgroundColor(Color.parseColor("#FFFFFF"))
+                lipMale?.setCardBackgroundColor(Color.parseColor("#1D72FE"))
                 tvMaleLabel?.setTextColor(Color.parseColor("#1E293B"))
             }
 
             // Female Selection
             if (selectedGender == "FEMALE") {
                 btnSelectFemale?.setCardBackgroundColor(Color.parseColor("#FFF0F3"))
+                lipFemale?.setCardBackgroundColor(Color.parseColor("#FF6584"))
                 tvFemaleLabel?.setTextColor(Color.parseColor("#FF6584"))
             } else {
                 btnSelectFemale?.setCardBackgroundColor(Color.parseColor("#FFFFFF"))
+                lipFemale?.setCardBackgroundColor(Color.parseColor("#FF6584"))
                 tvFemaleLabel?.setTextColor(Color.parseColor("#1E293B"))
             }
 
             // Other Selection
             if (selectedGender == "OTHER") {
                 btnSelectOther?.setCardBackgroundColor(Color.parseColor("#F6F3FF"))
+                lipOther?.setCardBackgroundColor(Color.parseColor("#9C88FF"))
                 tvOtherLabel?.setTextColor(Color.parseColor("#9C88FF"))
             } else {
                 btnSelectOther?.setCardBackgroundColor(Color.parseColor("#FFFFFF"))
+                lipOther?.setCardBackgroundColor(Color.parseColor("#9C88FF"))
                 tvOtherLabel?.setTextColor(Color.parseColor("#1E293B"))
             }
 
-            // Activate Emerald Pill CTA Button
+            // Activate Pill CTA Button with vibrant Emerald Green
             btnConfirmGender?.isEnabled = true
-            btnConfirmGender?.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#00B894"))
+            cardConfirmGender?.setCardBackgroundColor(Color.parseColor("#00B894"))
             btnConfirmGender?.setTextColor(Color.WHITE)
         }
 
@@ -422,10 +449,14 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         lipMale = findViewById(R.id.lipMale)
         lipFemale = findViewById(R.id.lipFemale)
         lipOther = findViewById(R.id.lipOther)
+        cardConfirmGender = findViewById(R.id.cardConfirmGender)
+        btnConfirmGender = findViewById(R.id.btnConfirmGender)
+
+        tvOnboardingTitle = findViewById(R.id.tvOnboardingTitle)
+        tvOnboardingSubtitle = findViewById(R.id.tvOnboardingSubtitle)
         tvMaleLabel = findViewById(R.id.tvMaleLabel)
         tvFemaleLabel = findViewById(R.id.tvFemaleLabel)
         tvOtherLabel = findViewById(R.id.tvOtherLabel)
-        btnConfirmGender = findViewById(R.id.btnConfirmGender)
 
         tvTalkCoinsBadge = findViewById(R.id.tvTalkCoinsBadge)
         tvStreakVal = findViewById(R.id.tvStreakVal)

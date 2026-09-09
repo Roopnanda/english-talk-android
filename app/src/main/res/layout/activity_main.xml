@@ -4,81 +4,171 @@
     android:layout_height="match_parent"
     android:background="#0F172A">
 
-    <!-- 0. DEDICATED GENDER ONBOARDING OVERLAY -->
+    <!-- 0. MODERN LIGHT GENDER ONBOARDING OVERLAY (IMAGE 1 DESIGN) -->
     <LinearLayout
         android:id="@+id/layoutGenderOnboarding"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#0F172A"
+        android:background="#F8FAFC"
         android:gravity="center"
         android:orientation="vertical"
-        android:padding="28dp"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
         android:visibility="gone">
 
+        <!-- Top Header Icon -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:text="💖"
+            android:textSize="38sp" />
+
+        <!-- Title -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Welcome to PairTalk"
-            android:textColor="#FFFFFF"
+            android:textColor="#0F172A"
             android:textSize="26sp"
             android:textStyle="bold" />
 
+        <!-- Subtitle -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
+            android:layout_marginTop="8dp"
             android:layout_marginBottom="36dp"
             android:gravity="center"
-            android:text="Select your gender to ensure fair and accurate matchmaking. This cannot be changed later."
-            android:textColor="#94A3B8"
-            android:textSize="14sp" />
+            android:text="Select your gender for fair matchmaking"
+            android:textColor="#64748B"
+            android:textSize="15sp" />
 
-        <!-- Card: Male -->
-        <Button
-            android:id="@+id/btnSelectMale"
+        <!-- 2-COLUMN BALANCED ROW FOR MALE & FEMALE -->
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="62dp"
-            android:layout_marginBottom="14dp"
-            android:backgroundTint="#1E293B"
-            android:text="👨   MALE"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:textStyle="bold" />
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:baselineAligned="false"
+            android:orientation="horizontal">
 
-        <!-- Card: Female -->
-        <Button
-            android:id="@+id/btnSelectFemale"
-            android:layout_width="match_parent"
-            android:layout_height="62dp"
-            android:layout_marginBottom="14dp"
-            android:backgroundTint="#1E293B"
-            android:text="👩   FEMALE"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:textStyle="bold" />
+            <!-- Card: Male -->
+            <LinearLayout
+                android:id="@+id/btnSelectMale"
+                android:layout_width="0dp"
+                android:layout_height="160dp"
+                android:layout_marginEnd="8dp"
+                android:layout_weight="1"
+                android:background="#FFFFFF"
+                android:clickable="true"
+                android:elevation="4dp"
+                android:focusable="true"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:padding="12dp">
 
-        <!-- Card: Other -->
-        <Button
+                <TextView
+                    android:id="@+id/tvMaleAvatar"
+                    android:layout_width="68dp"
+                    android:layout_height="68dp"
+                    android:background="#DBEAFE"
+                    android:gravity="center"
+                    android:text="👨"
+                    android:textSize="32sp" />
+
+                <TextView
+                    android:id="@+id/tvMaleLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="Male"
+                    android:textColor="#1E293B"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <!-- Card: Female -->
+            <LinearLayout
+                android:id="@+id/btnSelectFemale"
+                android:layout_width="0dp"
+                android:layout_height="160dp"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:background="#FFFFFF"
+                android:clickable="true"
+                android:elevation="4dp"
+                android:focusable="true"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:padding="12dp">
+
+                <TextView
+                    android:id="@+id/tvFemaleAvatar"
+                    android:layout_width="68dp"
+                    android:layout_height="68dp"
+                    android:background="#FCE7F3"
+                    android:gravity="center"
+                    android:text="👩"
+                    android:textSize="32sp" />
+
+                <TextView
+                    android:id="@+id/tvFemaleLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="Female"
+                    android:textColor="#1E293B"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- CARD: OTHER / NON-BINARY (CENTERED BELOW) -->
+        <LinearLayout
             android:id="@+id/btnSelectOther"
             android:layout_width="match_parent"
-            android:layout_height="62dp"
-            android:layout_marginBottom="32dp"
-            android:backgroundTint="#1E293B"
-            android:text="⚧️   OTHER"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:textStyle="bold" />
+            android:layout_height="68dp"
+            android:layout_marginBottom="40dp"
+            android:background="#FFFFFF"
+            android:clickable="true"
+            android:elevation="4dp"
+            android:focusable="true"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp">
 
-        <!-- Confirm CTA -->
+            <TextView
+                android:id="@+id/tvOtherAvatar"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:background="#F3E8FF"
+                android:gravity="center"
+                android:text="⚧️"
+                android:textSize="20sp" />
+
+            <TextView
+                android:id="@+id/tvOtherLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:text="Other / Non-Binary"
+                android:textColor="#1E293B"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- PROCEED CTA BUTTON -->
         <Button
             android:id="@+id/btnConfirmGender"
             android:layout_width="match_parent"
-            android:layout_height="54dp"
-            android:backgroundTint="#16A34A"
+            android:layout_height="56dp"
+            android:backgroundTint="#CBD5E1"
+            android:elevation="2dp"
             android:enabled="false"
-            android:text="CONTINUE TO DASHBOARD"
+            android:text="CONTINUE TO DASHBOARD →"
             android:textColor="#FFFFFF"
-            android:textSize="14sp"
+            android:textSize="15sp"
             android:textStyle="bold" />
     </LinearLayout>
 

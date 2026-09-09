@@ -113,7 +113,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private var btnReconnectLast: Button? = null
     private var btnDashboardReportLast: Button? = null
     private var btnVip: Button? = null
-    private switchFemaleFilter: Switch? = null
+    private var switchFemaleFilter: Switch? = null
     private var tvConsoleLogs: TextView? = null
 
     // Searching UI

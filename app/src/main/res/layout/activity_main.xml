@@ -44,6 +44,7 @@
                 android:id="@+id/tvOnboardingTitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:fontFamily="sans-serif"
                 android:text="Welcome to PairTalk"
                 android:textColor="#1E293B"
                 android:textSize="28sp"
@@ -55,6 +56,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
+                android:fontFamily="sans-serif"
                 android:gravity="center"
                 android:lineSpacingExtra="3dp"
                 android:text="Select your gender for fair\nmatchmaking"
@@ -114,7 +116,7 @@
                             android:orientation="vertical"
                             android:padding="12dp">
 
-                            <!-- CIRCULAR BLUE AVATAR BUBBLE (84dp with 42dp radius) -->
+                            <!-- CIRCULAR BLUE AVATAR BUBBLE -->
                             <androidx.cardview.widget.CardView
                                 android:layout_width="84dp"
                                 android:layout_height="84dp"
@@ -135,6 +137,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="12dp"
+                                android:fontFamily="sans-serif"
                                 android:text="Male"
                                 android:textColor="#1E293B"
                                 android:textSize="18sp"
@@ -179,7 +182,7 @@
                             android:orientation="vertical"
                             android:padding="12dp">
 
-                            <!-- CIRCULAR CORAL PINK AVATAR BUBBLE (84dp with 42dp radius) -->
+                            <!-- CIRCULAR CORAL PINK AVATAR BUBBLE -->
                             <androidx.cardview.widget.CardView
                                 android:layout_width="84dp"
                                 android:layout_height="84dp"
@@ -200,6 +203,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="12dp"
+                                android:fontFamily="sans-serif"
                                 android:text="Female"
                                 android:textColor="#1E293B"
                                 android:textSize="18sp"
@@ -246,6 +250,7 @@
                             android:id="@+id/tvOtherLabel"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
+                            android:fontFamily="sans-serif"
                             android:text="Other / Non-Binary"
                             android:textColor="#1E293B"
                             android:textSize="18sp"
@@ -281,6 +286,7 @@
                     android:background="#00000000"
                     android:backgroundTint="#00000000"
                     android:enabled="false"
+                    android:fontFamily="sans-serif"
                     android:letterSpacing="0.02"
                     android:text="CONTINUE TO DASHBOARD →"
                     android:textColor="#94A3B8"

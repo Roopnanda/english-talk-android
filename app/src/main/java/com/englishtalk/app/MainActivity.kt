@@ -126,7 +126,15 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private var tvCallPartnerName: TextView? = null
     private var tvCallTimer: TextView? = null
     private var btnMute: Button? = null
+    private var ivMuteIcon: ImageView? = null
+    private var tvMuteLabel: TextView? = null
+    private var cardBtnMute: CardView? = null
+
     private var btnSpeaker: Button? = null
+    private var ivSpeakerIcon: ImageView? = null
+    private var tvSpeakerLabel: TextView? = null
+    private var cardBtnSpeaker: CardView? = null
+
     private var btnEndCall: Button? = null
     private var btnInCallReport: Button? = null
 
@@ -287,36 +295,24 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private fun updateWindowAppearanceForCurrentScreen() {
         val savedGender = prefs.getString("user_gender", "NOT_SET") ?: "NOT_SET"
         val isOnboardingVisible = (savedGender == "NOT_SET")
-        val isSearchingOrCallVisible = (layoutSearching?.visibility == View.VISIBLE || layoutCall?.visibility == View.VISIBLE)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS)
             window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
 
-            if (isSearchingOrCallVisible) {
-                window.statusBarColor = Color.parseColor("#0F172A")
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    window.decorView.systemUiVisibility = 0
-                }
-            } else if (isOnboardingVisible) {
+            if (isOnboardingVisible) {
                 window.statusBarColor = Color.parseColor("#F4F7FB")
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    var flags = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        flags = flags or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
-                    }
-                    window.decorView.systemUiVisibility = flags
-                }
             } else {
-                // Dashboard and Languages both share the identical #F8F9FA light theme
+                // Dashboard, Languages, Searching, and In-Call all share #F8F9FA
                 window.statusBarColor = Color.parseColor("#F8F9FA")
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    var flags = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        flags = flags or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
-                    }
-                    window.decorView.systemUiVisibility = flags
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                var flags = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    flags = flags or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
                 }
+                window.decorView.systemUiVisibility = flags
             }
         }
     }
@@ -548,7 +544,15 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         tvCallPartnerName = findViewById(R.id.tvCallPartnerName)
         tvCallTimer = findViewById(R.id.tvCallTimer)
         btnMute = findViewById(R.id.btnMute)
+        ivMuteIcon = findViewById(R.id.ivMuteIcon)
+        tvMuteLabel = findViewById(R.id.tvMuteLabel)
+        cardBtnMute = findViewById(R.id.cardBtnMute)
+
         btnSpeaker = findViewById(R.id.btnSpeaker)
+        ivSpeakerIcon = findViewById(R.id.ivSpeakerIcon)
+        tvSpeakerLabel = findViewById(R.id.tvSpeakerLabel)
+        cardBtnSpeaker = findViewById(R.id.cardBtnSpeaker)
+
         btnEndCall = findViewById(R.id.btnEndCall)
         btnInCallReport = findViewById(R.id.btnInCallReport)
 
@@ -617,14 +621,14 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             val newMuteState = !WebRtcAudioClient.isMuted
             isMutedByUser = newMuteState
             WebRtcAudioClient.setMuted(newMuteState)
-            btnMute?.text = if (newMuteState) "🔇" else "🎤"
+            updateMuteButtonVisual(newMuteState)
             logEvent("Mic", "User manually set mute to: $newMuteState")
         }
 
         btnSpeaker?.setOnClickListener {
             val newSpeakerState = !audioManager.isSpeakerphoneOn
             audioManager.isSpeakerphoneOn = newSpeakerState
-            btnSpeaker?.text = if (newSpeakerState) "🔊" else "🔈"
+            updateSpeakerButtonVisual(newSpeakerState)
         }
 
         btnReconnectLast?.setOnClickListener {
@@ -682,6 +686,34 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
         tvConsoleLogs?.setOnClickListener {
             showDiagnosticLogsDialog()
+        }
+    }
+
+    private fun updateMuteButtonVisual(isMuted: Boolean) {
+        runOnUiThread {
+            if (isMuted) {
+                ivMuteIcon?.setImageResource(R.drawable.ic_mic_off_outline)
+                cardBtnMute?.setCardBackgroundColor(Color.parseColor("#FDEDE8"))
+                tvMuteLabel?.text = "Muted"
+                tvMuteLabel?.setTextColor(Color.parseColor("#E8785A"))
+            } else {
+                ivMuteIcon?.setImageResource(R.drawable.ic_mic_outline)
+                cardBtnMute?.setCardBackgroundColor(Color.parseColor("#FFFFFF"))
+                tvMuteLabel?.text = "Mute"
+                tvMuteLabel?.setTextColor(Color.parseColor("#94A3B8"))
+            }
+        }
+    }
+
+    private fun updateSpeakerButtonVisual(isSpeakerOn: Boolean) {
+        runOnUiThread {
+            if (isSpeakerOn) {
+                cardBtnSpeaker?.setCardBackgroundColor(Color.parseColor("#E6F1FB"))
+                tvSpeakerLabel?.setTextColor(Color.parseColor("#185FA5"))
+            } else {
+                cardBtnSpeaker?.setCardBackgroundColor(Color.parseColor("#FFFFFF"))
+                tvSpeakerLabel?.setTextColor(Color.parseColor("#94A3B8"))
+            }
         }
     }
 
@@ -1125,8 +1157,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
             audioManager.isSpeakerphoneOn = false
             WebRtcAudioClient.setMuted(false)
-            btnMute?.text = "🎤"
-            btnSpeaker?.text = "🔈"
+            updateMuteButtonVisual(false)
+            updateSpeakerButtonVisual(false)
 
             tvCallPartnerName?.text = "Connected"
             tvCallTimer?.text = "00:00"
@@ -1390,7 +1422,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         val isQuestActive = prefs.getBoolean("is_quest_active", false)
         val questCalls = prefs.getInt("female_pass_qualified_calls", 0)
 
-        // Numbers only inside cards (vector icons are declared above each number in layout)
         tvTalkCoinsBadge?.text = "🪙 $coins"
         tvStreakVal?.text = "$streak"
         tvTotalMinutesVal?.text = "${practiceMins}m"
@@ -1429,7 +1460,9 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         layoutSearching?.visibility = if (activeLayout == layoutSearching) View.VISIBLE else View.GONE
         layoutCall?.visibility = if (activeLayout == layoutCall) View.VISIBLE else View.GONE
 
-        // Keep status bar in sync when switching screens
+        // Hide bottom dashboard banner during searching or live call
+        layoutBannerAd?.visibility = if (activeLayout == layoutDashboard || activeLayout == layoutLanguages) View.VISIBLE else View.GONE
+
         updateWindowAppearanceForCurrentScreen()
     }
 
@@ -1442,6 +1475,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 backgroundAutoMuteRunnable = Runnable {
                     if (isAppInBackground && isCallInProgress) {
                         WebRtcAudioClient.setMuted(true)
+                        updateMuteButtonVisual(true)
                         logEvent("AutoMute", "Microphone auto-muted after 30s in background")
                     }
                 }
@@ -1464,11 +1498,11 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         if (isCallInProgress) {
             if (!isMutedByUser && WebRtcAudioClient.isMuted) {
                 WebRtcAudioClient.setMuted(false)
-                btnMute?.text = "🎤"
+                updateMuteButtonVisual(false)
                 logEvent("AutoMute", "Microphone restored upon returning to foreground")
             } else if (isMutedByUser) {
                 WebRtcAudioClient.setMuted(true)
-                btnMute?.text = "🔇"
+                updateMuteButtonVisual(true)
                 logEvent("AutoMute", "Preserving manual mute state on resume")
             }
         }

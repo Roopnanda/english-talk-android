@@ -89,7 +89,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private var lipMale: CardView? = null
     private var lipFemale: CardView? = null
     private var lipOther: CardView? = null
-    cardConfirmGender: CardView? = null
+    private var cardConfirmGender: CardView? = null
     private var btnConfirmGender: Button? = null
 
     private var tvOnboardingTitle: TextView? = null
@@ -1383,7 +1383,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         val isQuestActive = prefs.getBoolean("is_quest_active", false)
         val questCalls = prefs.getInt("female_pass_qualified_calls", 0)
 
-        // Numbers only inside cards (vector icons are declared above each number in layout)
         tvTalkCoinsBadge?.text = "🪙 $coins"
         tvStreakVal?.text = "$streak"
         tvTotalMinutesVal?.text = "${practiceMins}m"

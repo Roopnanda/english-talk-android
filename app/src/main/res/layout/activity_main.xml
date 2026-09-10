@@ -3,753 +3,976 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#0F172A">
+    android:background="#F8F9FA">
 
-    <!-- 0. EXACT 1:1 IMAGE 1 MODERN ONBOARDING VIEW -->
-    <RelativeLayout
+    <!-- ONBOARDING GENDER SELECTION (RULE 34) -->
+    <LinearLayout
         android:id="@+id/layoutGenderOnboarding"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
         android:background="#F4F7FB"
         android:paddingStart="24dp"
         android:paddingEnd="24dp"
+        android:paddingTop="56dp"
+        android:paddingBottom="36dp"
         android:visibility="gone">
 
-        <!-- Top Content Section -->
-        <LinearLayout
-            android:id="@+id/layoutHeaderSection"
-            android:layout_width="match_parent"
+        <TextView
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentTop="true"
-            android:layout_marginTop="52dp"
-            android:gravity="center_horizontal"
-            android:orientation="vertical">
+            android:text="💕"
+            android:textSize="36sp"
+            android:gravity="center"
+            android:layout_marginBottom="18dp" />
 
-            <!-- Dual Bubble Heart Graphic from Image 1 -->
-            <RelativeLayout
-                android:layout_width="56dp"
-                android:layout_height="48dp"
-                android:layout_marginBottom="16dp">
+        <TextView
+            android:id="@+id/tvOnboardingTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Welcome to PairTalk"
+            android:textColor="#1E293B"
+            android:textSize="26sp"
+            android:gravity="center"
+            android:fontFamily="@font/roboto_bold" />
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_centerInParent="true"
-                    android:text="💞"
-                    android:textSize="38sp" />
-            </RelativeLayout>
+        <TextView
+            android:id="@+id/tvOnboardingSubtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Select your gender for fair\nmatchmaking"
+            android:textColor="#64748B"
+            android:textSize="14sp"
+            android:gravity="center"
+            android:lineSpacingMultiplier="1.2"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="36dp"
+            android:fontFamily="@font/roboto_medium" />
 
-            <!-- Exact Heading: Welcome to PairTalk -->
-            <TextView
-                android:id="@+id/tvOnboardingTitle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:fontFamily="@font/roboto_bold"
-                android:text="Welcome to PairTalk"
-                android:textColor="#1E293B"
-                android:textSize="28sp"
-                android:textStyle="bold" />
-
-            <!-- Exact Subtitle: Select your gender for fair matchmaking -->
-            <TextView
-                android:id="@+id/tvOnboardingSubtitle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:fontFamily="@font/roboto_medium"
-                android:gravity="center"
-                android:lineSpacingExtra="3dp"
-                android:text="Select your gender for fair\nmatchmaking"
-                android:textColor="#64748B"
-                android:textSize="15sp" />
-        </LinearLayout>
-
-        <!-- Center Cards Section -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_below="@id/layoutHeaderSection"
-            android:layout_marginTop="28dp"
-            android:orientation="vertical">
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:weightSum="2">
 
-            <!-- Top Row: Male and Female Cards Side-by-Side -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="18dp"
-                android:baselineAligned="false"
-                android:orientation="horizontal">
+            <!-- MALE CARD -->
+            <FrameLayout
+                android:layout_width="0dp"
+                android:layout_height="170dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="8dp">
 
-                <!-- MALE CARD CONTAINER -->
-                <RelativeLayout
-                    android:layout_width="0dp"
-                    android:layout_height="176dp"
-                    android:layout_marginEnd="10dp"
-                    android:layout_weight="1">
-
-                    <!-- Blue Curved Bottom Lip (matches 28dp radius) -->
-                    <androidx.cardview.widget.CardView
-                        android:id="@+id/lipMale"
-                        android:layout_width="match_parent"
-                        android:layout_height="36dp"
-                        android:layout_alignParentBottom="true"
-                        app:cardBackgroundColor="#1D72FE"
-                        app:cardCornerRadius="28dp"
-                        app:cardElevation="0dp" />
-
-                    <!-- Male Card Surface -->
-                    <androidx.cardview.widget.CardView
-                        android:id="@+id/btnSelectMale"
-                        android:layout_width="match_parent"
-                        android:layout_height="168dp"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:foreground="?android:attr/selectableItemBackground"
-                        app:cardBackgroundColor="#FFFFFF"
-                        app:cardCornerRadius="28dp"
-                        app:cardElevation="6dp">
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="match_parent"
-                            android:gravity="center"
-                            android:orientation="vertical"
-                            android:padding="12dp">
-
-                            <!-- CIRCULAR BLUE AVATAR BUBBLE -->
-                            <androidx.cardview.widget.CardView
-                                android:layout_width="84dp"
-                                android:layout_height="84dp"
-                                app:cardBackgroundColor="#1D72FE"
-                                app:cardCornerRadius="42dp"
-                                app:cardElevation="0dp">
-
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:layout_gravity="center"
-                                    android:text="👨"
-                                    android:textSize="52sp" />
-                            </androidx.cardview.widget.CardView>
-
-                            <TextView
-                                android:id="@+id/tvMaleLabel"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="12dp"
-                                android:fontFamily="@font/roboto_bold"
-                                android:text="Male"
-                                android:textColor="#1E293B"
-                                android:textSize="18sp"
-                                android:textStyle="bold" />
-                        </LinearLayout>
-                    </androidx.cardview.widget.CardView>
-                </RelativeLayout>
-
-                <!-- FEMALE CARD CONTAINER -->
-                <RelativeLayout
-                    android:layout_width="0dp"
-                    android:layout_height="176dp"
-                    android:layout_marginStart="10dp"
-                    android:layout_weight="1">
-
-                    <!-- Coral Pink Curved Bottom Lip (matches 28dp radius) -->
-                    <androidx.cardview.widget.CardView
-                        android:id="@+id/lipFemale"
-                        android:layout_width="match_parent"
-                        android:layout_height="36dp"
-                        android:layout_alignParentBottom="true"
-                        app:cardBackgroundColor="#FF6584"
-                        app:cardCornerRadius="28dp"
-                        app:cardElevation="0dp" />
-
-                    <!-- Female Card Surface -->
-                    <androidx.cardview.widget.CardView
-                        android:id="@+id/btnSelectFemale"
-                        android:layout_width="match_parent"
-                        android:layout_height="168dp"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:foreground="?android:attr/selectableItemBackground"
-                        app:cardBackgroundColor="#FFFFFF"
-                        app:cardCornerRadius="28dp"
-                        app:cardElevation="6dp">
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="match_parent"
-                            android:gravity="center"
-                            android:orientation="vertical"
-                            android:padding="12dp">
-
-                            <!-- CIRCULAR CORAL PINK AVATAR BUBBLE -->
-                            <androidx.cardview.widget.CardView
-                                android:layout_width="84dp"
-                                android:layout_height="84dp"
-                                app:cardBackgroundColor="#FF6584"
-                                app:cardCornerRadius="42dp"
-                                app:cardElevation="0dp">
-
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:layout_gravity="center"
-                                    android:text="👩"
-                                    android:textSize="52sp" />
-                            </androidx.cardview.widget.CardView>
-
-                            <TextView
-                                android:id="@+id/tvFemaleLabel"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="12dp"
-                                android:fontFamily="@font/roboto_bold"
-                                android:text="Female"
-                                android:textColor="#1E293B"
-                                android:textSize="18sp"
-                                android:textStyle="bold" />
-                        </LinearLayout>
-                    </androidx.cardview.widget.CardView>
-                </RelativeLayout>
-            </LinearLayout>
-
-            <!-- Bottom Row: Other / Non-Binary Card Container -->
-            <RelativeLayout
-                android:layout_width="match_parent"
-                android:layout_height="82dp">
-
-                <!-- Violet Curved Bottom Lip (matches 24dp radius) -->
                 <androidx.cardview.widget.CardView
-                    android:id="@+id/lipOther"
+                    android:id="@+id/lipMale"
                     android:layout_width="match_parent"
-                    android:layout_height="32dp"
-                    android:layout_alignParentBottom="true"
-                    app:cardBackgroundColor="#9C88FF"
+                    android:layout_height="match_parent"
                     app:cardCornerRadius="24dp"
-                    app:cardElevation="0dp" />
+                    app:cardElevation="0dp"
+                    app:cardBackgroundColor="#1D72FE" />
 
-                <!-- Other Card Surface -->
                 <androidx.cardview.widget.CardView
-                    android:id="@+id/btnSelectOther"
+                    android:id="@+id/btnSelectMale"
                     android:layout_width="match_parent"
-                    android:layout_height="76dp"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:foreground="?android:attr/selectableItemBackground"
-                    app:cardBackgroundColor="#FFFFFF"
+                    android:layout_height="164dp"
+                    android:layout_gravity="top"
                     app:cardCornerRadius="24dp"
-                    app:cardElevation="6dp">
+                    app:cardElevation="2dp"
+                    app:cardBackgroundColor="#FFFFFF">
 
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
-                        android:gravity="center"
-                        android:orientation="horizontal">
+                        android:orientation="vertical"
+                        android:gravity="center">
 
                         <TextView
-                            android:id="@+id/tvOtherLabel"
+                            android:layout_width="64dp"
+                            android:layout_height="64dp"
+                            android:text="👨"
+                            android:textSize="36sp"
+                            android:gravity="center" />
+
+                        <TextView
+                            android:id="@+id/tvMaleLabel"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:fontFamily="@font/roboto_bold"
-                            android:text="Other / Non-Binary"
+                            android:text="Male"
                             android:textColor="#1E293B"
-                            android:textSize="18sp"
-                            android:textStyle="bold" />
+                            android:textSize="17sp"
+                            android:layout_marginTop="12dp"
+                            android:fontFamily="@font/roboto_bold" />
                     </LinearLayout>
                 </androidx.cardview.widget.CardView>
-            </RelativeLayout>
+            </FrameLayout>
+
+            <!-- FEMALE CARD -->
+            <FrameLayout
+                android:layout_width="0dp"
+                android:layout_height="170dp"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp">
+
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/lipFemale"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    app:cardCornerRadius="24dp"
+                    app:cardElevation="0dp"
+                    app:cardBackgroundColor="#FF6584" />
+
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/btnSelectFemale"
+                    android:layout_width="match_parent"
+                    android:layout_height="164dp"
+                    android:layout_gravity="top"
+                    app:cardCornerRadius="24dp"
+                    app:cardElevation="2dp"
+                    app:cardBackgroundColor="#FFFFFF">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:orientation="vertical"
+                        android:gravity="center">
+
+                        <TextView
+                            android:layout_width="64dp"
+                            android:layout_height="64dp"
+                            android:text="👩"
+                            android:textSize="36sp"
+                            android:gravity="center" />
+
+                        <TextView
+                            android:id="@+id/tvFemaleLabel"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Female"
+                            android:textColor="#1E293B"
+                            android:textSize="17sp"
+                            android:layout_marginTop="12dp"
+                            android:fontFamily="@font/roboto_bold" />
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+            </FrameLayout>
         </LinearLayout>
 
-        <!-- TRUE PILL-SHAPED CTA BUTTON AT BOTTOM -->
+        <!-- OTHER CARD -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="70dp"
+            android:layout_marginTop="16dp">
+
+            <androidx.cardview.widget.CardView
+                android:id="@+id/lipOther"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                app:cardCornerRadius="20dp"
+                app:cardElevation="0dp"
+                app:cardBackgroundColor="#9C88FF" />
+
+            <androidx.cardview.widget.CardView
+                android:id="@+id/btnSelectOther"
+                android:layout_width="match_parent"
+                android:layout_height="65dp"
+                android:layout_gravity="top"
+                app:cardCornerRadius="20dp"
+                app:cardElevation="2dp"
+                app:cardBackgroundColor="#FFFFFF">
+
+                <TextView
+                    android:id="@+id/tvOtherLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:text="Other / Non-Binary"
+                    android:textColor="#7A61BA"
+                    android:textSize="15sp"
+                    android:gravity="center"
+                    android:fontFamily="@font/roboto_bold" />
+            </androidx.cardview.widget.CardView>
+        </FrameLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <!-- CONFIRM BUTTON -->
         <androidx.cardview.widget.CardView
             android:id="@+id/cardConfirmGender"
             android:layout_width="match_parent"
-            android:layout_height="58dp"
-            android:layout_alignParentBottom="true"
-            android:layout_marginBottom="36dp"
-            android:clickable="false"
-            android:elevation="6dp"
-            android:focusable="false"
-            android:foreground="?android:attr/selectableItemBackground"
-            app:cardBackgroundColor="#CBD5E1"
-            app:cardCornerRadius="29dp"
-            app:cardElevation="6dp">
+            android:layout_height="52dp"
+            app:cardCornerRadius="26dp"
+            app:cardElevation="2dp"
+            app:cardBackgroundColor="#CBD5E1">
 
-            <RelativeLayout
+            <Button
+                android:id="@+id/btnConfirmGender"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent">
-
-                <Button
-                    android:id="@+id/btnConfirmGender"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:background="#00000000"
-                    android:backgroundTint="#00000000"
-                    android:enabled="false"
-                    android:fontFamily="@font/roboto_bold"
-                    android:letterSpacing="0.02"
-                    android:text="CONTINUE TO DASHBOARD →"
-                    android:textColor="#94A3B8"
-                    android:textSize="15sp"
-                    android:textStyle="bold" />
-            </RelativeLayout>
+                android:layout_height="match_parent"
+                android:text="CONTINUE TO DASHBOARD →"
+                android:textColor="#94A3B8"
+                android:textSize="14sp"
+                android:background="@android:color/transparent"
+                android:fontFamily="@font/roboto_bold" />
         </androidx.cardview.widget.CardView>
-    </RelativeLayout>
+    </LinearLayout>
 
-    <!-- 1. DASHBOARD CONTAINER -->
+    <!-- DASHBOARD SCROLLER -->
     <ScrollView
         android:id="@+id/scrollDashboard"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:fillViewport="true">
+        android:fillViewport="true"
+        android:scrollbars="none"
+        android:background="#F8F9FA"
+        android:visibility="visible">
 
         <LinearLayout
             android:id="@+id/layoutDashboard"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="20dp">
+            android:paddingStart="18dp"
+            android:paddingEnd="18dp"
+            android:paddingTop="20dp"
+            android:paddingBottom="84dp">
 
-            <!-- Header Row -->
+            <!-- TOP HEADER: TITLE + PILLS -->
             <RelativeLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="24dp">
+                android:layout_marginBottom="18dp">
 
                 <TextView
+                    android:id="@+id/tvAppBrandTitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_alignParentStart="true"
-                    android:layout_centerVertical="true"
-                    android:text="PairTalk"
-                    android:textColor="#FFFFFF"
+                    android:text="PairTalk ♡"
+                    android:textColor="#1F2937"
                     android:textSize="22sp"
-                    android:textStyle="bold" />
+                    android:fontFamily="@font/roboto_bold"
+                    android:layout_alignParentStart="true"
+                    android:layout_centerVertical="true" />
 
                 <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:orientation="horizontal"
                     android:layout_alignParentEnd="true"
-                    android:layout_centerVertical="true"
-                    android:orientation="horizontal">
+                    android:layout_centerVertical="true">
 
-                    <TextView
-                        android:id="@+id/tvTalkCoinsBadge"
+                    <!-- COIN BADGE PILL -->
+                    <androidx.cardview.widget.CardView
                         android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:background="#1E293B"
-                        android:paddingStart="12dp"
-                        android:paddingTop="6dp"
-                        android:paddingEnd="12dp"
-                        android:paddingBottom="6dp"
-                        android:text="🪙 Talk Coins: 0"
-                        android:textColor="#FBBF24"
-                        android:textSize="13sp"
-                        android:textStyle="bold" />
+                        android:layout_height="32dp"
+                        app:cardCornerRadius="16dp"
+                        app:cardElevation="0dp"
+                        app:cardBackgroundColor="#FDF3E7"
+                        android:layout_marginEnd="8dp">
 
-                    <Button
-                        android:id="@+id/btnVip"
+                        <TextView
+                            android:id="@+id/tvTalkCoinsBadge"
+                            android:layout_width="wrap_content"
+                            android:layout_height="match_parent"
+                            android:text="🪙 0"
+                            android:textColor="#633806"
+                            android:textSize="13sp"
+                            android:fontFamily="@font/roboto_medium"
+                            android:paddingStart="12dp"
+                            android:paddingEnd="12dp"
+                            android:gravity="center" />
+                    </androidx.cardview.widget.CardView>
+
+                    <!-- VIP BADGE BUTTON -->
+                    <androidx.cardview.widget.CardView
                         android:layout_width="wrap_content"
-                        android:layout_height="36dp"
-                        android:layout_marginStart="8dp"
-                        android:backgroundTint="#CA8A04"
-                        android:minWidth="0dp"
-                        android:paddingStart="12dp"
-                        android:paddingEnd="12dp"
-                        android:text="👑 GO VIP"
-                        android:textColor="#000000"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
+                        android:layout_height="32dp"
+                        app:cardCornerRadius="16dp"
+                        app:cardElevation="0dp"
+                        app:cardBackgroundColor="#FAC775">
+
+                        <Button
+                            android:id="@+id/btnVip"
+                            android:layout_width="wrap_content"
+                            android:layout_height="match_parent"
+                            android:text="👑 VIP"
+                            android:textColor="#412402"
+                            android:textSize="12sp"
+                            android:fontFamily="@font/roboto_bold"
+                            android:background="@android:color/transparent"
+                            android:paddingStart="12dp"
+                            android:paddingEnd="12dp"
+                            android:minWidth="0dp"
+                            android:minHeight="0dp" />
+                    </androidx.cardview.widget.CardView>
                 </LinearLayout>
             </RelativeLayout>
 
-            <!-- Metrics Card -->
+            <!-- STAT CARDS (3 SYMMETRICAL COLUMNS) -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="24dp"
-                android:background="#1E293B"
                 android:orientation="horizontal"
-                android:padding="16dp"
-                android:weightSum="3">
+                android:weightSum="3"
+                android:layout_marginBottom="16dp">
 
-                <LinearLayout
+                <!-- 1. STREAK CARD -->
+                <androidx.cardview.widget.CardView
                     android:layout_width="0dp"
-                    android:layout_height="wrap_content"
+                    android:layout_height="100dp"
                     android:layout_weight="1"
-                    android:gravity="center"
-                    android:orientation="vertical">
+                    android:layout_marginEnd="6dp"
+                    app:cardCornerRadius="18dp"
+                    app:cardElevation="0dp"
+                    app:cardBackgroundColor="#FAECE7">
 
-                    <TextView
-                        android:id="@+id/tvStreakVal"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="🔥 0"
-                        android:textColor="#FFFFFF"
-                        android:textSize="18sp"
-                        android:textStyle="bold" />
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:orientation="vertical"
+                        android:gravity="center"
+                        android:padding="6dp">
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Day Streak"
-                        android:textColor="#94A3B8"
-                        android:textSize="11sp" />
-                </LinearLayout>
+                        <ImageView
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:src="@drawable/ic_flame_streak"
+                            android:contentDescription="Streak Icon" />
 
-                <LinearLayout
+                        <TextView
+                            android:id="@+id/tvStreakVal"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0"
+                            android:textColor="#4A1B0C"
+                            android:textSize="19sp"
+                            android:fontFamily="@font/roboto_bold"
+                            android:layout_marginTop="3dp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="day streak"
+                            android:textColor="#993C1D"
+                            android:textSize="11sp"
+                            android:fontFamily="@font/roboto_medium" />
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+
+                <!-- 2. PRACTICED TIME CARD -->
+                <androidx.cardview.widget.CardView
                     android:layout_width="0dp"
-                    android:layout_height="wrap_content"
+                    android:layout_height="100dp"
                     android:layout_weight="1"
-                    android:gravity="center"
-                    android:orientation="vertical">
+                    android:layout_marginStart="3dp"
+                    android:layout_marginEnd="3dp"
+                    app:cardCornerRadius="18dp"
+                    app:cardElevation="0dp"
+                    app:cardBackgroundColor="#E6F1FB">
 
-                    <TextView
-                        android:id="@+id/tvTotalMinutesVal"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="⏱️ 0m"
-                        android:textColor="#FFFFFF"
-                        android:textSize="18sp"
-                        android:textStyle="bold" />
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:orientation="vertical"
+                        android:gravity="center"
+                        android:padding="6dp">
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Practiced"
-                        android:textColor="#94A3B8"
-                        android:textSize="11sp" />
-                </LinearLayout>
+                        <ImageView
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:src="@drawable/ic_clock_practiced"
+                            android:contentDescription="Practiced Icon" />
 
-                <LinearLayout
+                        <TextView
+                            android:id="@+id/tvTotalMinutesVal"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0m"
+                            android:textColor="#042C53"
+                            android:textSize="19sp"
+                            android:fontFamily="@font/roboto_bold"
+                            android:layout_marginTop="3dp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="practiced"
+                            android:textColor="#185FA5"
+                            android:textSize="11sp"
+                            android:fontFamily="@font/roboto_medium" />
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+
+                <!-- 3. TOTAL CALLS CARD -->
+                <androidx.cardview.widget.CardView
                     android:layout_width="0dp"
-                    android:layout_height="wrap_content"
+                    android:layout_height="100dp"
                     android:layout_weight="1"
-                    android:gravity="center"
-                    android:orientation="vertical">
+                    android:layout_marginStart="6dp"
+                    app:cardCornerRadius="18dp"
+                    app:cardElevation="0dp"
+                    app:cardBackgroundColor="#EAF3DE">
 
-                    <TextView
-                        android:id="@+id/tvTotalCallsVal"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="📞 0"
-                        android:textColor="#FFFFFF"
-                        android:textSize="18sp"
-                        android:textStyle="bold" />
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:orientation="vertical"
+                        android:gravity="center"
+                        android:padding="6dp">
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Total Calls"
-                        android:textColor="#94A3B8"
-                        android:textSize="11sp" />
-                </LinearLayout>
+                        <ImageView
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:src="@drawable/ic_phone_calls"
+                            android:contentDescription="Calls Icon" />
+
+                        <TextView
+                            android:id="@+id/tvTotalCallsVal"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0"
+                            android:textColor="#173404"
+                            android:textSize="19sp"
+                            android:fontFamily="@font/roboto_bold"
+                            android:layout_marginTop="3dp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="total calls"
+                            android:textColor="#3B6D11"
+                            android:textSize="11sp"
+                            android:fontFamily="@font/roboto_medium" />
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
             </LinearLayout>
 
-            <!-- Beginner Level Button -->
-            <Button
-                android:id="@+id/btnBeginner"
-                android:layout_width="match_parent"
-                android:layout_height="56dp"
-                android:layout_marginBottom="14dp"
-                android:backgroundTint="#16A34A"
-                android:text="BEGINNER (TAP TO CALL)"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp"
-                android:textStyle="bold" />
-
-            <!-- Advanced Level Button -->
-            <Button
-                android:id="@+id/btnAdvanced"
-                android:layout_width="match_parent"
-                android:layout_height="56dp"
-                android:layout_marginBottom="6dp"
-                android:backgroundTint="#334155"
-                android:text="🔒 ADVANCED (0/20)"
-                android:textColor="#94A3B8"
-                android:textSize="14sp"
-                android:textStyle="bold" />
-
+            <!-- CALL PROGRESS POPUP -->
             <TextView
                 android:id="@+id/tvLockProgressPopup"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="14dp"
+                android:text="Complete 20 calls (4+ mins each) to unlock Advanced."
+                android:textColor="#B45309"
+                android:textSize="12sp"
+                android:fontFamily="@font/roboto_medium"
+                android:background="#FEF3C7"
+                android:padding="10dp"
                 android:gravity="center"
-                android:textColor="#38BDF8"
-                android:textSize="12sp"
-                android:visibility="gone" />
+                android:visibility="gone"
+                android:layout_marginBottom="10dp" />
 
-            <!-- Regional Languages Button -->
-            <Button
-                android:id="@+id/btnOtherLanguages"
-                android:layout_width="match_parent"
-                android:layout_height="56dp"
-                android:layout_marginBottom="14dp"
-                android:backgroundTint="#7C3AED"
-                android:text="🌐 OTHER LANGUAGES"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp"
-                android:textStyle="bold" />
-
-            <!-- Native Share Button -->
-            <Button
-                android:id="@+id/btnShareApp"
+            <!-- BEGINNER ACTION BUTTON -->
+            <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
-                android:layout_marginBottom="14dp"
-                android:backgroundTint="#0D9488"
-                android:text="📢 SHARE APP WITH FRIENDS"
-                android:textColor="#FFFFFF"
-                android:textSize="13sp"
-                android:textStyle="bold" />
+                app:cardCornerRadius="18dp"
+                app:cardElevation="0dp"
+                app:cardBackgroundColor="#639922"
+                android:layout_marginBottom="12dp">
 
-            <!-- Female Filter Switch -->
-            <LinearLayout
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="horizontal"
+                    android:gravity="center">
+
+                    <ImageView
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:src="@drawable/ic_call_incoming"
+                        android:contentDescription="Beginner Icon" />
+
+                    <Button
+                        android:id="@+id/btnBeginner"
+                        android:layout_width="wrap_content"
+                        android:layout_height="match_parent"
+                        android:text="Beginner · tap to call"
+                        android:textColor="#EAF3DE"
+                        android:textSize="15sp"
+                        android:fontFamily="@font/roboto_bold"
+                        android:background="@android:color/transparent"
+                        android:textAllCaps="false"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="0dp" />
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- ADVANCED ACTION BUTTON -->
+            <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
-                android:layout_marginBottom="14dp"
-                android:background="#1E293B"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingStart="16dp"
-                android:paddingEnd="16dp">
+                app:cardCornerRadius="18dp"
+                app:cardElevation="0dp"
+                app:cardBackgroundColor="#F1EFE8"
+                android:layout_marginBottom="12dp">
 
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Talk to Female Only (VIP)"
-                    android:textColor="#FFFFFF"
-                    android:textSize="14sp" />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="horizontal"
+                    android:gravity="center">
 
-                <Switch
-                    android:id="@+id/switchFemaleFilter"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content" />
-            </LinearLayout>
+                    <ImageView
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:src="@drawable/ic_lock_closed"
+                        android:contentDescription="Lock Icon" />
 
-            <!-- Reconnect to Last Caller -->
-            <Button
-                android:id="@+id/btnReconnectLast"
+                    <Button
+                        android:id="@+id/btnAdvanced"
+                        android:layout_width="wrap_content"
+                        android:layout_height="match_parent"
+                        android:text="Advanced (0/20)"
+                        android:textColor="#5F5E5A"
+                        android:textSize="15sp"
+                        android:fontFamily="@font/roboto_bold"
+                        android:background="@android:color/transparent"
+                        android:textAllCaps="false"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="0dp" />
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- OTHER LANGUAGES BUTTON -->
+            <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
-                android:layout_marginBottom="10dp"
-                android:backgroundTint="#E11D48"
-                android:text="🔄 RECONNECT TO LAST CALLER"
-                android:textColor="#FFFFFF"
-                android:textSize="13sp"
-                android:textStyle="bold"
-                android:visibility="gone" />
+                app:cardCornerRadius="18dp"
+                app:cardElevation="0dp"
+                app:cardBackgroundColor="#7F77DD"
+                android:layout_marginBottom="16dp">
 
-            <!-- Dedicated Dashboard Report Button -->
-            <Button
-                android:id="@+id/btnDashboardReportLast"
-                android:layout_width="match_parent"
-                android:layout_height="46dp"
-                android:layout_marginBottom="16dp"
-                android:backgroundTint="#475569"
-                android:text="⚠️ REPORT LAST CALLER"
-                android:textColor="#FCA5A5"
-                android:textSize="12sp"
-                android:textStyle="bold" />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="horizontal"
+                    android:gravity="center">
 
-            <!-- Diagnostic Console -->
-            <TextView
-                android:id="@+id/tvConsoleLogs"
+                    <ImageView
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:src="@drawable/ic_translate_globe"
+                        android:contentDescription="Language Icon" />
+
+                    <Button
+                        android:id="@+id/btnOtherLanguages"
+                        android:layout_width="wrap_content"
+                        android:layout_height="match_parent"
+                        android:text="Other languages"
+                        android:textColor="#EEEDFE"
+                        android:textSize="15sp"
+                        android:fontFamily="@font/roboto_bold"
+                        android:background="@android:color/transparent"
+                        android:textAllCaps="false"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="0dp" />
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- SETTINGS CONTAINER (WHITE CARD WITH 2 ROWS) -->
+            <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:background="#050811"
-                android:padding="12dp"
-                android:text="Tap to view diagnostic trace..."
-                android:textColor="#38BDF8"
-                android:textSize="11sp" />
+                app:cardCornerRadius="20dp"
+                app:cardElevation="1dp"
+                app:cardBackgroundColor="#FFFFFF"
+                android:layout_marginBottom="14dp">
 
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <!-- ROW 1: TALK TO FEMALE ONLY -->
+                    <RelativeLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+
+                        <ImageView
+                            android:id="@+id/ivFemaleIcon"
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:src="@drawable/ic_female_gender"
+                            android:layout_centerVertical="true"
+                            android:layout_alignParentStart="true"
+                            android:contentDescription="Female Icon" />
+
+                        <TextView
+                            android:id="@+id/tvFemaleFilterLabel"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Talk to female only"
+                            android:textColor="#2D3748"
+                            android:textSize="15sp"
+                            android:fontFamily="@font/roboto_medium"
+                            android:layout_toEndOf="@id/ivFemaleIcon"
+                            android:layout_centerVertical="true"
+                            android:layout_marginStart="10dp" />
+
+                        <!-- VIP BADGE TAG -->
+                        <androidx.cardview.widget.CardView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            app:cardCornerRadius="6dp"
+                            app:cardElevation="0dp"
+                            app:cardBackgroundColor="#FAC775"
+                            android:layout_toEndOf="@id/tvFemaleFilterLabel"
+                            android:layout_centerVertical="true"
+                            android:layout_marginStart="8dp">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="VIP"
+                                android:textColor="#412402"
+                                android:textSize="11sp"
+                                android:fontFamily="@font/roboto_bold"
+                                android:paddingStart="6dp"
+                                android:paddingEnd="6dp"
+                                android:paddingTop="2dp"
+                                android:paddingBottom="2dp" />
+                        </androidx.cardview.widget.CardView>
+
+                        <Switch
+                            android:id="@+id/switchFemaleFilter"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:track="@drawable/switch_track_custom"
+                            android:thumb="@drawable/switch_thumb_custom"
+                            android:layout_alignParentEnd="true"
+                            android:layout_centerVertical="true" />
+                    </RelativeLayout>
+
+                    <!-- DIVIDER -->
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="#F1F5F9"
+                        android:layout_marginTop="14dp"
+                        android:layout_marginBottom="14dp" />
+
+                    <!-- ROW 2: SHARE APP WITH FRIENDS -->
+                    <RelativeLayout
+                        android:id="@+id/rowShareApp"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+
+                        <ImageView
+                            android:id="@+id/ivShareIcon"
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:src="@drawable/ic_share_nodes"
+                            android:layout_centerVertical="true"
+                            android:layout_alignParentStart="true"
+                            android:contentDescription="Share Icon" />
+
+                        <Button
+                            android:id="@+id/btnShareApp"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Share app with friends"
+                            android:textColor="#2D3748"
+                            android:textSize="15sp"
+                            android:fontFamily="@font/roboto_medium"
+                            android:gravity="start|center_vertical"
+                            android:background="@android:color/transparent"
+                            android:layout_toEndOf="@id/ivShareIcon"
+                            android:layout_toStartOf="@+id/tvShareArrow"
+                            android:layout_marginStart="10dp"
+                            android:textAllCaps="false"
+                            android:minHeight="0dp"
+                            android:padding="0dp" />
+
+                        <TextView
+                            android:id="@+id/tvShareArrow"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="›"
+                            android:textColor="#94A3B8"
+                            android:textSize="20sp"
+                            android:layout_alignParentEnd="true"
+                            android:layout_centerVertical="true" />
+                    </RelativeLayout>
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- RECONNECT & REPORT ROW (RULES 12 & 35) -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="12dp">
+
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/cardReconnectLast"
+                    android:layout_width="0dp"
+                    android:layout_height="44dp"
+                    android:layout_weight="1"
+                    app:cardCornerRadius="14dp"
+                    app:cardElevation="0dp"
+                    app:cardBackgroundColor="#DBEAFE"
+                    android:layout_marginEnd="6dp"
+                    android:visibility="gone">
+
+                    <Button
+                        android:id="@+id/btnReconnectLast"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:text="🔄 Reconnect Last Partner"
+                        android:textColor="#1E3A8A"
+                        android:textSize="13sp"
+                        android:fontFamily="@font/roboto_bold"
+                        android:background="@android:color/transparent" />
+                </androidx.cardview.widget.CardView>
+
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/cardDashboardReportLast"
+                    android:layout_width="wrap_content"
+                    android:layout_height="44dp"
+                    app:cardCornerRadius="14dp"
+                    app:cardElevation="0dp"
+                    app:cardBackgroundColor="#FEE2E2"
+                    android:visibility="gone">
+
+                    <Button
+                        android:id="@+id/btnDashboardReportLast"
+                        android:layout_width="wrap_content"
+                        android:layout_height="match_parent"
+                        android:text="⚐ Report"
+                        android:textColor="#991B1B"
+                        android:textSize="13sp"
+                        android:fontFamily="@font/roboto_bold"
+                        android:background="@android:color/transparent"
+                        android:paddingStart="14dp"
+                        android:paddingEnd="14dp" />
+                </androidx.cardview.widget.CardView>
+            </LinearLayout>
+
+            <!-- SYSTEM LOG BADGE (RULE 33) -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardCornerRadius="14dp"
+                app:cardElevation="0dp"
+                app:cardBackgroundColor="#2C2C2A"
+                android:layout_marginBottom="12dp">
+
+                <TextView
+                    android:id="@+id/tvConsoleLogs"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="[Ready] Listening on main signaling socket"
+                    android:textColor="#97C459"
+                    android:textSize="11sp"
+                    android:fontFamily="@font/roboto_medium"
+                    android:paddingStart="14dp"
+                    android:paddingEnd="14dp"
+                    android:paddingTop="10dp"
+                    android:paddingBottom="10dp"
+                    android:gravity="center_vertical" />
+            </androidx.cardview.widget.CardView>
         </LinearLayout>
     </ScrollView>
 
-    <!-- 2. REGIONAL LANGUAGES SELECTION CONTAINER -->
-    <ScrollView
+    <!-- REGIONAL LANGUAGES SCREEN (RULE 9) -->
+    <LinearLayout
         android:id="@+id/layoutLanguages"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:orientation="vertical"
         android:background="#0F172A"
-        android:fillViewport="true"
+        android:padding="20dp"
         android:visibility="gone">
 
-        <LinearLayout
+        <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="20dp">
+            android:layout_marginBottom="16dp">
 
             <Button
                 android:id="@+id/btnBackFromLanguages"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                android:backgroundTint="#334155"
-                android:text="← BACK TO ENGLISH"
-                android:textColor="#FFFFFF" />
+                android:layout_height="40dp"
+                android:text="← Dashboard"
+                android:textColor="#FFFFFF"
+                android:background="#334155" />
 
             <Button
                 android:id="@+id/btnWatchAdReward"
-                android:layout_width="match_parent"
-                android:layout_height="50dp"
-                android:layout_marginBottom="20dp"
-                android:backgroundTint="#EAB308"
-                android:text="🎁 WATCH AD (+2 COINS)"
-                android:textColor="#000000"
-                android:textStyle="bold" />
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="📺 Watch Ad (+2 Coins)"
+                android:textColor="#1F2937"
+                android:background="#FDF3E7"
+                android:layout_alignParentEnd="true" />
+        </RelativeLayout>
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
 
             <GridLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:columnCount="2"
-                android:useDefaultMargins="true">
+                android:columnCount="2">
 
-                <Button android:id="@+id/btnLangHindi" android:layout_width="0dp" android:layout_columnWeight="1" android:text="HINDI" android:backgroundTint="#1E293B" android:textColor="#FFFFFF" />
-                <Button android:id="@+id/btnLangPunjabi" android:layout_width="0dp" android:layout_columnWeight="1" android:text="PUNJABI" android:backgroundTint="#1E293B" android:textColor="#FFFFFF" />
-                <Button android:id="@+id/btnLangMarathi" android:layout_width="0dp" android:layout_columnWeight="1" android:text="MARATHI" android:backgroundTint="#1E293B" android:textColor="#FFFFFF" />
-                <Button android:id="@+id/btnLangBengali" android:layout_width="0dp" android:layout_columnWeight="1" android:text="BENGALI" android:backgroundTint="#1E293B" android:textColor="#FFFFFF" />
-                <Button android:id="@+id/btnLangBhojpuri" android:layout_width="0dp" android:layout_columnWeight="1" android:text="BHOJPURI" android:backgroundTint="#1E293B" android:textColor="#FFFFFF" />
-                <Button android:id="@+id/btnLangGujarati" android:layout_width="0dp" android:layout_columnWeight="1" android:text="GUJARATI" android:backgroundTint="#1E293B" android:textColor="#FFFFFF" />
-                <Button android:id="@+id/btnLangKannada" android:layout_width="0dp" android:layout_columnWeight="1" android:text="KANNADA" android:backgroundTint="#1E293B" android:textColor="#FFFFFF" />
-                <Button android:id="@+id/btnLangMalayalam" android:layout_width="0dp" android:layout_columnWeight="1" android:text="MALAYALAM" android:backgroundTint="#1E293B" android:textColor="#FFFFFF" />
-                <Button android:id="@+id/btnLangTamil" android:layout_width="0dp" android:layout_columnWeight="1" android:text="TAMIL" android:backgroundTint="#1E293B" android:textColor="#FFFFFF" />
-                <Button android:id="@+id/btnLangTelugu" android:layout_width="0dp" android:layout_columnWeight="1" android:text="TELUGU" android:backgroundTint="#1E293B" android:textColor="#FFFFFF" />
-                <Button android:id="@+id/btnLangUrdu" android:layout_width="0dp" android:layout_columnWeight="1" android:text="URDU" android:backgroundTint="#1E293B" android:textColor="#FFFFFF" />
-                <Button android:id="@+id/btnLangArabic" android:layout_width="0dp" android:layout_columnWeight="1" android:text="ARABIC" android:backgroundTint="#1E293B" android:textColor="#FFFFFF" />
+                <Button android:id="@+id/btnLangHindi" android:text="Hindi" android:layout_width="0dp" android:layout_height="50dp" android:layout_columnWeight="1" android:layout_margin="6dp" android:background="#334155" android:textColor="#FFFFFF" />
+                <Button android:id="@+id/btnLangPunjabi" android:text="Punjabi" android:layout_width="0dp" android:layout_height="50dp" android:layout_columnWeight="1" android:layout_margin="6dp" android:background="#334155" android:textColor="#FFFFFF" />
+                <Button android:id="@+id/btnLangMarathi" android:text="Marathi" android:layout_width="0dp" android:layout_height="50dp" android:layout_columnWeight="1" android:layout_margin="6dp" android:background="#334155" android:textColor="#FFFFFF" />
+                <Button android:id="@+id/btnLangBengali" android:text="Bengali" android:layout_width="0dp" android:layout_height="50dp" android:layout_columnWeight="1" android:layout_margin="6dp" android:background="#334155" android:textColor="#FFFFFF" />
+                <Button android:id="@+id/btnLangBhojpuri" android:text="Bhojpuri" android:layout_width="0dp" android:layout_height="50dp" android:layout_columnWeight="1" android:layout_margin="6dp" android:background="#334155" android:textColor="#FFFFFF" />
+                <Button android:id="@+id/btnLangGujarati" android:text="Gujarati" android:layout_width="0dp" android:layout_height="50dp" android:layout_columnWeight="1" android:layout_margin="6dp" android:background="#334155" android:textColor="#FFFFFF" />
+                <Button android:id="@+id/btnLangKannada" android:text="Kannada" android:layout_width="0dp" android:layout_height="50dp" android:layout_columnWeight="1" android:layout_margin="6dp" android:background="#334155" android:textColor="#FFFFFF" />
+                <Button android:id="@+id/btnLangMalayalam" android:text="Malayalam" android:layout_width="0dp" android:layout_height="50dp" android:layout_columnWeight="1" android:layout_margin="6dp" android:background="#334155" android:textColor="#FFFFFF" />
+                <Button android:id="@+id/btnLangTamil" android:text="Tamil" android:layout_width="0dp" android:layout_height="50dp" android:layout_columnWeight="1" android:layout_margin="6dp" android:background="#334155" android:textColor="#FFFFFF" />
+                <Button android:id="@+id/btnLangTelugu" android:text="Telugu" android:layout_width="0dp" android:layout_height="50dp" android:layout_columnWeight="1" android:layout_margin="6dp" android:background="#334155" android:textColor="#FFFFFF" />
+                <Button android:id="@+id/btnLangUrdu" android:text="Urdu" android:layout_width="0dp" android:layout_height="50dp" android:layout_columnWeight="1" android:layout_margin="6dp" android:background="#334155" android:textColor="#FFFFFF" />
+                <Button android:id="@+id/btnLangArabic" android:text="Arabic" android:layout_width="0dp" android:layout_height="50dp" android:layout_columnWeight="1" android:layout_margin="6dp" android:background="#334155" android:textColor="#FFFFFF" />
             </GridLayout>
-        </LinearLayout>
-    </ScrollView>
+        </ScrollView>
+    </LinearLayout>
 
-    <!-- 3. SEARCHING RADAR CONTAINER -->
+    <!-- SEARCHING SCREEN (RULE 13, 36, 41) -->
     <LinearLayout
         android:id="@+id/layoutSearching"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#0F172A"
-        android:gravity="center"
         android:orientation="vertical"
+        android:gravity="center"
+        android:background="#0F172A"
         android:padding="24dp"
         android:visibility="gone">
 
         <ProgressBar
-            android:layout_width="72dp"
-            android:layout_height="72dp"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
             android:indeterminateTint="#38BDF8" />
 
         <TextView
             android:id="@+id/tvSearchingStatus"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:layout_marginBottom="32dp"
             android:text="Searching for a partner..."
             android:textColor="#FFFFFF"
-            android:textSize="16sp" />
+            android:textSize="18sp"
+            android:fontFamily="@font/roboto_bold"
+            android:layout_marginTop="24dp"
+            android:gravity="center" />
 
         <Button
             android:id="@+id/btnCancelSearch"
-            android:layout_width="200dp"
-            android:layout_height="50dp"
-            android:backgroundTint="#E11D48"
-            android:text="CANCEL"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:text="Cancel Search"
             android:textColor="#FFFFFF"
-            android:textStyle="bold" />
+            android:background="#EF4444"
+            android:layout_marginTop="32dp"
+            android:paddingStart="24dp"
+            android:paddingEnd="24dp" />
     </LinearLayout>
 
-    <!-- 4. ACTIVE CALL CONTAINER -->
-    <RelativeLayout
+    <!-- LIVE CALL SCREEN (RULE 17, 18, 19, 31, 35) -->
+    <LinearLayout
         android:id="@+id/layoutCall"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#090D16"
-        android:padding="24dp"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:background="#0F172A"
+        android:padding="28dp"
         android:visibility="gone">
 
-        <Button
-            android:id="@+id/btnInCallReport"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:layout_alignParentEnd="true"
-            android:layout_alignParentTop="true"
-            android:backgroundTint="#334155"
-            android:padding="0dp"
-            android:text="⚐"
-            android:textColor="#EF4444"
-            android:textSize="20sp"
-            android:visibility="gone" />
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
 
-        <LinearLayout
+            <Button
+                android:id="@+id/btnInCallReport"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:text="⚐ Report"
+                android:textColor="#EF4444"
+                android:background="#FEE2E2"
+                android:layout_alignParentEnd="true"
+                android:visibility="gone" />
+        </RelativeLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <TextView
+            android:id="@+id/tvCallPartnerName"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_centerInParent="true"
-            android:gravity="center"
-            android:orientation="vertical">
+            android:text="Connected"
+            android:textColor="#94A3B8"
+            android:textSize="20sp"
+            android:fontFamily="@font/roboto_medium" />
 
-            <TextView
-                android:id="@+id/tvCallPartnerName"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Connected"
-                android:textColor="#FFFFFF"
-                android:textSize="22sp"
-                android:textStyle="bold" />
+        <TextView
+            android:id="@+id/tvCallTimer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="00:00"
+            android:textColor="#FFFFFF"
+            android:textSize="52sp"
+            android:fontFamily="@font/roboto_bold"
+            android:layout_marginTop="12dp" />
 
-            <TextView
-                android:id="@+id/tvCallTimer"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="00:00"
-                android:textColor="#38BDF8"
-                android:textSize="28sp"
-                android:textStyle="bold" />
-        </LinearLayout>
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_alignParentBottom="true"
+            android:orientation="horizontal"
             android:gravity="center"
-            android:orientation="horizontal">
+            android:layout_marginBottom="36dp">
 
             <Button
                 android:id="@+id/btnMute"
                 android:layout_width="64dp"
                 android:layout_height="64dp"
-                android:layout_marginEnd="16dp"
-                android:backgroundTint="#1E293B"
                 android:text="🎤"
-                android:textSize="22sp" />
+                android:textSize="24sp"
+                android:background="#1E293B"
+                android:textColor="#FFFFFF" />
+
+            <Button
+                android:id="@+id/btnEndCall"
+                android:layout_width="80dp"
+                android:layout_height="80dp"
+                android:text="☎"
+                android:textColor="#FFFFFF"
+                android:textSize="32sp"
+                android:background="#EF4444"
+                android:layout_marginStart="24dp"
+                android:layout_marginEnd="24dp" />
 
             <Button
                 android:id="@+id/btnSpeaker"
                 android:layout_width="64dp"
                 android:layout_height="64dp"
-                android:layout_marginEnd="16dp"
-                android:backgroundTint="#1E293B"
                 android:text="🔈"
-                android:textSize="22sp" />
-
-            <Button
-                android:id="@+id/btnEndCall"
-                android:layout_width="64dp"
-                android:layout_height="64dp"
-                android:backgroundTint="#DC2626"
-                android:text="📞"
-                android:textSize="22sp" />
+                android:textSize="24sp"
+                android:background="#1E293B"
+                android:textColor="#FFFFFF" />
         </LinearLayout>
-    </RelativeLayout>
+    </LinearLayout>
 
-    <!-- Bottom Banner Container -->
+    <!-- PERSISTENT BOTTOM BANNER AD CONTAINER -->
     <FrameLayout
         android:id="@+id/layoutBannerAd"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom" />
-
+        android:layout_height="54dp"
+        android:layout_gravity="bottom"
+        android:background="#F8F9FA" />
 </FrameLayout>

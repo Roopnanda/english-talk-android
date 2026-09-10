@@ -89,7 +89,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private var lipMale: CardView? = null
     private var lipFemale: CardView? = null
     private var lipOther: CardView? = null
-    private var cardConfirmGender: CardView? = null
+    cardConfirmGender: CardView? = null
     private var btnConfirmGender: Button? = null
 
     private var tvOnboardingTitle: TextView? = null
@@ -111,7 +111,9 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private var btnOtherLanguages: Button? = null
     private var btnShareApp: Button? = null
     private var btnReconnectLast: Button? = null
+    private var cardReconnectLast: View? = null
     private var btnDashboardReportLast: Button? = null
+    private var cardDashboardReportLast: View? = null
     private var btnVip: Button? = null
     private var switchFemaleFilter: Switch? = null
     private var tvConsoleLogs: TextView? = null
@@ -293,12 +295,20 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             if (isOnboardingVisible) {
                 window.statusBarColor = Color.parseColor("#F4F7FB")
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+                    var flags = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        flags = flags or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+                    }
+                    window.decorView.systemUiVisibility = flags
                 }
             } else {
-                window.statusBarColor = Color.parseColor("#0F172A")
+                window.statusBarColor = Color.parseColor("#F8F9FA")
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    window.decorView.systemUiVisibility = 0
+                    var flags = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        flags = flags or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+                    }
+                    window.decorView.systemUiVisibility = flags
                 }
             }
         }
@@ -415,7 +425,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         fun updateGenderCardSelection(selectedGender: String) {
             tempSelectedGender = selectedGender
 
-            // Male Selection & Spring Animation
+            // Male Selection
             if (selectedGender == "MALE") {
                 btnSelectMale?.setCardBackgroundColor(Color.parseColor("#F0F6FF"))
                 lipMale?.setCardBackgroundColor(Color.parseColor("#1D72FE"))
@@ -428,7 +438,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 btnSelectMale?.animate()?.scaleX(1.0f)?.scaleY(1.0f)?.setDuration(120)?.start()
             }
 
-            // Female Selection & Spring Animation
+            // Female Selection
             if (selectedGender == "FEMALE") {
                 btnSelectFemale?.setCardBackgroundColor(Color.parseColor("#FFF0F3"))
                 lipFemale?.setCardBackgroundColor(Color.parseColor("#FF6584"))
@@ -441,7 +451,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 btnSelectFemale?.animate()?.scaleX(1.0f)?.scaleY(1.0f)?.setDuration(120)?.start()
             }
 
-            // Other Selection & Spring Animation
+            // Other Selection
             if (selectedGender == "OTHER") {
                 btnSelectOther?.setCardBackgroundColor(Color.parseColor("#F6F3FF"))
                 lipOther?.setCardBackgroundColor(Color.parseColor("#9C88FF"))
@@ -518,7 +528,9 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         btnOtherLanguages = findViewById(R.id.btnOtherLanguages)
         btnShareApp = findViewById(R.id.btnShareApp)
         btnReconnectLast = findViewById(R.id.btnReconnectLast)
+        cardReconnectLast = findViewById(R.id.cardReconnectLast)
         btnDashboardReportLast = findViewById(R.id.btnDashboardReportLast)
+        cardDashboardReportLast = findViewById(R.id.cardDashboardReportLast)
         btnVip = findViewById(R.id.btnVip)
         switchFemaleFilter = findViewById(R.id.switchFemaleFilter)
         tvConsoleLogs = findViewById(R.id.tvConsoleLogs)
@@ -612,7 +624,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             if (lastCallerPeerId.isNotEmpty() && !reconnectConsumed) {
                 initiateReconnectFlow()
             } else {
-                btnReconnectLast?.visibility = View.GONE
+                cardReconnectLast?.visibility = View.GONE
             }
         }
 
@@ -817,8 +829,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         val scroll = ScrollView(this)
         val text = TextView(this).apply {
             setText(logContent)
-            setTextColor(Color.parseColor("#38BDF8"))
-            setBackgroundColor(Color.parseColor("#050811"))
+            setTextColor(Color.parseColor("#97C459"))
+            setBackgroundColor(Color.parseColor("#2C2C2A"))
             setPadding(24, 24, 24, 24)
             textSize = 11f
             typeface = android.graphics.Typeface.MONOSPACE
@@ -1072,8 +1084,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             if (isCurrentSessionReconnect) {
                 lastCallerPeerId = ""
                 reconnectConsumed = true
-                btnReconnectLast?.visibility = View.GONE
-                btnDashboardReportLast?.visibility = View.GONE
+                cardReconnectLast?.visibility = View.GONE
+                cardDashboardReportLast?.visibility = View.GONE
             } else {
                 lastCallerPeerId = peerId
                 lastCallerLanguage = currentLanguage
@@ -1248,18 +1260,18 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             lastCallerLanguage = ""
             isCurrentSessionReconnect = false
             reconnectConsumed = true
-            btnReconnectLast?.visibility = View.GONE
-            btnDashboardReportLast?.visibility = View.GONE
+            cardReconnectLast?.visibility = View.GONE
+            cardDashboardReportLast?.visibility = View.GONE
             logEvent("Reconnect", "Single-use reconnect session completed. Button locked and destroyed.")
         } else if (lastCallerPeerId.isNotEmpty() && !reconnectConsumed) {
-            btnReconnectLast?.visibility = View.VISIBLE
-            btnReconnectLast?.bringToFront()
-            btnDashboardReportLast?.visibility = View.VISIBLE
-            btnDashboardReportLast?.bringToFront()
+            cardReconnectLast?.visibility = View.VISIBLE
+            cardReconnectLast?.bringToFront()
+            cardDashboardReportLast?.visibility = View.VISIBLE
+            cardDashboardReportLast?.bringToFront()
             logEvent("Reconnect", "Single-use reconnect token armed for pool: $lastCallerLanguage (Peer: $lastCallerPeerId)")
         } else {
-            btnReconnectLast?.visibility = View.GONE
-            btnDashboardReportLast?.visibility = View.GONE
+            cardReconnectLast?.visibility = View.GONE
+            cardDashboardReportLast?.visibility = View.GONE
         }
 
         if (wasFemaleSession) {
@@ -1371,41 +1383,36 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         val isQuestActive = prefs.getBoolean("is_quest_active", false)
         val questCalls = prefs.getInt("female_pass_qualified_calls", 0)
 
-        tvTalkCoinsBadge?.text = "🪙 Talk Coins: $coins"
-        tvStreakVal?.text = "🔥 $streak"
-        tvTotalMinutesVal?.text = "⏱️ ${practiceMins}m"
-        tvTotalCallsVal?.text = "📞 $totalCalls"
+        // Numbers only inside cards (vector icons are declared above each number in layout)
+        tvTalkCoinsBadge?.text = "🪙 $coins"
+        tvStreakVal?.text = "$streak"
+        tvTotalMinutesVal?.text = "${practiceMins}m"
+        tvTotalCallsVal?.text = "$totalCalls"
 
         if (hasPass) {
-            btnVip?.text = "PASS ACTIVE"
-            btnVip?.setBackgroundColor(Color.parseColor("#EAB308"))
-            btnVip?.setTextColor(Color.BLACK)
+            btnVip?.text = "👑 PASS"
         } else if (isQuestActive) {
-            btnVip?.text = "QUEST ($questCalls/5)"
-            btnVip?.setBackgroundColor(Color.parseColor("#3B82F6"))
-            btnVip?.setTextColor(Color.WHITE)
+            btnVip?.text = "👑 $questCalls/5"
         } else {
-            btnVip?.text = "👑 GO VIP"
-            btnVip?.setBackgroundColor(Color.parseColor("#CA8A04"))
-            btnVip?.setTextColor(Color.BLACK)
+            btnVip?.text = "👑 VIP"
         }
 
         if (qualifiedCalls >= 20) {
-            btnAdvanced?.text = "ADVANCED (TAP TO CALL)"
-            btnAdvanced?.setBackgroundColor(Color.parseColor("#16A34A"))
-            btnAdvanced?.setTextColor(Color.WHITE)
+            btnAdvanced?.text = "Advanced · tap to call"
+            btnAdvanced?.setTextColor(Color.parseColor("#1E293B"))
         } else {
-            btnAdvanced?.text = "🔒 ADVANCED ($qualifiedCalls/20)"
+            btnAdvanced?.text = "Advanced ($qualifiedCalls/20)"
+            btnAdvanced?.setTextColor(Color.parseColor("#5F5E5A"))
         }
 
         if (lastCallerPeerId.isNotEmpty() && !reconnectConsumed) {
-            btnReconnectLast?.visibility = View.VISIBLE
-            btnReconnectLast?.bringToFront()
-            btnDashboardReportLast?.visibility = View.VISIBLE
-            btnDashboardReportLast?.bringToFront()
+            cardReconnectLast?.visibility = View.VISIBLE
+            cardReconnectLast?.bringToFront()
+            cardDashboardReportLast?.visibility = View.VISIBLE
+            cardDashboardReportLast?.bringToFront()
         } else {
-            btnReconnectLast?.visibility = View.GONE
-            btnDashboardReportLast?.visibility = View.GONE
+            cardReconnectLast?.visibility = View.GONE
+            cardDashboardReportLast?.visibility = View.GONE
         }
     }
 

@@ -778,63 +778,644 @@
         </LinearLayout>
     </ScrollView>
 
-    <!-- REGIONAL LANGUAGES SCREEN (RULE 9) -->
-    <LinearLayout
+    <!-- REGIONAL LANGUAGES SCREEN (RULE 9 & 32 - IMAGE 3 REDESIGN) -->
+    <ScrollView
         android:id="@+id/layoutLanguages"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:background="#0F172A"
-        android:padding="20dp"
+        android:fillViewport="true"
+        android:scrollbars="none"
+        android:background="#F8F9FA"
         android:visibility="gone">
 
-        <RelativeLayout
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp">
+            android:orientation="vertical"
+            android:paddingStart="18dp"
+            android:paddingEnd="18dp"
+            android:paddingTop="20dp"
+            android:paddingBottom="84dp">
 
-            <Button
-                android:id="@+id/btnBackFromLanguages"
+            <!-- TOP NAVIGATION: BACK TO ENGLISH -->
+            <androidx.cardview.widget.CardView
                 android:layout_width="wrap_content"
-                android:layout_height="40dp"
-                android:text="← Dashboard"
-                android:textColor="#FFFFFF"
-                android:background="#334155" />
+                android:layout_height="36dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="0dp"
+                app:cardBackgroundColor="#F1EFE8"
+                android:layout_marginBottom="14dp">
 
-            <Button
-                android:id="@+id/btnWatchAdReward"
+                <Button
+                    android:id="@+id/btnBackFromLanguages"
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:text="← Back to English"
+                    android:textColor="#5F5E5A"
+                    android:textSize="13sp"
+                    android:fontFamily="@font/roboto_medium"
+                    android:background="@android:color/transparent"
+                    android:paddingStart="14dp"
+                    android:paddingEnd="14dp"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:textAllCaps="false" />
+            </androidx.cardview.widget.CardView>
+
+            <!-- WATCH AD BANNER PILL -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="0dp"
+                app:cardBackgroundColor="#FAC775"
+                android:layout_marginBottom="18dp">
+
+                <Button
+                    android:id="@+id/btnWatchAdReward"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:text="🎁 Watch ad (+2 coins)"
+                    android:textColor="#412402"
+                    android:textSize="14sp"
+                    android:fontFamily="@font/roboto_bold"
+                    android:background="@android:color/transparent"
+                    android:textAllCaps="false" />
+            </androidx.cardview.widget.CardView>
+
+            <!-- SECTION LABEL -->
+            <TextView
                 android:layout_width="wrap_content"
-                android:layout_height="40dp"
-                android:text="📺 Watch Ad (+2 Coins)"
-                android:textColor="#1F2937"
-                android:background="#FDF3E7"
-                android:layout_alignParentEnd="true" />
-        </RelativeLayout>
+                android:layout_height="wrap_content"
+                android:text="Choose a language"
+                android:textColor="#94A3B8"
+                android:textSize="13sp"
+                android:fontFamily="@font/roboto_medium"
+                android:layout_marginBottom="12dp" />
 
-        <ScrollView
-            android:layout_width="match_parent"
-            android:layout_height="match_parent">
-
+            <!-- 12 LANGUAGE CARDS (2-COLUMN BALANCED GRID) -->
             <GridLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:columnCount="2">
+                android:columnCount="2"
+                android:alignmentMode="alignMargins"
+                android:columnOrderPreserved="false"
+                android:useDefaultMargins="false">
 
-                <Button android:id="@+id/btnLangHindi" android:text="Hindi" android:layout_width="0dp" android:layout_height="50dp" android:layout_columnWeight="1" android:layout_margin="6dp" android:background="#334155" android:textColor="#FFFFFF" />
-                <Button android:id="@+id/btnLangPunjabi" android:text="Punjabi" android:layout_width="0dp" android:layout_height="50dp" android:layout_columnWeight="1" android:layout_margin="6dp" android:background="#334155" android:textColor="#FFFFFF" />
-                <Button android:id="@+id/btnLangMarathi" android:text="Marathi" android:layout_width="0dp" android:layout_height="50dp" android:layout_columnWeight="1" android:layout_margin="6dp" android:background="#334155" android:textColor="#FFFFFF" />
-                <Button android:id="@+id/btnLangBengali" android:text="Bengali" android:layout_width="0dp" android:layout_height="50dp" android:layout_columnWeight="1" android:layout_margin="6dp" android:background="#334155" android:textColor="#FFFFFF" />
-                <Button android:id="@+id/btnLangBhojpuri" android:text="Bhojpuri" android:layout_width="0dp" android:layout_height="50dp" android:layout_columnWeight="1" android:layout_margin="6dp" android:background="#334155" android:textColor="#FFFFFF" />
-                <Button android:id="@+id/btnLangGujarati" android:text="Gujarati" android:layout_width="0dp" android:layout_height="50dp" android:layout_columnWeight="1" android:layout_margin="6dp" android:background="#334155" android:textColor="#FFFFFF" />
-                <Button android:id="@+id/btnLangKannada" android:text="Kannada" android:layout_width="0dp" android:layout_height="50dp" android:layout_columnWeight="1" android:layout_margin="6dp" android:background="#334155" android:textColor="#FFFFFF" />
-                <Button android:id="@+id/btnLangMalayalam" android:text="Malayalam" android:layout_width="0dp" android:layout_height="50dp" android:layout_columnWeight="1" android:layout_margin="6dp" android:background="#334155" android:textColor="#FFFFFF" />
-                <Button android:id="@+id/btnLangTamil" android:text="Tamil" android:layout_width="0dp" android:layout_height="50dp" android:layout_columnWeight="1" android:layout_margin="6dp" android:background="#334155" android:textColor="#FFFFFF" />
-                <Button android:id="@+id/btnLangTelugu" android:text="Telugu" android:layout_width="0dp" android:layout_height="50dp" android:layout_columnWeight="1" android:layout_margin="6dp" android:background="#334155" android:textColor="#FFFFFF" />
-                <Button android:id="@+id/btnLangUrdu" android:text="Urdu" android:layout_width="0dp" android:layout_height="50dp" android:layout_columnWeight="1" android:layout_margin="6dp" android:background="#334155" android:textColor="#FFFFFF" />
-                <Button android:id="@+id/btnLangArabic" android:text="Arabic" android:layout_width="0dp" android:layout_height="50dp" android:layout_columnWeight="1" android:layout_margin="6dp" android:background="#334155" android:textColor="#FFFFFF" />
+                <!-- 1. HINDI -->
+                <androidx.cardview.widget.CardView
+                    android:layout_width="0dp"
+                    android:layout_height="72dp"
+                    android:layout_columnWeight="1"
+                    android:layout_marginEnd="6dp"
+                    android:layout_marginBottom="12dp"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp"
+                    app:cardBackgroundColor="#FAECE7">
+
+                    <FrameLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:orientation="vertical"
+                            android:gravity="center">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Hindi"
+                                android:textColor="#4A1B0C"
+                                android:textSize="15sp"
+                                android:fontFamily="@font/roboto_bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="हिन्दी"
+                                android:textColor="#993C1D"
+                                android:textSize="12sp"
+                                android:layout_marginTop="2dp" />
+                        </LinearLayout>
+
+                        <Button
+                            android:id="@+id/btnLangHindi"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="@android:color/transparent" />
+                    </FrameLayout>
+                </androidx.cardview.widget.CardView>
+
+                <!-- 2. PUNJABI -->
+                <androidx.cardview.widget.CardView
+                    android:layout_width="0dp"
+                    android:layout_height="72dp"
+                    android:layout_columnWeight="1"
+                    android:layout_marginStart="6dp"
+                    android:layout_marginBottom="12dp"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp"
+                    app:cardBackgroundColor="#E6F1FB">
+
+                    <FrameLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:orientation="vertical"
+                            android:gravity="center">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Punjabi"
+                                android:textColor="#042C53"
+                                android:textSize="15sp"
+                                android:fontFamily="@font/roboto_bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="ਪੰਜਾਬੀ"
+                                android:textColor="#185FA5"
+                                android:textSize="12sp"
+                                android:layout_marginTop="2dp" />
+                        </LinearLayout>
+
+                        <Button
+                            android:id="@+id/btnLangPunjabi"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="@android:color/transparent" />
+                    </FrameLayout>
+                </androidx.cardview.widget.CardView>
+
+                <!-- 3. MARATHI -->
+                <androidx.cardview.widget.CardView
+                    android:layout_width="0dp"
+                    android:layout_height="72dp"
+                    android:layout_columnWeight="1"
+                    android:layout_marginEnd="6dp"
+                    android:layout_marginBottom="12dp"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp"
+                    app:cardBackgroundColor="#EAF3DE">
+
+                    <FrameLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:orientation="vertical"
+                            android:gravity="center">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Marathi"
+                                android:textColor="#173404"
+                                android:textSize="15sp"
+                                android:fontFamily="@font/roboto_bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="मराठी"
+                                android:textColor="#3B6D11"
+                                android:textSize="12sp"
+                                android:layout_marginTop="2dp" />
+                        </LinearLayout>
+
+                        <Button
+                            android:id="@+id/btnLangMarathi"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="@android:color/transparent" />
+                    </FrameLayout>
+                </androidx.cardview.widget.CardView>
+
+                <!-- 4. BENGALI -->
+                <androidx.cardview.widget.CardView
+                    android:layout_width="0dp"
+                    android:layout_height="72dp"
+                    android:layout_columnWeight="1"
+                    android:layout_marginStart="6dp"
+                    android:layout_marginBottom="12dp"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp"
+                    app:cardBackgroundColor="#EEEDFE">
+
+                    <FrameLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:orientation="vertical"
+                            android:gravity="center">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Bengali"
+                                android:textColor="#26215C"
+                                android:textSize="15sp"
+                                android:fontFamily="@font/roboto_bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="বাংলা"
+                                android:textColor="#534AB7"
+                                android:textSize="12sp"
+                                android:layout_marginTop="2dp" />
+                        </LinearLayout>
+
+                        <Button
+                            android:id="@+id/btnLangBengali"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="@android:color/transparent" />
+                    </FrameLayout>
+                </androidx.cardview.widget.CardView>
+
+                <!-- 5. BHOJPURI -->
+                <androidx.cardview.widget.CardView
+                    android:layout_width="0dp"
+                    android:layout_height="72dp"
+                    android:layout_columnWeight="1"
+                    android:layout_marginEnd="6dp"
+                    android:layout_marginBottom="12dp"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp"
+                    app:cardBackgroundColor="#FDF1E1">
+
+                    <FrameLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:orientation="vertical"
+                            android:gravity="center">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Bhojpuri"
+                                android:textColor="#5D3A02"
+                                android:textSize="15sp"
+                                android:fontFamily="@font/roboto_bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="भोजपुरी"
+                                android:textColor="#946107"
+                                android:textSize="12sp"
+                                android:layout_marginTop="2dp" />
+                        </LinearLayout>
+
+                        <Button
+                            android:id="@+id/btnLangBhojpuri"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="@android:color/transparent" />
+                    </FrameLayout>
+                </androidx.cardview.widget.CardView>
+
+                <!-- 6. GUJARATI -->
+                <androidx.cardview.widget.CardView
+                    android:layout_width="0dp"
+                    android:layout_height="72dp"
+                    android:layout_columnWeight="1"
+                    android:layout_marginStart="6dp"
+                    android:layout_marginBottom="12dp"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp"
+                    app:cardBackgroundColor="#FCE7F0">
+
+                    <FrameLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:orientation="vertical"
+                            android:gravity="center">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Gujarati"
+                                android:textColor="#72243E"
+                                android:textSize="15sp"
+                                android:fontFamily="@font/roboto_bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="ગુજરાતી"
+                                android:textColor="#B24069"
+                                android:textSize="12sp"
+                                android:layout_marginTop="2dp" />
+                        </LinearLayout>
+
+                        <Button
+                            android:id="@+id/btnLangGujarati"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="@android:color/transparent" />
+                    </FrameLayout>
+                </androidx.cardview.widget.CardView>
+
+                <!-- 7. KANNADA -->
+                <androidx.cardview.widget.CardView
+                    android:layout_width="0dp"
+                    android:layout_height="72dp"
+                    android:layout_columnWeight="1"
+                    android:layout_marginEnd="6dp"
+                    android:layout_marginBottom="12dp"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp"
+                    app:cardBackgroundColor="#E1F3EC">
+
+                    <FrameLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:orientation="vertical"
+                            android:gravity="center">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Kannada"
+                                android:textColor="#04342C"
+                                android:textSize="15sp"
+                                android:fontFamily="@font/roboto_bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="ಕನ್ನಡ"
+                                android:textColor="#0F6E56"
+                                android:textSize="12sp"
+                                android:layout_marginTop="2dp" />
+                        </LinearLayout>
+
+                        <Button
+                            android:id="@+id/btnLangKannada"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="@android:color/transparent" />
+                    </FrameLayout>
+                </androidx.cardview.widget.CardView>
+
+                <!-- 8. MALAYALAM -->
+                <androidx.cardview.widget.CardView
+                    android:layout_width="0dp"
+                    android:layout_height="72dp"
+                    android:layout_columnWeight="1"
+                    android:layout_marginStart="6dp"
+                    android:layout_marginBottom="12dp"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp"
+                    app:cardBackgroundColor="#FBEAEA">
+
+                    <FrameLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:orientation="vertical"
+                            android:gravity="center">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Malayalam"
+                                android:textColor="#5C1616"
+                                android:textSize="15sp"
+                                android:fontFamily="@font/roboto_bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="മലയാളം"
+                                android:textColor="#993434"
+                                android:textSize="12sp"
+                                android:layout_marginTop="2dp" />
+                        </LinearLayout>
+
+                        <Button
+                            android:id="@+id/btnLangMalayalam"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="@android:color/transparent" />
+                    </FrameLayout>
+                </androidx.cardview.widget.CardView>
+
+                <!-- 9. TAMIL -->
+                <androidx.cardview.widget.CardView
+                    android:layout_width="0dp"
+                    android:layout_height="72dp"
+                    android:layout_columnWeight="1"
+                    android:layout_marginEnd="6dp"
+                    android:layout_marginBottom="12dp"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp"
+                    app:cardBackgroundColor="#E9F0FB">
+
+                    <FrameLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:orientation="vertical"
+                            android:gravity="center">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Tamil"
+                                android:textColor="#0A2A57"
+                                android:textSize="15sp"
+                                android:fontFamily="@font/roboto_bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="தமிழ்"
+                                android:textColor="#2F5C9E"
+                                android:textSize="12sp"
+                                android:layout_marginTop="2dp" />
+                        </LinearLayout>
+
+                        <Button
+                            android:id="@+id/btnLangTamil"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="@android:color/transparent" />
+                    </FrameLayout>
+                </androidx.cardview.widget.CardView>
+
+                <!-- 10. TELUGU -->
+                <androidx.cardview.widget.CardView
+                    android:layout_width="0dp"
+                    android:layout_height="72dp"
+                    android:layout_columnWeight="1"
+                    android:layout_marginStart="6dp"
+                    android:layout_marginBottom="12dp"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp"
+                    app:cardBackgroundColor="#F3EFE2">
+
+                    <FrameLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:orientation="vertical"
+                            android:gravity="center">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Telugu"
+                                android:textColor="#4A3B0A"
+                                android:textSize="15sp"
+                                android:fontFamily="@font/roboto_bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="తెలుగు"
+                                android:textColor="#8A6D14"
+                                android:textSize="12sp"
+                                android:layout_marginTop="2dp" />
+                        </LinearLayout>
+
+                        <Button
+                            android:id="@+id/btnLangTelugu"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="@android:color/transparent" />
+                    </FrameLayout>
+                </androidx.cardview.widget.CardView>
+
+                <!-- 11. URDU -->
+                <androidx.cardview.widget.CardView
+                    android:layout_width="0dp"
+                    android:layout_height="72dp"
+                    android:layout_columnWeight="1"
+                    android:layout_marginEnd="6dp"
+                    android:layout_marginBottom="12dp"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp"
+                    app:cardBackgroundColor="#F0E4F5">
+
+                    <FrameLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:orientation="vertical"
+                            android:gravity="center">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Urdu"
+                                android:textColor="#4A1B5C"
+                                android:textSize="15sp"
+                                android:fontFamily="@font/roboto_bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="اردو"
+                                android:textColor="#7A3A99"
+                                android:textSize="12sp"
+                                android:layout_marginTop="2dp" />
+                        </LinearLayout>
+
+                        <Button
+                            android:id="@+id/btnLangUrdu"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="@android:color/transparent" />
+                    </FrameLayout>
+                </androidx.cardview.widget.CardView>
+
+                <!-- 12. ARABIC -->
+                <androidx.cardview.widget.CardView
+                    android:layout_width="0dp"
+                    android:layout_height="72dp"
+                    android:layout_columnWeight="1"
+                    android:layout_marginStart="6dp"
+                    android:layout_marginBottom="12dp"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp"
+                    app:cardBackgroundColor="#E1F1EC">
+
+                    <FrameLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:orientation="vertical"
+                            android:gravity="center">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Arabic"
+                                android:textColor="#0B4033"
+                                android:textSize="15sp"
+                                android:fontFamily="@font/roboto_bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="العربية"
+                                android:textColor="#1D8065"
+                                android:textSize="12sp"
+                                android:layout_marginTop="2dp" />
+                        </LinearLayout>
+
+                        <Button
+                            android:id="@+id/btnLangArabic"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="@android:color/transparent" />
+                    </FrameLayout>
+                </androidx.cardview.widget.CardView>
             </GridLayout>
-        </ScrollView>
-    </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
 
     <!-- SEARCHING SCREEN (RULE 13, 36, 41) -->
     <LinearLayout

@@ -287,12 +287,18 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private fun updateWindowAppearanceForCurrentScreen() {
         val savedGender = prefs.getString("user_gender", "NOT_SET") ?: "NOT_SET"
         val isOnboardingVisible = (savedGender == "NOT_SET")
+        val isSearchingOrCallVisible = (layoutSearching?.visibility == View.VISIBLE || layoutCall?.visibility == View.VISIBLE)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS)
             window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
 
-            if (isOnboardingVisible) {
+            if (isSearchingOrCallVisible) {
+                window.statusBarColor = Color.parseColor("#0F172A")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    window.decorView.systemUiVisibility = 0
+                }
+            } else if (isOnboardingVisible) {
                 window.statusBarColor = Color.parseColor("#F4F7FB")
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                     var flags = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
@@ -302,6 +308,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                     window.decorView.systemUiVisibility = flags
                 }
             } else {
+                // Dashboard and Languages both share the identical #F8F9FA light theme
                 window.statusBarColor = Color.parseColor("#F8F9FA")
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                     var flags = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
@@ -1383,6 +1390,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         val isQuestActive = prefs.getBoolean("is_quest_active", false)
         val questCalls = prefs.getInt("female_pass_qualified_calls", 0)
 
+        // Numbers only inside cards (vector icons are declared above each number in layout)
         tvTalkCoinsBadge?.text = "🪙 $coins"
         tvStreakVal?.text = "$streak"
         tvTotalMinutesVal?.text = "${practiceMins}m"
@@ -1420,6 +1428,9 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         layoutLanguages?.visibility = if (activeLayout == layoutLanguages) View.VISIBLE else View.GONE
         layoutSearching?.visibility = if (activeLayout == layoutSearching) View.VISIBLE else View.GONE
         layoutCall?.visibility = if (activeLayout == layoutCall) View.VISIBLE else View.GONE
+
+        // Keep status bar in sync when switching screens
+        updateWindowAppearanceForCurrentScreen()
     }
 
     override fun onPause() {

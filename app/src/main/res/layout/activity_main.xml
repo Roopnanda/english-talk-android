@@ -778,7 +778,7 @@
         </LinearLayout>
     </ScrollView>
 
-    <!-- REGIONAL LANGUAGES SCREEN (RULE 9 & 32 - IMAGE 3 REDESIGN) -->
+    <!-- REGIONAL LANGUAGES SCREEN (RULE 9 & 32) -->
     <ScrollView
         android:id="@+id/layoutLanguages"
         android:layout_width="match_parent"
@@ -853,7 +853,7 @@
                 android:fontFamily="@font/roboto_medium"
                 android:layout_marginBottom="12dp" />
 
-            <!-- 12 LANGUAGE CARDS (2-COLUMN BALANCED GRID) -->
+            <!-- 12 LANGUAGE CARDS (2-COLUMN GRID) -->
             <GridLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -1417,139 +1417,358 @@
         </LinearLayout>
     </ScrollView>
 
-    <!-- SEARCHING SCREEN (RULE 13, 36, 41) -->
+    <!-- SEARCHING SCREEN (RULE 13, 36, 41 - CLEAN REFINED LAYOUT) -->
     <LinearLayout
         android:id="@+id/layoutSearching"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
-        android:gravity="center"
-        android:background="#0F172A"
-        android:padding="24dp"
+        android:gravity="center_horizontal"
+        android:background="#F8F9FA"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:paddingTop="28dp"
+        android:paddingBottom="36dp"
         android:visibility="gone">
 
+        <!-- TOP AD CONTAINER (MREC / LARGE BANNER) -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/layoutSearchAdContainer"
+            android:layout_width="match_parent"
+            android:layout_height="120dp"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="0dp"
+            app:cardBackgroundColor="#FFFFFF"
+            android:layout_marginBottom="24dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Ad space (320 × 100)"
+                android:textColor="#94A3B8"
+                android:textSize="13sp"
+                android:fontFamily="@font/roboto_medium"
+                android:layout_gravity="center" />
+        </androidx.cardview.widget.CardView>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <!-- CLEAN ROTATING CIRCULAR SPINNER (NO MESSY RINGS) -->
         <ProgressBar
-            android:layout_width="64dp"
-            android:layout_height="64dp"
-            android:indeterminateTint="#38BDF8" />
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:indeterminateTint="#1D72FE" />
 
         <TextView
             android:id="@+id/tvSearchingStatus"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Searching for a partner..."
-            android:textColor="#FFFFFF"
+            android:textColor="#1E293B"
             android:textSize="18sp"
             android:fontFamily="@font/roboto_bold"
             android:layout_marginTop="24dp"
             android:gravity="center" />
 
-        <Button
-            android:id="@+id/btnCancelSearch"
+        <TextView
             android:layout_width="wrap_content"
-            android:layout_height="48dp"
-            android:text="Cancel Search"
-            android:textColor="#FFFFFF"
-            android:background="#EF4444"
-            android:layout_marginTop="32dp"
-            android:paddingStart="24dp"
-            android:paddingEnd="24dp" />
+            android:layout_height="wrap_content"
+            android:text="This usually takes a few seconds"
+            android:textColor="#94A3B8"
+            android:textSize="13sp"
+            android:fontFamily="@font/roboto_medium"
+            android:layout_marginTop="6dp"
+            android:gravity="center" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <!-- CANCEL SEARCH PILL BUTTON -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            app:cardCornerRadius="26dp"
+            app:cardElevation="0dp"
+            app:cardBackgroundColor="#E8785A">
+
+            <Button
+                android:id="@+id/btnCancelSearch"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="✕  Cancel search"
+                android:textColor="#FFFFFF"
+                android:textSize="15sp"
+                android:fontFamily="@font/roboto_bold"
+                android:background="@android:color/transparent"
+                android:textAllCaps="false" />
+        </androidx.cardview.widget.CardView>
     </LinearLayout>
 
-    <!-- LIVE CALL SCREEN (RULE 17, 18, 19, 31, 35) -->
+    <!-- LIVE CALL SCREEN (RULE 17, 18, 19, 31, 35 - 1:1 IMAGE 2 REDESIGN) -->
     <LinearLayout
         android:id="@+id/layoutCall"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
         android:gravity="center_horizontal"
-        android:background="#0F172A"
-        android:padding="28dp"
+        android:background="#F8F9FA"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:paddingTop="28dp"
+        android:paddingBottom="42dp"
         android:visibility="gone">
 
+        <!-- TOP BAR: IN-CALL REPORT BUTTON -->
         <RelativeLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content">
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp">
 
-            <Button
-                android:id="@+id/btnInCallReport"
+            <androidx.cardview.widget.CardView
+                android:id="@+id/cardInCallReport"
                 android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:text="⚐ Report"
-                android:textColor="#EF4444"
-                android:background="#FEE2E2"
-                android:layout_alignParentEnd="true"
-                android:visibility="gone" />
+                android:layout_height="34dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="0dp"
+                app:cardBackgroundColor="#FEE2E2"
+                android:layout_alignParentEnd="true">
+
+                <Button
+                    android:id="@+id/btnInCallReport"
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:text="⚐ Report"
+                    android:textColor="#EF4444"
+                    android:textSize="12sp"
+                    android:fontFamily="@font/roboto_bold"
+                    android:background="@android:color/transparent"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:visibility="gone" />
+            </androidx.cardview.widget.CardView>
         </RelativeLayout>
+
+        <!-- TOP AD CONTAINER (IMAGE 3 FORMAT: MREC / LARGE BANNER) -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/layoutInCallAdContainer"
+            android:layout_width="match_parent"
+            android:layout_height="120dp"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="0dp"
+            app:cardBackgroundColor="#FFFFFF"
+            android:layout_marginBottom="20dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Ad space (320 × 100)"
+                android:textColor="#94A3B8"
+                android:textSize="13sp"
+                android:fontFamily="@font/roboto_medium"
+                android:layout_gravity="center" />
+        </androidx.cardview.widget.CardView>
 
         <View
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1" />
 
-        <TextView
-            android:id="@+id/tvCallPartnerName"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Connected"
-            android:textColor="#94A3B8"
-            android:textSize="20sp"
-            android:fontFamily="@font/roboto_medium" />
-
+        <!-- CALL DURATION TIMER -->
         <TextView
             android:id="@+id/tvCallTimer"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="00:00"
-            android:textColor="#FFFFFF"
-            android:textSize="52sp"
-            android:fontFamily="@font/roboto_bold"
-            android:layout_marginTop="12dp" />
+            android:textColor="#1E293B"
+            android:textSize="54sp"
+            android:fontFamily="@font/roboto_bold" />
+
+        <!-- CONNECTED STATUS BADGE -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginTop="8dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="● "
+                android:textColor="#5DCAA5"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/tvCallPartnerName"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Connected"
+                android:textColor="#0F6E56"
+                android:textSize="14sp"
+                android:fontFamily="@font/roboto_medium" />
+        </LinearLayout>
 
         <View
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1" />
 
+        <!-- 3 SYMMETRICAL ACTION CONTROLS -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gravity="center"
-            android:layout_marginBottom="36dp">
+            android:gravity="center_vertical"
+            android:weightSum="3">
 
-            <Button
-                android:id="@+id/btnMute"
-                android:layout_width="64dp"
-                android:layout_height="64dp"
-                android:text="🎤"
-                android:textSize="24sp"
-                android:background="#1E293B"
-                android:textColor="#FFFFFF" />
+            <!-- 1. MUTE BUTTON COLUMN -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:gravity="center">
 
-            <Button
-                android:id="@+id/btnEndCall"
-                android:layout_width="80dp"
-                android:layout_height="80dp"
-                android:text="☎"
-                android:textColor="#FFFFFF"
-                android:textSize="32sp"
-                android:background="#EF4444"
-                android:layout_marginStart="24dp"
-                android:layout_marginEnd="24dp" />
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/cardBtnMute"
+                    android:layout_width="64dp"
+                    android:layout_height="64dp"
+                    app:cardCornerRadius="32dp"
+                    app:cardElevation="2dp"
+                    app:cardBackgroundColor="#FFFFFF">
 
-            <Button
-                android:id="@+id/btnSpeaker"
-                android:layout_width="64dp"
-                android:layout_height="64dp"
-                android:text="🔈"
-                android:textSize="24sp"
-                android:background="#1E293B"
-                android:textColor="#FFFFFF" />
+                    <FrameLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent">
+
+                        <ImageView
+                            android:id="@+id/ivMuteIcon"
+                            android:layout_width="26dp"
+                            android:layout_height="26dp"
+                            android:src="@drawable/ic_mic_outline"
+                            android:layout_gravity="center"
+                            android:contentDescription="Mute Action" />
+
+                        <Button
+                            android:id="@+id/btnMute"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="@android:color/transparent" />
+                    </FrameLayout>
+                </androidx.cardview.widget.CardView>
+
+                <TextView
+                    android:id="@+id/tvMuteLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Mute"
+                    android:textColor="#94A3B8"
+                    android:textSize="12sp"
+                    android:fontFamily="@font/roboto_medium"
+                    android:layout_marginTop="8dp" />
+            </LinearLayout>
+
+            <!-- 2. END CALL BUTTON COLUMN -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:gravity="center">
+
+                <androidx.cardview.widget.CardView
+                    android:layout_width="76dp"
+                    android:layout_height="76dp"
+                    app:cardCornerRadius="38dp"
+                    app:cardElevation="3dp"
+                    app:cardBackgroundColor="#E8785A">
+
+                    <FrameLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent">
+
+                        <ImageView
+                            android:layout_width="32dp"
+                            android:layout_height="32dp"
+                            android:src="@drawable/ic_call_end_phone"
+                            android:layout_gravity="center"
+                            android:contentDescription="End Call Action" />
+
+                        <Button
+                            android:id="@+id/btnEndCall"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="@android:color/transparent" />
+                    </FrameLayout>
+                </androidx.cardview.widget.CardView>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="End call"
+                    android:textColor="#993C1D"
+                    android:textSize="12sp"
+                    android:fontFamily="@font/roboto_medium"
+                    android:layout_marginTop="8dp" />
+            </LinearLayout>
+
+            <!-- 3. SPEAKER BUTTON COLUMN -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:gravity="center">
+
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/cardBtnSpeaker"
+                    android:layout_width="64dp"
+                    android:layout_height="64dp"
+                    app:cardCornerRadius="32dp"
+                    app:cardElevation="2dp"
+                    app:cardBackgroundColor="#FFFFFF">
+
+                    <FrameLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent">
+
+                        <ImageView
+                            android:id="@+id/ivSpeakerIcon"
+                            android:layout_width="26dp"
+                            android:layout_height="26dp"
+                            android:src="@drawable/ic_speaker_outline"
+                            android:layout_gravity="center"
+                            android:contentDescription="Speaker Action" />
+
+                        <Button
+                            android:id="@+id/btnSpeaker"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="@android:color/transparent" />
+                    </FrameLayout>
+                </androidx.cardview.widget.CardView>
+
+                <TextView
+                    android:id="@+id/tvSpeakerLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Speaker"
+                    android:textColor="#94A3B8"
+                    android:textSize="12sp"
+                    android:fontFamily="@font/roboto_medium"
+                    android:layout_marginTop="8dp" />
+            </LinearLayout>
         </LinearLayout>
     </LinearLayout>
 
-    <!-- PERSISTENT BOTTOM BANNER AD CONTAINER -->
+    <!-- PERSISTENT BOTTOM BANNER AD CONTAINER (HOME DASHBOARD ONLY) -->
     <FrameLayout
         android:id="@+id/layoutBannerAd"
         android:layout_width="match_parent"

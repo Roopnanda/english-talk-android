@@ -35,7 +35,10 @@ object SignalingClient {
     private var activeQueuePayload: JSONObject? = null
     private var cachedDeviceId: String = ""
 
-    // Dedicated background thread pool immune to Android screen-off UI Looper freezing
+    // Rule 44: Active Call Room ID tracking
+    var activeCallRoomId: String = ""
+        private set
+
     private val backgroundExecutor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor { r ->
         Thread(r, "Signaling-Ping-Thread").apply { isDaemon = true }
     }
@@ -134,6 +137,18 @@ object SignalingClient {
                     isReconnecting = false
                     startBackgroundPing()
 
+                    // Rule 44: Sync active call session on reconnect
+                    if (activeCallRoomId.isNotEmpty()) {
+                        try {
+                            val syncPayload = JSONObject().apply {
+                                put("action", "sync_active_call")
+                                put("roomId", activeCallRoomId)
+                                put("deviceId", cachedDeviceId)
+                            }
+                            ws.send(syncPayload.toString())
+                        } catch (e: Throwable) {}
+                    }
+
                     if (pendingQueueAction != null) {
                         val act = pendingQueueAction
                         pendingQueueAction = null
@@ -204,6 +219,7 @@ object SignalingClient {
                         val peerLevel = json.optString("peerLevel", "Beginner")
                         val peerId = json.optString("peerId", "")
                         val isReconnect = json.optBoolean("isReconnect", false)
+                        activeCallRoomId = roomId
                         listener?.onMatchFound(roomId, isInitiator, peerLevel, peerId, isReconnect)
                     }
                     "offer" -> {
@@ -220,7 +236,10 @@ object SignalingClient {
                         val candidate = json.getString("candidate")
                         listener?.onIceCandidateReceived(IceCandidate(sdpMid, sdpMLineIndex, candidate))
                     }
-                    "call_ended" -> listener?.onCallEnded()
+                    "call_ended" -> {
+                        activeCallRoomId = ""
+                        listener?.onCallEnded()
+                    }
                     "reconnect_waiting" -> listener?.onReconnectWaiting()
                     "reconnect_failed" -> {
                         activeQueuePayload = null
@@ -346,6 +365,7 @@ object SignalingClient {
 
     fun endCall() {
         activeQueuePayload = null
+        activeCallRoomId = ""
         try {
             val json = JSONObject().put("action", "end_call")
             webSocket?.send(json.toString())

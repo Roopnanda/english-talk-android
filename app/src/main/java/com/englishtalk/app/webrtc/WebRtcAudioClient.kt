@@ -14,6 +14,10 @@ object WebRtcAudioClient {
     private var localAudioSource: AudioSource? = null
     private var localAudioTrack: AudioTrack? = null
     private val mainHandler = Handler(Looper.getMainLooper())
+    private var callListener: SignalingClient.SignalingListener? = null
+
+    // Autonomous Network Drop Watchdog (15 seconds)
+    private var disconnectTimeoutRunnable: Runnable? = null
 
     var isMuted: Boolean = false
         private set
@@ -34,8 +38,10 @@ object WebRtcAudioClient {
         AppLogger.log("WebRTC", "Native Factory initialized")
     }
 
-    fun startPeerConnection(roomId: String, isInitiator: Boolean, context: Context) {
+    fun startPeerConnection(roomId: String, isInitiator: Boolean, context: Context, listener: SignalingClient.SignalingListener? = null) {
         init(context.applicationContext)
+        this.callListener = listener
+        cancelDisconnectTimer()
 
         val rtcConfig = PeerConnection.RTCConfiguration(listOf(
             PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer(),
@@ -73,23 +79,27 @@ object WebRtcAudioClient {
                 AppLogger.log("WebRTC", "Signaling State: $state")
             }
 
-            // Rule 44: WebRTC PeerConnection Disconnect Guard
+            // RULE 44: WebRTC PeerConnection Disconnect Guard & Autonomous Watchdog
             override fun onIceConnectionChange(state: PeerConnection.IceConnectionState?) {
                 AppLogger.log("WebRTC", "ICE State: $state")
                 when (state) {
                     PeerConnection.IceConnectionState.CONNECTED,
                     PeerConnection.IceConnectionState.COMPLETED -> {
+                        cancelDisconnectTimer()
                         AppLogger.log("WebRTC", "Two-way live audio pipeline connected!")
                     }
                     PeerConnection.IceConnectionState.DISCONNECTED -> {
-                        // Transient network or SIM call (Rule 24 & Rule 28). Do NOT teardown. Allow auto-healing.
-                        AppLogger.log("WebRTC", "ICE DISCONNECTED: Transient disruption, holding call active for recovery...")
+                        // Data turned off or cellular handover: Start 15s countdown
+                        AppLogger.log("WebRTC", "ICE DISCONNECTED: Starting 15s recovery watchdog...")
+                        startDisconnectTimer()
                     }
-                    PeerConnection.IceConnectionState.FAILED -> {
-                        // Terminal failure: ICE exhausted recovery (~25-30s). Cleanly teardown.
-                        AppLogger.log("WebRTC", "ICE FAILED: Media unrecoverable. Triggering bilateral teardown.")
+                    PeerConnection.IceConnectionState.FAILED,
+                    PeerConnection.IceConnectionState.CLOSED -> {
+                        cancelDisconnectTimer()
+                        AppLogger.log("WebRTC", "ICE $state: Terminal failure. Tearing down call locally.")
                         mainHandler.post {
                             SignalingClient.endCall()
+                            callListener?.onCallEnded()
                         }
                     }
                     else -> {}
@@ -119,6 +129,25 @@ object WebRtcAudioClient {
 
         if (isInitiator) {
             createOffer()
+        }
+    }
+
+    private fun startDisconnectTimer() {
+        if (disconnectTimeoutRunnable != null) return
+        disconnectTimeoutRunnable = Runnable {
+            AppLogger.log("WebRTC", "ICE disconnected >15s without recovery. Executing local teardown.")
+            mainHandler.post {
+                SignalingClient.endCall()
+                callListener?.onCallEnded()
+            }
+        }
+        mainHandler.postDelayed(disconnectTimeoutRunnable!!, 15000L)
+    }
+
+    private fun cancelDisconnectTimer() {
+        disconnectTimeoutRunnable?.let {
+            mainHandler.removeCallbacks(it)
+            disconnectTimeoutRunnable = null
         }
     }
 
@@ -227,6 +256,8 @@ object WebRtcAudioClient {
 
     fun close() {
         try {
+            cancelDisconnectTimer()
+            callListener = null
             peerConnection?.dispose()
             peerConnection = null
             localAudioTrack?.dispose()

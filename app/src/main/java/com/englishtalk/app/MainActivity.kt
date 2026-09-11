@@ -1888,7 +1888,9 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
             mainHandler.removeCallbacks(callTimerRunnable)
             mainHandler.post(callTimerRunnable)
-            WebRtcAudioClient.startPeerConnection(roomId, isInitiator, this)
+            
+            // RULE 44: Pass 'this' as 4th parameter so ICE Disconnect Watchdog triggers onCallEnded
+            WebRtcAudioClient.startPeerConnection(roomId, isInitiator, this, this)
             logEvent("CallView", "Live call connected at 00:00 (Pool: $currentLanguage, Reconnect: $isCurrentSessionReconnect, FemaleFilter: $isCurrentCallFemaleFiltered)")
         }
     }

@@ -73,10 +73,26 @@ object WebRtcAudioClient {
                 AppLogger.log("WebRTC", "Signaling State: $state")
             }
 
+            // Rule 44: WebRTC PeerConnection Disconnect Guard
             override fun onIceConnectionChange(state: PeerConnection.IceConnectionState?) {
                 AppLogger.log("WebRTC", "ICE State: $state")
-                if (state == PeerConnection.IceConnectionState.CONNECTED) {
-                    AppLogger.log("WebRTC", "Two-way live audio pipeline connected!")
+                when (state) {
+                    PeerConnection.IceConnectionState.CONNECTED,
+                    PeerConnection.IceConnectionState.COMPLETED -> {
+                        AppLogger.log("WebRTC", "Two-way live audio pipeline connected!")
+                    }
+                    PeerConnection.IceConnectionState.DISCONNECTED -> {
+                        // Transient network or SIM call (Rule 24 & Rule 28). Do NOT teardown. Allow auto-healing.
+                        AppLogger.log("WebRTC", "ICE DISCONNECTED: Transient disruption, holding call active for recovery...")
+                    }
+                    PeerConnection.IceConnectionState.FAILED -> {
+                        // Terminal failure: ICE exhausted recovery (~25-30s). Cleanly teardown.
+                        AppLogger.log("WebRTC", "ICE FAILED: Media unrecoverable. Triggering bilateral teardown.")
+                        mainHandler.post {
+                            SignalingClient.endCall()
+                        }
+                    }
+                    else -> {}
                 }
             }
 

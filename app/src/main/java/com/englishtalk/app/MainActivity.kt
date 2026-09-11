@@ -18,11 +18,13 @@ import android.hardware.SensorManager
 import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.SoundPool
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
+import android.provider.Settings
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
@@ -313,7 +315,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         checkAndEnforceGenderSelection()
         refreshDashboardUI()
         checkPermissions()
-        logEvent("SYS", "App initialized successfully with SoundPool & AdMob engine")
+        logEvent("SYS", "App initialized successfully with Dual-Permission Gatekeeper")
     }
 
     private fun updateWindowAppearanceForCurrentScreen() {
@@ -496,8 +498,15 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         btnSelectFemale?.setOnClickListener { updateGenderCardSelection("FEMALE") }
         btnSelectOther?.setOnClickListener { updateGenderCardSelection("OTHER") }
 
+        // Strict Rule 43: Block entering Dashboard until BOTH permissions are granted
         btnConfirmGender?.setOnClickListener {
             val finalChoice = tempSelectedGender ?: return@setOnClickListener
+
+            if (!hasAllMandatoryPermissions()) {
+                showMandatoryPermissionsModal()
+                return@setOnClickListener
+            }
+
             prefs.edit().putString("user_gender", finalChoice).apply()
             logEvent("Profile", "Gender permanently locked as $finalChoice via 1:1 Image 1 Layout")
 
@@ -684,25 +693,97 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         }
     }
 
-    private fun setupListeners() {
-        btnBeginner?.setOnClickListener {
-            currentLevel = "Beginner"
-            currentLanguage = "ENGLISH"
-            isCurrentSessionReconnect = false
-            startSearchingFlow()
+    // =========================================================================
+    // STRICT DUAL-PERMISSION GATEKEEPER (RULE 43: ZERO BYPASS POLICY)
+    // =========================================================================
+    private fun hasAllMandatoryPermissions(): Boolean {
+        val audioGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+        val notificationGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        } else {
+            true
+        }
+        return audioGranted && notificationGranted
+    }
+
+    private fun checkMandatoryPermissionsGate(onGranted: () -> Unit) {
+        if (hasAllMandatoryPermissions()) {
+            onGranted()
+        } else {
+            showMandatoryPermissionsModal()
+        }
+    }
+
+    private fun showMandatoryPermissionsModal() {
+        val audioDenied = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED
+        val notificationDenied = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+
+        val reasonText = when {
+            audioDenied && notificationDenied ->
+                "PairTalk requires both Microphone and Notification permissions to connect voice calls and notify you of live incoming partners.\n\nPlease grant both permissions to proceed."
+            audioDenied ->
+                "PairTalk requires Microphone access so practice partners can hear you speak.\n\nPlease grant audio permission to continue."
+            else ->
+                "PairTalk requires Notification access to alert you when a conversation partner connects in the background.\n\nPlease grant notification permission to continue."
         }
 
-        btnAdvanced?.setOnClickListener {
-            val qualifiedCalls = prefs.getInt("beginner_qualified_calls", 0)
-            if (qualifiedCalls >= 20) {
-                currentLevel = "Advanced"
+        val isPermanentlyDenied = (audioDenied && !ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.RECORD_AUDIO)) ||
+                (notificationDenied && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.POST_NOTIFICATIONS))
+
+        showSquircleModalDialog(
+            badgeIconRes = R.drawable.ic_dialog_lock,
+            badgeBgColor = "#FCE7F0",
+            title = "Permissions required",
+            bodyText = reasonText,
+            primaryBtnText = if (isPermanentlyDenied) "Open Settings" else "Grant Permissions",
+            onPrimaryClick = {
+                if (isPermanentlyDenied) {
+                    try {
+                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                            data = Uri.fromParts("package", packageName, null)
+                        }
+                        startActivity(intent)
+                    } catch (e: Throwable) {
+                        checkPermissions()
+                    }
+                } else {
+                    checkPermissions()
+                }
+            },
+            secondaryBtnText = "Exit App",
+            onSecondaryClick = {
+                finishAffinity()
+            },
+            isCancelable = false,
+            primaryBtnColor = "#639922",
+            primaryTextColor = "#EAF3DE"
+        )
+    }
+
+    private fun setupListeners() {
+        btnBeginner?.setOnClickListener {
+            checkMandatoryPermissionsGate {
+                currentLevel = "Beginner"
                 currentLanguage = "ENGLISH"
                 isCurrentSessionReconnect = false
                 startSearchingFlow()
-            } else {
-                tvLockProgressPopup?.text = "Complete 20 calls (4+ mins each in Beginner) to unlock Advanced. Progress: $qualifiedCalls/20"
-                tvLockProgressPopup?.visibility = View.VISIBLE
-                mainHandler.postDelayed({ tvLockProgressPopup?.visibility = View.GONE }, 4000L)
+            }
+        }
+
+        btnAdvanced?.setOnClickListener {
+            checkMandatoryPermissionsGate {
+                val qualifiedCalls = prefs.getInt("beginner_qualified_calls", 0)
+                if (qualifiedCalls >= 20) {
+                    currentLevel = "Advanced"
+                    currentLanguage = "ENGLISH"
+                    isCurrentSessionReconnect = false
+                    startSearchingFlow()
+                } else {
+                    tvLockProgressPopup?.text = "Complete 20 calls (4+ mins each in Beginner) to unlock Advanced. Progress: $qualifiedCalls/20"
+                    tvLockProgressPopup?.visibility = View.VISIBLE
+                    mainHandler.postDelayed({ tvLockProgressPopup?.visibility = View.GONE }, 4000L)
+                }
             }
         }
 
@@ -737,10 +818,12 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         }
 
         btnReconnectLast?.setOnClickListener {
-            if (lastCallerPeerId.isNotEmpty() && !reconnectConsumed) {
-                initiateReconnectFlow()
-            } else {
-                cardReconnectLast?.visibility = View.GONE
+            checkMandatoryPermissionsGate {
+                if (lastCallerPeerId.isNotEmpty() && !reconnectConsumed) {
+                    initiateReconnectFlow()
+                } else {
+                    cardReconnectLast?.visibility = View.GONE
+                }
             }
         }
 
@@ -1020,6 +1103,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         }
     }
 
+    // 1. VIP Locked Notice (Image 14113 bottom)
     private fun showFemaleFilterLockedDialog() {
         showSquircleModalDialog(
             badgeIconRes = R.drawable.ic_dialog_lock,
@@ -1034,6 +1118,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         )
     }
 
+    // 2. VIP Membership Screen (Image 14113 top)
     private fun showPureVipDialog() {
         val benefitsLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -1096,6 +1181,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         )
     }
 
+    // 3. Community Practice Quest Progress (Image 14150_2)
     private fun showPracticeQuestProgressDialog() {
         val shared = prefs.getBoolean("has_shared_app", false)
         val calls = prefs.getInt("female_pass_qualified_calls", 0)
@@ -1264,6 +1350,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         )
     }
 
+    // 4. 10-Minute Milestone Celebration (Image 14151_2)
     private fun showMilestoneQuestOfferDialog() {
         showSquircleModalDialog(
             badgeIconRes = R.drawable.ic_dialog_trophy,
@@ -1283,6 +1370,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         )
     }
 
+    // 5. Call Limit Warning with Rewarded Ad Extension (Image 14153_3)
     private fun showCallExtensionDialog() {
         showSquircleModalDialog(
             badgeIconRes = R.drawable.ic_dialog_clock,
@@ -1312,6 +1400,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         )
     }
 
+    // 6. 0 Talk Coins Dialog (Image 14152_2)
     private fun showZeroCoinsDialog() {
         showSquircleModalDialog(
             badgeIconRes = R.drawable.ic_dialog_coin,
@@ -1326,6 +1415,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         )
     }
 
+    // 7. Report Caller Dialog with Styled Radio Rows (Image 14157)
     private fun showReportUserDialog(isInCall: Boolean) {
         val targetPeerId = lastCallerPeerId
         if (targetPeerId.isEmpty()) {
@@ -1538,10 +1628,12 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
         for ((btnId, langName) in languageButtonMap) {
             findViewById<Button>(btnId)?.setOnClickListener {
-                currentLevel = "Native"
-                currentLanguage = langName
-                isCurrentSessionReconnect = false
-                startRegionalSearchFlow(langName)
+                checkMandatoryPermissionsGate {
+                    currentLevel = "Native"
+                    currentLanguage = langName
+                    isCurrentSessionReconnect = false
+                    startRegionalSearchFlow(langName)
+                }
             }
         }
     }
@@ -1945,7 +2037,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             logEvent("QuestCooldown", "Female pass session ended. 30-minute post-pass cooldown started.")
         }
 
-        // Rule 42: Show post-call Interstitial Ad if duration >= 15 seconds
         val navigateToTarget = {
             if (completedReconnectSession || currentLanguage == "ENGLISH") {
                 showLayout(layoutDashboard)
@@ -2133,6 +2224,13 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         SignalingClient.ensureActiveConnection()
         logEvent("SYS", "onResume: Active connection probe completed")
 
+        // Rule 43: If returning from App Settings with permissions granted, auto-refresh
+        if (layoutGenderOnboarding?.visibility == View.VISIBLE && hasAllMandatoryPermissions() && tempSelectedGender != null) {
+            cardConfirmGender?.setCardBackgroundColor(Color.parseColor("#00B894"))
+            btnConfirmGender?.isEnabled = true
+            btnConfirmGender?.setTextColor(Color.WHITE)
+        }
+
         if (isCallInProgress) {
             if (!isMutedByUser && WebRtcAudioClient.isMuted) {
                 WebRtcAudioClient.setMuted(false)
@@ -2209,6 +2307,23 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
         if (missing.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, missing.toTypedArray(), 101)
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 101) {
+            if (hasAllMandatoryPermissions()) {
+                logEvent("Permission", "All mandatory permissions granted by user")
+                if (layoutGenderOnboarding?.visibility == View.VISIBLE && tempSelectedGender != null) {
+                    cardConfirmGender?.setCardBackgroundColor(Color.parseColor("#00B894"))
+                    btnConfirmGender?.isEnabled = true
+                    btnConfirmGender?.setTextColor(Color.WHITE)
+                }
+            } else {
+                logEvent("Permission", "One or more mandatory permissions were declined")
+                showMandatoryPermissionsModal()
+            }
         }
     }
 

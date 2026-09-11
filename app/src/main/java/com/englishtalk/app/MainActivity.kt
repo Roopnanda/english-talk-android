@@ -9,6 +9,8 @@ import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
+import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.GradientDrawable
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -21,7 +23,10 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
+import android.util.TypedValue
+import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.*
 import androidx.cardview.widget.CardView
@@ -216,6 +221,10 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         }
     }
 
+    private fun dpToPx(dp: Float): Int {
+        return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, resources.displayMetrics).toInt()
+    }
+
     private fun logEvent(tag: String, message: String) {
         val time = SimpleDateFormat("HH:mm:ss", Locale.US).format(Date())
         val entry = "[$time][$tag] $message"
@@ -223,7 +232,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         if (diagnosticLogs.size > 250) {
             diagnosticLogs.removeAt(0)
         }
-        
+
         try {
             prefs.edit().putString("saved_persistent_logs", diagnosticLogs.joinToString("\n")).apply()
         } catch (e: Throwable) {}
@@ -303,7 +312,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             if (isOnboardingVisible) {
                 window.statusBarColor = Color.parseColor("#F4F7FB")
             } else {
-                // Dashboard, Languages, Searching, and In-Call all share #F8F9FA
                 window.statusBarColor = Color.parseColor("#F8F9FA")
             }
 
@@ -467,7 +475,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 btnSelectOther?.animate()?.scaleX(1.0f)?.scaleY(1.0f)?.setDuration(120)?.start()
             }
 
-            // Activate Pill CTA Button
             btnConfirmGender?.isEnabled = true
             cardConfirmGender?.setCardBackgroundColor(Color.parseColor("#00B894"))
             btnConfirmGender?.setTextColor(Color.WHITE)
@@ -717,22 +724,640 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         }
     }
 
-    private fun showFemaleFilterLockedDialog() {
-        AlertDialog.Builder(this)
-            .setTitle("VIP Feature")
-            .setMessage("Talk to Female is a VIP feature. Get a VIP membership to enable this feature.")
-            .setPositiveButton("Get VIP") { _, _ -> showPureVipDialog() }
-            .setNegativeButton("OK", null)
-            .show()
+    // =========================================================================
+    // MODULAR SQUIRCLE DIALOG ENGINE WITH PIXEL-PERFECT VECTOR ASSETS
+    // =========================================================================
+    private fun showSquircleModalDialog(
+        badgeIconRes: Int,
+        badgeBgColor: String,
+        title: String,
+        bodyText: String? = null,
+        customContentView: View? = null,
+        primaryBtnText: String,
+        onPrimaryClick: (() -> Unit)? = null,
+        secondaryBtnText: String? = null,
+        onSecondaryClick: (() -> Unit)? = null,
+        isCancelable: Boolean = true,
+        primaryBtnColor: String = "#639922",
+        primaryTextColor: String = "#FFFFFF"
+    ) {
+        runOnUiThread {
+            val dialogBuilder = AlertDialog.Builder(this)
+            val dialogView = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setBackgroundColor(Color.WHITE)
+                val padH = dpToPx(24f)
+                val padV = dpToPx(24f)
+                setPadding(padH, padV, padH, padV)
+            }
+
+            // Top Header: Squircle Badge + Title
+            val headerLayout = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    bottomMargin = dpToPx(16f)
+                }
+            }
+
+            // Squircle Icon Badge (44dp x 44dp, 14dp radius)
+            val badgeCard = CardView(this).apply {
+                radius = dpToPx(14f).toFloat()
+                cardElevation = 0f
+                setCardBackgroundColor(Color.parseColor(badgeBgColor))
+                val size = dpToPx(44f)
+                layoutParams = LinearLayout.LayoutParams(size, size).apply {
+                    rightMargin = dpToPx(14f)
+                }
+            }
+
+            val ivBadge = ImageView(this).apply {
+                setImageResource(badgeIconRes)
+                val iconSize = dpToPx(24f)
+                layoutParams = FrameLayout.LayoutParams(iconSize, iconSize).apply {
+                    gravity = Gravity.CENTER
+                }
+            }
+            badgeCard.addView(ivBadge)
+            headerLayout.addView(badgeCard)
+
+            val tvTitle = TextView(this).apply {
+                text = title
+                textColor = Color.parseColor("#1E293B")
+                textSize = 18f
+                typeface = Typeface.DEFAULT_BOLD
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            }
+            headerLayout.addView(tvTitle)
+            dialogView.addView(headerLayout)
+
+            // Body Text (if provided)
+            if (!bodyText.isNullOrEmpty()) {
+                val tvBody = TextView(this).apply {
+                    text = bodyText
+                    textColor = Color.parseColor("#475569")
+                    textSize = 14f
+                    setLineSpacing(dpToPx(3f).toFloat(), 1.2f)
+                    layoutParams = LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        bottomMargin = dpToPx(18f)
+                    }
+                }
+                dialogView.addView(tvBody)
+            }
+
+            // Custom Content Area (Checklist rows or Radio options)
+            if (customContentView != null) {
+                dialogView.addView(customContentView)
+            }
+
+            // Action Buttons Row
+            val buttonContainer = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.END
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    topMargin = dpToPx(10f)
+                }
+            }
+
+            var dialog: AlertDialog? = null
+
+            // Secondary Pill Button
+            if (secondaryBtnText != null) {
+                val cardSecondary = CardView(this).apply {
+                    radius = dpToPx(18f).toFloat()
+                    cardElevation = 0f
+                    setCardBackgroundColor(Color.parseColor("#F1EFE8"))
+                    layoutParams = LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        rightMargin = dpToPx(10f)
+                    }
+                }
+
+                val btnSecondary = Button(this).apply {
+                    text = secondaryBtnText
+                    setTextColor(Color.parseColor("#5F5E5A"))
+                    textSize = 13.5f
+                    typeface = Typeface.DEFAULT_BOLD
+                    setBackgroundColor(Color.TRANSPARENT)
+                    isAllCaps = false
+                    val padH = dpToPx(20f)
+                    val padV = dpToPx(10f)
+                    setPadding(padH, padV, padH, padV)
+                    minHeight = 0
+                    minWidth = 0
+                    setOnClickListener {
+                        dialog?.dismiss()
+                        onSecondaryClick?.invoke()
+                    }
+                }
+                cardSecondary.addView(btnSecondary)
+                buttonContainer.addView(cardSecondary)
+            }
+
+            // Primary Pill Button
+            val cardPrimary = CardView(this).apply {
+                radius = dpToPx(18f).toFloat()
+                cardElevation = 0f
+                setCardBackgroundColor(Color.parseColor(primaryBtnColor))
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            }
+
+            val btnPrimary = Button(this).apply {
+                text = primaryBtnText
+                setTextColor(Color.parseColor(primaryTextColor))
+                textSize = 13.5f
+                typeface = Typeface.DEFAULT_BOLD
+                setBackgroundColor(Color.TRANSPARENT)
+                isAllCaps = false
+                val padH = dpToPx(22f)
+                val padV = dpToPx(10f)
+                setPadding(padH, padV, padH, padV)
+                minHeight = 0
+                minWidth = 0
+                setOnClickListener {
+                    dialog?.dismiss()
+                    onPrimaryClick?.invoke()
+                }
+            }
+            cardPrimary.addView(btnPrimary)
+            buttonContainer.addView(cardPrimary)
+
+            dialogView.addView(buttonContainer)
+
+            // Outer Card (22dp corner radius, soft elevation)
+            val outerCard = CardView(this).apply {
+                radius = dpToPx(22f).toFloat()
+                cardElevation = dpToPx(6f).toFloat()
+                setCardBackgroundColor(Color.WHITE)
+                layoutParams = ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+                addView(dialogView)
+            }
+
+            dialog = dialogBuilder.setView(outerCard).create().apply {
+                window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+                window?.setDimAmount(0.40f)
+                setCancelable(isCancelable)
+                show()
+            }
+        }
     }
 
+    // 1. VIP Locked Notice (Image 14113 bottom)
+    private fun showFemaleFilterLockedDialog() {
+        showSquircleModalDialog(
+            badgeIconRes = R.drawable.ic_dialog_lock,
+            badgeBgColor = "#FCE7F0",
+            title = "VIP feature",
+            bodyText = "\"Talk to female only\" is a VIP feature.\nGet a VIP membership to unlock it.",
+            primaryBtnText = "Get VIP",
+            onPrimaryClick = { showPureVipDialog() },
+            secondaryBtnText = "Ok",
+            primaryBtnColor = "#FAC775",
+            primaryTextColor = "#412402"
+        )
+    }
+
+    // 2. VIP Membership Screen (Image 14113 top)
     private fun showPureVipDialog() {
-        AlertDialog.Builder(this)
-            .setTitle("👑 VIP Membership")
-            .setMessage("Upgrade to VIP for unlimited Talk to Female filtering, priority matching, and an ad-free conversation experience.")
-            .setPositiveButton("Subscribe Now", null)
-            .setNegativeButton("Close", null)
-            .show()
+        val benefitsLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = dpToPx(16f)
+            }
+        }
+
+        val perks = listOf(
+            "Unlimited female-only filtering",
+            "Priority matching",
+            "Ad-free conversations"
+        )
+
+        for (perk in perks) {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    bottomMargin = dpToPx(8f)
+                }
+            }
+
+            val tvCheck = TextView(this).apply {
+                text = "✓ "
+                textColor = Color.parseColor("#1D9E75")
+                textSize = 14f
+                typeface = Typeface.DEFAULT_BOLD
+            }
+            row.addView(tvCheck)
+
+            val tvPerk = TextView(this).apply {
+                text = perk
+                textColor = Color.parseColor("#475569")
+                textSize = 13f
+            }
+            row.addView(tvPerk)
+            benefitsLayout.addView(row)
+        }
+
+        showSquircleModalDialog(
+            badgeIconRes = R.drawable.ic_dialog_crown,
+            badgeBgColor = "#FAC775",
+            title = "VIP Membership",
+            bodyText = "Upgrade to VIP for unlimited Talk to Female filtering, priority matching, and an ad-free conversation experience.",
+            customContentView = benefitsLayout,
+            primaryBtnText = "Subscribe now",
+            onPrimaryClick = {
+                Toast.makeText(this, "VIP Store coming soon!", Toast.LENGTH_SHORT).show()
+            },
+            secondaryBtnText = "Close",
+            primaryBtnColor = "#FAC775",
+            primaryTextColor = "#412402"
+        )
+    }
+
+    // 3. Community Practice Quest Progress (Image 14150_2)
+    private fun showPracticeQuestProgressDialog() {
+        val shared = prefs.getBoolean("has_shared_app", false)
+        val calls = prefs.getInt("female_pass_qualified_calls", 0)
+
+        val questLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = dpToPx(14f)
+            }
+        }
+
+        val tvIntro = TextView(this).apply {
+            text = "Complete these goals to unlock 1 free female match pass:"
+            textColor = Color.parseColor("#475569")
+            textSize = 13.5f
+            setLineSpacing(dpToPx(2f).toFloat(), 1.2f)
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = dpToPx(12f)
+            }
+        }
+        questLayout.addView(tvIntro)
+
+        // Goal 1: Share the App Card
+        val cardGoal1 = CardView(this).apply {
+            radius = dpToPx(14f).toFloat()
+            cardElevation = 0f
+            setCardBackgroundColor(Color.parseColor("#F8F9FA"))
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = dpToPx(8f)
+            }
+        }
+
+        val row1 = RelativeLayout(this).apply {
+            val padH = dpToPx(16f)
+            val padV = dpToPx(12f)
+            setPadding(padH, padV, padH, padV)
+        }
+
+        val tvGoal1Label = TextView(this).apply {
+            text = "Share the app"
+            textColor = Color.parseColor("#1E293B")
+            textSize = 14f
+            typeface = Typeface.DEFAULT_BOLD
+            val params = RelativeLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                addRule(RelativeLayout.ALIGN_PARENT_START)
+                addRule(RelativeLayout.CENTER_VERTICAL)
+            }
+            layoutParams = params
+        }
+        row1.addView(tvGoal1Label)
+
+        val cardStatus1 = CardView(this).apply {
+            radius = dpToPx(10f).toFloat()
+            cardElevation = 0f
+            setCardBackgroundColor(if (shared) Color.parseColor("#EAF3DE") else Color.parseColor("#FAC775"))
+            val params = RelativeLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                addRule(RelativeLayout.ALIGN_PARENT_END)
+                addRule(RelativeLayout.CENTER_VERTICAL)
+            }
+            layoutParams = params
+        }
+
+        val tvStatus1 = TextView(this).apply {
+            text = if (shared) "Done" else "To do"
+            textColor = if (shared) Color.parseColor("#173404") else Color.parseColor("#412402")
+            textSize = 12f
+            typeface = Typeface.DEFAULT_BOLD
+            val padH = dpToPx(12f)
+            val padV = dpToPx(4f)
+            setPadding(padH, padV, padH, padV)
+        }
+        cardStatus1.addView(tvStatus1)
+        row1.addView(cardStatus1)
+        cardGoal1.addView(row1)
+        questLayout.addView(cardGoal1)
+
+        // Goal 2: Complete 5 English Calls Card
+        val cardGoal2 = CardView(this).apply {
+            radius = dpToPx(14f).toFloat()
+            cardElevation = 0f
+            setCardBackgroundColor(Color.parseColor("#F8F9FA"))
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = dpToPx(12f)
+            }
+        }
+
+        val row2 = RelativeLayout(this).apply {
+            val padH = dpToPx(16f)
+            val padV = dpToPx(12f)
+            setPadding(padH, padV, padH, padV)
+        }
+
+        val tvGoal2Label = TextView(this).apply {
+            text = "Complete 5 English calls"
+            textColor = Color.parseColor("#1E293B")
+            textSize = 14f
+            typeface = Typeface.DEFAULT_BOLD
+            val params = RelativeLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                addRule(RelativeLayout.ALIGN_PARENT_START)
+                addRule(RelativeLayout.CENTER_VERTICAL)
+            }
+            layoutParams = params
+        }
+        row2.addView(tvGoal2Label)
+
+        val tvCallsCount = TextView(this).apply {
+            text = "$calls/5"
+            textColor = Color.parseColor("#64748B")
+            textSize = 13f
+            typeface = Typeface.DEFAULT_BOLD
+            val params = RelativeLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                addRule(RelativeLayout.ALIGN_PARENT_END)
+                addRule(RelativeLayout.CENTER_VERTICAL)
+            }
+            layoutParams = params
+        }
+        row2.addView(tvCallsCount)
+        cardGoal2.addView(row2)
+        questLayout.addView(cardGoal2)
+
+        // Footnote
+        val tvFootnote = TextView(this).apply {
+            text = "Proves serious practice intent and protects community learners."
+            textColor = Color.parseColor("#94A3B8")
+            textSize = 12f
+            setLineSpacing(dpToPx(2f).toFloat(), 1.15f)
+        }
+        questLayout.addView(tvFootnote)
+
+        showSquircleModalDialog(
+            badgeIconRes = R.drawable.ic_dialog_target,
+            badgeBgColor = "#FCE7F0",
+            title = "Community practice quest",
+            customContentView = questLayout,
+            primaryBtnText = "Share app",
+            onPrimaryClick = {
+                triggerQuestShareIntent()
+            },
+            secondaryBtnText = "Close",
+            primaryBtnColor = "#1D9E75",
+            primaryTextColor = "#E1F3EC"
+        )
+    }
+
+    // 4. 10-Minute Milestone Celebration (Image 14151_2)
+    private fun showMilestoneQuestOfferDialog() {
+        showSquircleModalDialog(
+            badgeIconRes = R.drawable.ic_dialog_trophy,
+            badgeBgColor = "#FAC775",
+            title = "10-minute milestone!",
+            bodyText = "Amazing dedication! You just completed a 10+ minute English conversation.\n\nAccept the Community Practice Challenge to earn 1 free female match pass?",
+            primaryBtnText = "Accept challenge",
+            onPrimaryClick = {
+                prefs.edit().putBoolean("is_quest_active", true).putInt("female_pass_qualified_calls", 0).apply()
+                refreshDashboardUI()
+                logEvent("Quest", "User accepted Community Practice Quest")
+                showPracticeQuestProgressDialog()
+            },
+            secondaryBtnText = "Maybe later",
+            primaryBtnColor = "#639922",
+            primaryTextColor = "#EAF3DE"
+        )
+    }
+
+    // 5. Call Limit Warning with Rewarded Ad Extension (Image 14153_3)
+    private fun showCallExtensionDialog() {
+        showSquircleModalDialog(
+            badgeIconRes = R.drawable.ic_dialog_clock,
+            badgeBgColor = "#FDF1E1",
+            title = "Call limit warning",
+            bodyText = "This call will reach the 15-minute limit soon. Watch a short ad to extend for +5 minutes?",
+            primaryBtnText = "Extend +5 mins",
+            onPrimaryClick = {
+                if (rewardedAd != null) {
+                    rewardedAd?.show(this) { _ ->
+                        isCallTimerExtended = true
+                        Toast.makeText(this, "Call extended by +5 minutes!", Toast.LENGTH_SHORT).show()
+                        logEvent("Timer", "Call extended by 5 minutes via Rewarded Ad")
+                        loadRewardedAd()
+                    }
+                } else {
+                    isCallTimerExtended = true
+                    Toast.makeText(this, "Call extended by +5 minutes!", Toast.LENGTH_SHORT).show()
+                    logEvent("Timer", "Extended by 5m (Ad preloading fallback)")
+                    loadRewardedAd()
+                }
+            },
+            secondaryBtnText = "Dismiss",
+            isCancelable = false,
+            primaryBtnColor = "#639922",
+            primaryTextColor = "#EAF3DE"
+        )
+    }
+
+    // 6. 0 Talk Coins Dialog (Image 14152_2)
+    private fun showZeroCoinsDialog() {
+        showSquircleModalDialog(
+            badgeIconRes = R.drawable.ic_dialog_coin,
+            badgeBgColor = "#FDF1E1",
+            title = "0 Talk Coins",
+            bodyText = "Joining regional language pools requires at least 1 Talk Coin. Earn coins by practicing English for 1+ minute or watching a quick video ad.",
+            primaryBtnText = "Watch ad (+2)",
+            onPrimaryClick = { showRewardedAd() },
+            secondaryBtnText = "Practice English",
+            primaryBtnColor = "#FAC775",
+            primaryTextColor = "#412402"
+        )
+    }
+
+    // 7. Report Caller Dialog with Styled Radio Rows (Image 14157)
+    private fun showReportUserDialog(isInCall: Boolean) {
+        val targetPeerId = lastCallerPeerId
+        if (targetPeerId.isEmpty()) {
+            Toast.makeText(this, "No caller available to report.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        if (hasReportedLastCaller) {
+            Toast.makeText(this, "You have already submitted a report for this caller.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val isFemaleSession = if (isInCall) isCurrentCallFemaleFiltered else lastCallerWasFemaleFiltered
+
+        val reportOptions = if (isFemaleSession) {
+            arrayOf("Partner is not female (Wrong gender)", "Harassment / Abuse", "Spam / Commercial ads")
+        } else {
+            arrayOf("Harassment / Abuse", "Spam / Commercial ads", "Inappropriate speech")
+        }
+
+        var selectedIndex = 0
+
+        val optionsContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = dpToPx(16f)
+            }
+        }
+
+        val rowViews = mutableListOf<LinearLayout>()
+        val radioDots = mutableListOf<TextView>()
+
+        for (i in reportOptions.indices) {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                val padH = dpToPx(16f)
+                val padV = dpToPx(14f)
+                setPadding(padH, padV, padH, padV)
+                val bg = GradientDrawable().apply {
+                    cornerRadius = dpToPx(14f).toFloat()
+                    setColor(Color.parseColor("#F8F9FA"))
+                    if (i == 0) {
+                        setStroke(dpToPx(2f), Color.parseColor("#5DCAA5"))
+                    } else {
+                        setStroke(dpToPx(1f), Color.parseColor("#E2E8F0"))
+                    }
+                }
+                background = bg
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    bottomMargin = dpToPx(10f)
+                }
+            }
+
+            val tvRadioDot = TextView(this).apply {
+                text = if (i == 0) "◉ " else "○ "
+                textColor = if (i == 0) Color.parseColor("#5DCAA5") else Color.parseColor("#94A3B8")
+                textSize = 17f
+                setPadding(0, 0, dpToPx(10f), 0)
+            }
+            row.addView(tvRadioDot)
+            radioDots.add(tvRadioDot)
+
+            val tvOption = TextView(this).apply {
+                text = reportOptions[i]
+                textColor = Color.parseColor("#1E293B")
+                textSize = 14f
+                typeface = Typeface.DEFAULT_BOLD
+            }
+            row.addView(tvOption)
+
+            row.setOnClickListener {
+                selectedIndex = i
+                for (j in rowViews.indices) {
+                    val isSelected = (j == selectedIndex)
+                    val rowBg = GradientDrawable().apply {
+                        cornerRadius = dpToPx(14f).toFloat()
+                        setColor(Color.parseColor("#F8F9FA"))
+                        if (isSelected) {
+                            setStroke(dpToPx(2f), Color.parseColor("#5DCAA5"))
+                        } else {
+                            setStroke(dpToPx(1f), Color.parseColor("#E2E8F0"))
+                        }
+                    }
+                    rowViews[j].background = rowBg
+                    radioDots[j].text = if (isSelected) "◉ " else "○ "
+                    radioDots[j].setTextColor(if (isSelected) Color.parseColor("#5DCAA5") else Color.parseColor("#94A3B8"))
+                }
+            }
+
+            rowViews.add(row)
+            optionsContainer.addView(row)
+        }
+
+        showSquircleModalDialog(
+            badgeIconRes = R.drawable.ic_dialog_flag,
+            badgeBgColor = "#FCE7F0",
+            title = "Report caller",
+            customContentView = optionsContainer,
+            primaryBtnText = "Submit report",
+            onPrimaryClick = {
+                val selectedText = reportOptions[selectedIndex]
+                if (selectedText.contains("not female", ignoreCase = true)) {
+                    SignalingClient.reportGenderMismatch(targetPeerId)
+                    logEvent("Report", "Reported gender mismatch for: $targetPeerId")
+                } else {
+                    SignalingClient.reportUser(targetPeerId)
+                    logEvent("Report", "Reported violation ($selectedText) for: $targetPeerId")
+                }
+
+                hasReportedLastCaller = true
+                Toast.makeText(this, "Report submitted. Thank you for keeping our community safe.", Toast.LENGTH_LONG).show()
+            },
+            secondaryBtnText = "Cancel",
+            primaryBtnColor = "#E8785A",
+            primaryTextColor = "#FDEDE8"
+        )
     }
 
     private fun triggerGeneralAppShare() {
@@ -778,58 +1403,30 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 switchFemaleFilter?.isChecked = true
                 isUpdatingToggleProgrammatically = false
                 refreshDashboardUI()
-                AlertDialog.Builder(this)
-                    .setTitle("🎉 Quest Complete!")
-                    .setMessage("You've earned 1 Free Female Match Pass! The female filter has been enabled for your next practice call.")
-                    .setPositiveButton("Awesome!", null)
-                    .show()
+                showSquircleModalDialog(
+                    badgeIconRes = R.drawable.ic_dialog_trophy,
+                    badgeBgColor = "#EAF3DE",
+                    title = "Quest completed!",
+                    bodyText = "Congratulations! You earned 1 free female match pass. The female filter is now active for your next English practice call.",
+                    primaryBtnText = "Start practice",
+                    primaryBtnColor = "#639922",
+                    primaryTextColor = "#EAF3DE"
+                )
                 logEvent("Quest", "Granted 1 Female Match Pass to user")
             }
         }
     }
 
     private fun showActivePassDialog() {
-        AlertDialog.Builder(this)
-            .setTitle("✨ Pass Active")
-            .setMessage("Your Free Female Match Pass is ready! Turn on the 'Talk to Female Only' switch and tap Beginner or Advanced to connect with a female partner.")
-            .setPositiveButton("Got it!", null)
-            .show()
-    }
-
-    private fun showMilestoneQuestOfferDialog() {
-        AlertDialog.Builder(this)
-            .setTitle("🏆 10-Minute Speaking Milestone!")
-            .setMessage("Amazing dedication! You just completed a 10+ minute English conversation.\n\nWould you like to accept the Community Practice Challenge to earn 1 Free Female Match Pass?")
-            .setPositiveButton("Accept Challenge") { _, _ ->
-                prefs.edit().putBoolean("is_quest_active", true).putInt("female_pass_qualified_calls", 0).apply()
-                refreshDashboardUI()
-                logEvent("Quest", "User accepted Community Practice Quest")
-                showPracticeQuestProgressDialog()
-            }
-            .setNegativeButton("Maybe Later", null)
-            .show()
-    }
-
-    private fun showPracticeQuestProgressDialog() {
-        val shared = prefs.getBoolean("has_shared_app", false)
-        val calls = prefs.getInt("female_pass_qualified_calls", 0)
-
-        val shareStatus = if (shared) "✅ Completed" else "⏳ Tap below to Share"
-        val callsStatus = if (calls >= 5) "✅ 5/5 Completed" else "⏳ $calls/5 Calls (min 2 mins each in English)"
-
-        val message = "Complete these practice goals to unlock 1 Free Female Match Pass:\n\n" +
-                "1. Share App: $shareStatus\n" +
-                "2. Complete 5 English Calls: $callsStatus\n\n" +
-                "Proves serious practice intent and protects community learners."
-
-        AlertDialog.Builder(this)
-            .setTitle("🎯 Community Practice Quest")
-            .setMessage(message)
-            .setPositiveButton(if (!shared) "Share App" else "Keep Practicing") { _, _ ->
-                if (!shared) triggerQuestShareIntent()
-            }
-            .setNegativeButton("Close", null)
-            .show()
+        showSquircleModalDialog(
+            badgeIconRes = R.drawable.ic_dialog_crown,
+            badgeBgColor = "#FAC775",
+            title = "Match pass active",
+            bodyText = "Your free female match pass is ready!\n\nEnsure 'Talk to female only' is switched ON and tap Beginner or Advanced to start matching.",
+            primaryBtnText = "Got it",
+            primaryBtnColor = "#FAC775",
+            primaryTextColor = "#412402"
+        )
     }
 
     private fun setupRegionalLanguageButtons() {
@@ -870,9 +1467,10 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             setText(logContent)
             setTextColor(Color.parseColor("#97C459"))
             setBackgroundColor(Color.parseColor("#2C2C2A"))
-            setPadding(24, 24, 24, 24)
+            val pad = dpToPx(16f)
+            setPadding(pad, pad, pad, pad)
             textSize = 11f
-            typeface = android.graphics.Typeface.MONOSPACE
+            typeface = Typeface.MONOSPACE
         }
         scroll.addView(text)
 
@@ -1048,73 +1646,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         logEvent("Reconnect", "Calling peer: $lastCallerPeerId in pool: $lastCallerLanguage")
     }
 
-    private fun showReportUserDialog(isInCall: Boolean) {
-        val targetPeerId = lastCallerPeerId
-        if (targetPeerId.isEmpty()) {
-            Toast.makeText(this, "No caller available to report.", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        if (hasReportedLastCaller) {
-            Toast.makeText(this, "You have already submitted a report for this caller.", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        val isFemaleSession = if (isInCall) isCurrentCallFemaleFiltered else lastCallerWasFemaleFiltered
-
-        val reportOptions = if (isFemaleSession) {
-            arrayOf("Partner is Not Female (Wrong Gender)", "Harassment / Abuse", "Spam / Commercial Ads")
-        } else {
-            arrayOf("Harassment / Abuse", "Spam / Commercial Ads", "Inappropriate Speech")
-        }
-
-        var selectedIndex = 0
-
-        AlertDialog.Builder(this)
-            .setTitle("Report Caller")
-            .setSingleChoiceItems(reportOptions, 0) { _, which ->
-                selectedIndex = which
-            }
-            .setPositiveButton("Submit Report") { _, _ ->
-                val selectedText = reportOptions[selectedIndex]
-                if (selectedText.contains("Not Female")) {
-                    SignalingClient.reportGenderMismatch(targetPeerId)
-                    logEvent("Report", "Reported gender mismatch for: $targetPeerId")
-                } else {
-                    SignalingClient.reportUser(targetPeerId)
-                    logEvent("Report", "Reported violation ($selectedText) for: $targetPeerId")
-                }
-
-                hasReportedLastCaller = true
-                Toast.makeText(this, "Report submitted. Thank you for keeping our community safe.", Toast.LENGTH_LONG).show()
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showCallExtensionDialog() {
-        AlertDialog.Builder(this)
-            .setTitle("Call Limit Warning")
-            .setMessage("This call will reach the 15-minute limit soon. Would you like to extend for +5 minutes?")
-            .setPositiveButton("Extend +5 Mins") { _, _ ->
-                isCallTimerExtended = true
-                Toast.makeText(this, "Call extended by 5 minutes", Toast.LENGTH_SHORT).show()
-                logEvent("Timer", "Extended +5 mins")
-            }
-            .setNegativeButton("Dismiss", null)
-            .setCancelable(false)
-            .show()
-    }
-
-    private fun showZeroCoinsDialog() {
-        AlertDialog.Builder(this)
-            .setTitle("🪙 0 Talk Coins")
-            .setMessage("Joining Regional Language pools requires at least 1 Talk Coin. You can earn coins by practicing English for 1+ minute or watching a quick video ad.")
-            .setPositiveButton("Watch Ad (+2 Coins)") { _, _ -> showRewardedAd() }
-            .setNegativeButton("Practice English", null)
-            .show()
-    }
-
     override fun onMatchFound(roomId: String, isInitiator: Boolean, peerLevel: String, peerId: String, isReconnect: Boolean) {
         runOnUiThread {
             stopRadarPulseSound()
@@ -1235,15 +1766,18 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
     override fun onVipQueueTimeout() {
         runOnUiThread {
-            AlertDialog.Builder(this)
-                .setTitle("Female Queue Busy")
-                .setMessage("No female partner is immediately available. Would you like to wait a bit longer or connect with anyone now without losing your pass?")
-                .setPositiveButton("Wait +30s") { dialog, _ ->
+            showSquircleModalDialog(
+                badgeIconRes = R.drawable.ic_dialog_clock,
+                badgeBgColor = "#FAC775",
+                title = "Female queue busy",
+                bodyText = "No female partner is immediately available right now.\n\nWould you like to wait 30 seconds more or connect with anyone now without losing your pass?",
+                primaryBtnText = "Wait +30s",
+                onPrimaryClick = {
                     SignalingClient.extendVipWait()
                     tvSearchingStatus?.text = "Waiting for next available female partner..."
-                    dialog.dismiss()
-                }
-                .setNegativeButton("Connect with Anyone") { dialog, _ ->
+                },
+                secondaryBtnText = "Connect with anyone",
+                onSecondaryClick = {
                     isUpdatingToggleProgrammatically = true
                     switchFemaleFilter?.isChecked = false
                     isUpdatingToggleProgrammatically = false
@@ -1252,10 +1786,11 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
                     SignalingClient.fallbackToGeneral()
                     tvSearchingStatus?.text = "Connecting with next available peer..."
-                    dialog.dismiss()
-                }
-                .setCancelable(false)
-                .show()
+                },
+                isCancelable = false,
+                primaryBtnColor = "#FAC775",
+                primaryTextColor = "#412402"
+            )
             logEvent("Queue", "Triggered 35s VIP fallback prompt")
         }
     }
@@ -1460,7 +1995,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         layoutSearching?.visibility = if (activeLayout == layoutSearching) View.VISIBLE else View.GONE
         layoutCall?.visibility = if (activeLayout == layoutCall) View.VISIBLE else View.GONE
 
-        // Hide bottom dashboard banner during searching or live call
         layoutBannerAd?.visibility = if (activeLayout == layoutDashboard || activeLayout == layoutLanguages) View.VISIBLE else View.GONE
 
         updateWindowAppearanceForCurrentScreen()
@@ -1491,7 +2025,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         super.onResume()
         isAppInBackground = false
         backgroundAutoMuteRunnable?.let { mainHandler.removeCallbacks(it) }
-        
+
         SignalingClient.ensureActiveConnection()
         logEvent("SYS", "onResume: Active connection probe completed")
 

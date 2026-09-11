@@ -37,11 +37,15 @@ import com.englishtalk.app.service.CallService
 import com.englishtalk.app.utils.AppLogger
 import com.englishtalk.app.utils.CooldownManager
 import com.englishtalk.app.webrtc.WebRtcAudioClient
+import com.google.android.gms.ads.AdError
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdSize
 import com.google.android.gms.ads.AdView
+import com.google.android.gms.ads.FullScreenContentCallback
 import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.MobileAds
+import com.google.android.gms.ads.interstitial.InterstitialAd
+import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
 import com.google.android.gms.ads.rewarded.RewardedAd
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
 import org.webrtc.IceCandidate
@@ -147,10 +151,18 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     private var btnBackFromLanguages: Button? = null
     private var btnWatchAdReward: Button? = null
 
-    // AdMob
+    // AdMob Containers & Views
     private var layoutBannerAd: FrameLayout? = null
+    private var layoutSearchAdContainer: CardView? = null
+    private var layoutInCallAdContainer: CardView? = null
+
     private var bannerAdView: AdView? = null
+    private var searchMrecAdView: AdView? = null
+    private var inCallMrecAdView: AdView? = null
+
     private var rewardedAd: RewardedAd? = null
+    private var interstitialAd: InterstitialAd? = null
+    private var isInterstitialLoading = false
 
     // State Variables
     private var currentLevel = "Beginner"
@@ -282,7 +294,10 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         MobileAds.initialize(this) {
             runOnUiThread {
                 setupBannerAd()
+                loadMrecSearchAd()
+                loadMrecInCallAd()
                 loadRewardedAd()
+                loadInterstitialAd()
             }
         }
 
@@ -298,7 +313,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         checkAndEnforceGenderSelection()
         refreshDashboardUI()
         checkPermissions()
-        logEvent("SYS", "App initialized successfully with SoundPool engine")
+        logEvent("SYS", "App initialized successfully with SoundPool & AdMob engine")
     }
 
     private fun updateWindowAppearanceForCurrentScreen() {
@@ -436,7 +451,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         fun updateGenderCardSelection(selectedGender: String) {
             tempSelectedGender = selectedGender
 
-            // Male Selection
             if (selectedGender == "MALE") {
                 btnSelectMale?.setCardBackgroundColor(Color.parseColor("#F0F6FF"))
                 lipMale?.setCardBackgroundColor(Color.parseColor("#1D72FE"))
@@ -449,7 +463,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 btnSelectMale?.animate()?.scaleX(1.0f)?.scaleY(1.0f)?.setDuration(120)?.start()
             }
 
-            // Female Selection
             if (selectedGender == "FEMALE") {
                 btnSelectFemale?.setCardBackgroundColor(Color.parseColor("#FFF0F3"))
                 lipFemale?.setCardBackgroundColor(Color.parseColor("#FF6584"))
@@ -462,7 +475,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 btnSelectFemale?.animate()?.scaleX(1.0f)?.scaleY(1.0f)?.setDuration(120)?.start()
             }
 
-            // Other Selection
             if (selectedGender == "OTHER") {
                 btnSelectOther?.setCardBackgroundColor(Color.parseColor("#F6F3FF"))
                 lipOther?.setCardBackgroundColor(Color.parseColor("#9C88FF"))
@@ -545,6 +557,9 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         switchFemaleFilter = findViewById(R.id.switchFemaleFilter)
         tvConsoleLogs = findViewById(R.id.tvConsoleLogs)
 
+        layoutSearchAdContainer = findViewById(R.id.layoutSearchAdContainer)
+        layoutInCallAdContainer = findViewById(R.id.layoutInCallAdContainer)
+
         tvSearchingStatus = findViewById(R.id.tvSearchingStatus)
         btnCancelSearch = findViewById(R.id.btnCancelSearch)
 
@@ -584,6 +599,89 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 bannerAdView?.loadAd(AdRequest.Builder().build())
             }
         } catch (e: Throwable) {}
+    }
+
+    private fun loadMrecSearchAd() {
+        try {
+            layoutSearchAdContainer?.let { container ->
+                container.removeAllViews()
+                searchMrecAdView = AdView(this).apply {
+                    adUnitId = "ca-app-pub-3940256099942544/6300978111"
+                    setAdSize(AdSize.MEDIUM_RECTANGLE)
+                }
+                container.addView(searchMrecAdView)
+                searchMrecAdView?.loadAd(AdRequest.Builder().build())
+                logEvent("AdMob", "MREC ad loaded for Search container")
+            }
+        } catch (e: Throwable) {
+            logEvent("AdMob-ERR", "Search MREC failed: ${e.message}")
+        }
+    }
+
+    private fun loadMrecInCallAd() {
+        try {
+            layoutInCallAdContainer?.let { container ->
+                container.removeAllViews()
+                inCallMrecAdView = AdView(this).apply {
+                    adUnitId = "ca-app-pub-3940256099942544/6300978111"
+                    setAdSize(AdSize.MEDIUM_RECTANGLE)
+                }
+                container.addView(inCallMrecAdView)
+                inCallMrecAdView?.loadAd(AdRequest.Builder().build())
+                logEvent("AdMob", "MREC ad loaded for In-Call container")
+            }
+        } catch (e: Throwable) {
+            logEvent("AdMob-ERR", "In-Call MREC failed: ${e.message}")
+        }
+    }
+
+    private fun loadInterstitialAd() {
+        if (isInterstitialLoading || interstitialAd != null) return
+        isInterstitialLoading = true
+
+        val adRequest = AdRequest.Builder().build()
+        InterstitialAd.load(
+            this,
+            "ca-app-pub-3940256099942544/1033173712",
+            adRequest,
+            object : InterstitialAdLoadCallback() {
+                override fun onAdLoaded(ad: InterstitialAd) {
+                    interstitialAd = ad
+                    isInterstitialLoading = false
+                    logEvent("AdMob", "Pre-loaded full-screen Interstitial Ad")
+                }
+
+                override fun onAdFailedToLoad(error: LoadAdError) {
+                    interstitialAd = null
+                    isInterstitialLoading = false
+                    logEvent("AdMob", "Interstitial load failed: ${error.message}")
+                }
+            }
+        )
+    }
+
+    private fun showPostCallInterstitial(onFinished: () -> Unit) {
+        val ad = interstitialAd
+        if (ad != null) {
+            ad.fullScreenContentCallback = object : FullScreenContentCallback() {
+                override fun onAdDismissedFullScreenContent() {
+                    interstitialAd = null
+                    loadInterstitialAd()
+                    onFinished()
+                }
+
+                override fun onAdFailedToShowFullScreenContent(error: AdError) {
+                    interstitialAd = null
+                    loadInterstitialAd()
+                    onFinished()
+                }
+            }
+            ad.show(this)
+            logEvent("AdMob", "Displaying post-call full-screen Interstitial Ad")
+        } else {
+            loadInterstitialAd()
+            onFinished()
+        }
     }
 
     private fun setupListeners() {
@@ -922,7 +1020,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         }
     }
 
-    // 1. VIP Locked Notice (Image 14113 bottom)
     private fun showFemaleFilterLockedDialog() {
         showSquircleModalDialog(
             badgeIconRes = R.drawable.ic_dialog_lock,
@@ -937,7 +1034,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         )
     }
 
-    // 2. VIP Membership Screen (Image 14113 top)
     private fun showPureVipDialog() {
         val benefitsLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -1000,7 +1096,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         )
     }
 
-    // 3. Community Practice Quest Progress (Image 14150_2)
     private fun showPracticeQuestProgressDialog() {
         val shared = prefs.getBoolean("has_shared_app", false)
         val calls = prefs.getInt("female_pass_qualified_calls", 0)
@@ -1169,7 +1264,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         )
     }
 
-    // 4. 10-Minute Milestone Celebration (Image 14151_2)
     private fun showMilestoneQuestOfferDialog() {
         showSquircleModalDialog(
             badgeIconRes = R.drawable.ic_dialog_trophy,
@@ -1189,7 +1283,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         )
     }
 
-    // 5. Call Limit Warning with Rewarded Ad Extension (Image 14153_3)
     private fun showCallExtensionDialog() {
         showSquircleModalDialog(
             badgeIconRes = R.drawable.ic_dialog_clock,
@@ -1219,7 +1312,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         )
     }
 
-    // 6. 0 Talk Coins Dialog (Image 14152_2)
     private fun showZeroCoinsDialog() {
         showSquircleModalDialog(
             badgeIconRes = R.drawable.ic_dialog_coin,
@@ -1234,7 +1326,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         )
     }
 
-    // 7. Report Caller Dialog with Styled Radio Rows (Image 14157)
     private fun showReportUserDialog(isInCall: Boolean) {
         val targetPeerId = lastCallerPeerId
         if (targetPeerId.isEmpty()) {
@@ -1854,13 +1945,26 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             logEvent("QuestCooldown", "Female pass session ended. 30-minute post-pass cooldown started.")
         }
 
-        if (completedReconnectSession || currentLanguage == "ENGLISH") {
-            showLayout(layoutDashboard)
-        } else {
-            showLayout(layoutLanguages)
+        // Rule 42: Show post-call Interstitial Ad if duration >= 15 seconds
+        val navigateToTarget = {
+            if (completedReconnectSession || currentLanguage == "ENGLISH") {
+                showLayout(layoutDashboard)
+            } else {
+                showLayout(layoutLanguages)
+            }
+            refreshDashboardUI()
         }
 
-        refreshDashboardUI()
+        if (callDurationSec >= 15) {
+            showPostCallInterstitial {
+                runOnUiThread {
+                    navigateToTarget()
+                }
+            }
+        } else {
+            navigateToTarget()
+        }
+
         logEvent("WebRTC", "Session ended. Talk time: ${callDurationSec}s")
 
         if (currentLanguage == "ENGLISH" && callDurationSec >= 600) {

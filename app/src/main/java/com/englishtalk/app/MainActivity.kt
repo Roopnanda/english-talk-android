@@ -786,7 +786,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
             val tvTitle = TextView(this).apply {
                 text = title
-                textColor = Color.parseColor("#1E293B")
+                setTextColor(Color.parseColor("#1E293B"))
                 textSize = 18f
                 typeface = Typeface.DEFAULT_BOLD
                 layoutParams = LinearLayout.LayoutParams(
@@ -801,7 +801,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             if (!bodyText.isNullOrEmpty()) {
                 val tvBody = TextView(this).apply {
                     text = bodyText
-                    textColor = Color.parseColor("#475569")
+                    setTextColor(Color.parseColor("#475569"))
                     textSize = 14f
                     setLineSpacing(dpToPx(3f).toFloat(), 1.2f)
                     layoutParams = LinearLayout.LayoutParams(
@@ -969,7 +969,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
             val tvCheck = TextView(this).apply {
                 text = "✓ "
-                textColor = Color.parseColor("#1D9E75")
+                setTextColor(Color.parseColor("#1D9E75"))
                 textSize = 14f
                 typeface = Typeface.DEFAULT_BOLD
             }
@@ -977,7 +977,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
             val tvPerk = TextView(this).apply {
                 text = perk
-                textColor = Color.parseColor("#475569")
+                setTextColor(Color.parseColor("#475569"))
                 textSize = 13f
             }
             row.addView(tvPerk)
@@ -1017,7 +1017,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
         val tvIntro = TextView(this).apply {
             text = "Complete these goals to unlock 1 free female match pass:"
-            textColor = Color.parseColor("#475569")
+            setTextColor(Color.parseColor("#475569"))
             textSize = 13.5f
             setLineSpacing(dpToPx(2f).toFloat(), 1.2f)
             layoutParams = LinearLayout.LayoutParams(
@@ -1050,7 +1050,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
         val tvGoal1Label = TextView(this).apply {
             text = "Share the app"
-            textColor = Color.parseColor("#1E293B")
+            setTextColor(Color.parseColor("#1E293B"))
             textSize = 14f
             typeface = Typeface.DEFAULT_BOLD
             val params = RelativeLayout.LayoutParams(
@@ -1080,7 +1080,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
         val tvStatus1 = TextView(this).apply {
             text = if (shared) "Done" else "To do"
-            textColor = if (shared) Color.parseColor("#173404") else Color.parseColor("#412402")
+            setTextColor(if (shared) Color.parseColor("#173404") else Color.parseColor("#412402"))
             textSize = 12f
             typeface = Typeface.DEFAULT_BOLD
             val padH = dpToPx(12f)
@@ -1113,7 +1113,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
         val tvGoal2Label = TextView(this).apply {
             text = "Complete 5 English calls"
-            textColor = Color.parseColor("#1E293B")
+            setTextColor(Color.parseColor("#1E293B"))
             textSize = 14f
             typeface = Typeface.DEFAULT_BOLD
             val params = RelativeLayout.LayoutParams(
@@ -1129,7 +1129,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
         val tvCallsCount = TextView(this).apply {
             text = "$calls/5"
-            textColor = Color.parseColor("#64748B")
+            setTextColor(Color.parseColor("#64748B"))
             textSize = 13f
             typeface = Typeface.DEFAULT_BOLD
             val params = RelativeLayout.LayoutParams(
@@ -1148,7 +1148,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         // Footnote
         val tvFootnote = TextView(this).apply {
             text = "Proves serious practice intent and protects community learners."
-            textColor = Color.parseColor("#94A3B8")
+            setTextColor(Color.parseColor("#94A3B8"))
             textSize = 12f
             setLineSpacing(dpToPx(2f).toFloat(), 1.15f)
         }
@@ -1297,7 +1297,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
             val tvRadioDot = TextView(this).apply {
                 text = if (i == 0) "◉ " else "○ "
-                textColor = if (i == 0) Color.parseColor("#5DCAA5") else Color.parseColor("#94A3B8")
+                setTextColor(if (i == 0) Color.parseColor("#5DCAA5") else Color.parseColor("#94A3B8"))
                 textSize = 17f
                 setPadding(0, 0, dpToPx(10f), 0)
             }
@@ -1306,7 +1306,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
             val tvOption = TextView(this).apply {
                 text = reportOptions[i]
-                textColor = Color.parseColor("#1E293B")
+                setTextColor(Color.parseColor("#1E293B"))
                 textSize = 14f
                 typeface = Typeface.DEFAULT_BOLD
             }

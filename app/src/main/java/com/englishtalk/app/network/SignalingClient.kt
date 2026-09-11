@@ -22,7 +22,7 @@ object SignalingClient {
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.MILLISECONDS)
         .writeTimeout(10, TimeUnit.SECONDS)
-        .pingInterval(8, TimeUnit.SECONDS)
+        .pingInterval(5, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
         .build()
 
@@ -33,7 +33,8 @@ object SignalingClient {
     private var isReconnecting = false
     private var pendingQueueAction: (() -> Unit)? = null
     private var activeQueuePayload: JSONObject? = null
-    private var cachedDeviceId: String = ""
+    var cachedDeviceId: String = ""
+        private set
 
     // Rule 44: Active Call Room ID tracking
     var activeCallRoomId: String = ""
@@ -87,7 +88,7 @@ object SignalingClient {
                     forceReconnect()
                 }
             }
-        }, 5, 8, TimeUnit.SECONDS)
+        }, 3, 5, TimeUnit.SECONDS)
     }
 
     private fun stopBackgroundPing() {
@@ -193,7 +194,7 @@ object SignalingClient {
         backgroundExecutor.schedule({
             isReconnecting = false
             connect()
-        }, 1500L, TimeUnit.MILLISECONDS)
+        }, 1000L, TimeUnit.MILLISECONDS)
     }
 
     private fun ensureConnected(onReady: () -> Unit) {
@@ -364,10 +365,15 @@ object SignalingClient {
     }
 
     fun endCall() {
+        val targetRoom = activeCallRoomId
         activeQueuePayload = null
         activeCallRoomId = ""
         try {
-            val json = JSONObject().put("action", "end_call")
+            val json = JSONObject().apply {
+                put("action", "end_call")
+                put("roomId", targetRoom)
+                put("deviceId", cachedDeviceId)
+            }
             webSocket?.send(json.toString())
         } catch (e: Throwable) {}
     }

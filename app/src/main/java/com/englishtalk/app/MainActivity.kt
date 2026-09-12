@@ -295,11 +295,19 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
         MobileAds.initialize(this) {
             runOnUiThread {
-                setupBannerAd()
-                loadMrecSearchAd()
-                loadMrecInCallAd()
+                val isVip = prefs.getBoolean("is_vip", false)
+                if (!isVip) {
+                    setupBannerAd()
+                    loadMrecSearchAd()
+                    loadMrecInCallAd()
+                    loadInterstitialAd()
+                } else {
+                    layoutBannerAd?.visibility = View.GONE
+                    layoutSearchAdContainer?.visibility = View.GONE
+                    layoutInCallAdContainer?.visibility = View.GONE
+                    logEvent("VIP", "AdMob containers disabled for VIP account")
+                }
                 loadRewardedAd()
-                loadInterstitialAd()
             }
         }
 
@@ -429,6 +437,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
     private fun checkAndEnforceGenderSelection() {
         val savedGender = prefs.getString("user_gender", "NOT_SET") ?: "NOT_SET"
+        val isVip = prefs.getBoolean("is_vip", false)
         updateWindowAppearanceForCurrentScreen()
 
         if (savedGender == "NOT_SET") {
@@ -445,7 +454,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         } else {
             layoutGenderOnboarding?.visibility = View.GONE
             scrollDashboard?.visibility = View.VISIBLE
-            layoutBannerAd?.visibility = View.VISIBLE
+            layoutBannerAd?.visibility = if (!isVip) View.VISIBLE else View.GONE
         }
     }
 
@@ -498,7 +507,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         btnSelectFemale?.setOnClickListener { updateGenderCardSelection("FEMALE") }
         btnSelectOther?.setOnClickListener { updateGenderCardSelection("OTHER") }
 
-        // Strict Rule 43: Block entering Dashboard until BOTH permissions are granted
         btnConfirmGender?.setOnClickListener {
             val finalChoice = tempSelectedGender ?: return@setOnClickListener
 
@@ -507,12 +515,13 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 return@setOnClickListener
             }
 
+            val isVip = prefs.getBoolean("is_vip", false)
             prefs.edit().putString("user_gender", finalChoice).apply()
             logEvent("Profile", "Gender permanently locked as $finalChoice via 1:1 Image 1 Layout")
 
             layoutGenderOnboarding?.visibility = View.GONE
             scrollDashboard?.visibility = View.VISIBLE
-            layoutBannerAd?.visibility = View.VISIBLE
+            layoutBannerAd?.visibility = if (!isVip) View.VISIBLE else View.GONE
             updateWindowAppearanceForCurrentScreen()
             refreshDashboardUI()
         }
@@ -597,6 +606,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     }
 
     private fun setupBannerAd() {
+        if (prefs.getBoolean("is_vip", false)) return
         try {
             layoutBannerAd?.let { container ->
                 container.removeAllViews()
@@ -611,6 +621,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     }
 
     private fun loadMrecSearchAd() {
+        if (prefs.getBoolean("is_vip", false)) return
         try {
             layoutSearchAdContainer?.let { container ->
                 container.removeAllViews()
@@ -628,6 +639,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     }
 
     private fun loadMrecInCallAd() {
+        if (prefs.getBoolean("is_vip", false)) return
         try {
             layoutInCallAdContainer?.let { container ->
                 container.removeAllViews()
@@ -645,6 +657,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     }
 
     private fun loadInterstitialAd() {
+        if (prefs.getBoolean("is_vip", false)) return
         if (isInterstitialLoading || interstitialAd != null) return
         isInterstitialLoading = true
 
@@ -669,7 +682,14 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         )
     }
 
+    // Rule 42: Post-Call Full-Screen Interstitial Ad Engine (Ad-Free for VIP)
     private fun showPostCallInterstitial(onFinished: () -> Unit) {
+        val isVip = prefs.getBoolean("is_vip", false)
+        if (isVip) {
+            onFinished()
+            return
+        }
+
         val ad = interstitialAd
         if (ad != null) {
             ad.fullScreenContentCallback = object : FullScreenContentCallback() {
@@ -693,9 +713,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         }
     }
 
-    // =========================================================================
-    // STRICT DUAL-PERMISSION GATEKEEPER (RULE 43: ZERO BYPASS POLICY)
-    // =========================================================================
     private fun hasAllMandatoryPermissions(): Boolean {
         val audioGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
         val notificationGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -844,10 +861,13 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         }
 
         btnVip?.setOnClickListener {
+            val isVip = prefs.getBoolean("is_vip", false)
             val hasPass = prefs.getBoolean("has_female_pass", false)
             val isQuestActive = prefs.getBoolean("is_quest_active", false)
 
-            if (hasPass) {
+            if (isVip) {
+                showActiveVipDialog()
+            } else if (hasPass) {
                 showActivePassDialog()
             } else if (isQuestActive) {
                 showPracticeQuestProgressDialog()
@@ -905,9 +925,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         }
     }
 
-    // =========================================================================
-    // MODULAR SQUIRCLE DIALOG ENGINE WITH PIXEL-PERFECT VECTOR ASSETS
-    // =========================================================================
     private fun showSquircleModalDialog(
         badgeIconRes: Int,
         badgeBgColor: String,
@@ -932,7 +949,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 setPadding(padH, padV, padH, padV)
             }
 
-            // Top Header: Squircle Badge + Title
             val headerLayout = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
@@ -944,7 +960,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 }
             }
 
-            // Squircle Icon Badge (44dp x 44dp, 14dp radius)
             val badgeCard = CardView(this).apply {
                 radius = dpToPx(14f).toFloat()
                 cardElevation = 0f
@@ -978,7 +993,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             headerLayout.addView(tvTitle)
             dialogView.addView(headerLayout)
 
-            // Body Text (if provided)
             if (!bodyText.isNullOrEmpty()) {
                 val tvBody = TextView(this).apply {
                     text = bodyText
@@ -995,12 +1009,10 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 dialogView.addView(tvBody)
             }
 
-            // Custom Content Area (Checklist rows or Radio options)
             if (customContentView != null) {
                 dialogView.addView(customContentView)
             }
 
-            // Action Buttons Row
             val buttonContainer = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.END
@@ -1014,7 +1026,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
             var dialog: AlertDialog? = null
 
-            // Secondary Pill Button
             if (secondaryBtnText != null) {
                 val cardSecondary = CardView(this).apply {
                     radius = dpToPx(18f).toFloat()
@@ -1049,7 +1060,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 buttonContainer.addView(cardSecondary)
             }
 
-            // Primary Pill Button
             val cardPrimary = CardView(this).apply {
                 radius = dpToPx(18f).toFloat()
                 cardElevation = 0f
@@ -1082,7 +1092,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
             dialogView.addView(buttonContainer)
 
-            // Outer Card (22dp corner radius, soft elevation)
             val outerCard = CardView(this).apply {
                 radius = dpToPx(22f).toFloat()
                 cardElevation = dpToPx(6f).toFloat()
@@ -1103,7 +1112,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         }
     }
 
-    // 1. VIP Locked Notice (Image 14113 bottom)
     private fun showFemaleFilterLockedDialog() {
         showSquircleModalDialog(
             badgeIconRes = R.drawable.ic_dialog_lock,
@@ -1118,7 +1126,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         )
     }
 
-    // 2. VIP Membership Screen (Image 14113 top)
     private fun showPureVipDialog() {
         val benefitsLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -1181,7 +1188,64 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         )
     }
 
-    // 3. Community Practice Quest Progress (Image 14150_2)
+    private fun showActiveVipDialog() {
+        val benefitsLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = dpToPx(16f)
+            }
+        }
+
+        val perks = listOf(
+            "Unlimited female-only filtering active",
+            "Priority matchmaking enabled",
+            "Ad-free conversations enabled"
+        )
+
+        for (perk in perks) {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    bottomMargin = dpToPx(8f)
+                }
+            }
+
+            val tvCheck = TextView(this).apply {
+                text = "✓ "
+                setTextColor(Color.parseColor("#1D9E75"))
+                textSize = 14f
+                typeface = Typeface.DEFAULT_BOLD
+            }
+            row.addView(tvCheck)
+
+            val tvPerk = TextView(this).apply {
+                text = perk
+                setTextColor(Color.parseColor("#475569"))
+                textSize = 13f
+            }
+            row.addView(tvPerk)
+            benefitsLayout.addView(row)
+        }
+
+        showSquircleModalDialog(
+            badgeIconRes = R.drawable.ic_dialog_crown,
+            badgeBgColor = "#FAC775",
+            title = "VIP Active",
+            bodyText = "You have an active VIP Membership. Enjoy unlimited priority matching and uninterrupted conversations!",
+            customContentView = benefitsLayout,
+            primaryBtnText = "Got it",
+            primaryBtnColor = "#FAC775",
+            primaryTextColor = "#412402"
+        )
+    }
+
     private fun showPracticeQuestProgressDialog() {
         val shared = prefs.getBoolean("has_shared_app", false)
         val calls = prefs.getInt("female_pass_qualified_calls", 0)
@@ -1210,7 +1274,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         }
         questLayout.addView(tvIntro)
 
-        // Goal 1: Share the App Card
         val cardGoal1 = CardView(this).apply {
             radius = dpToPx(14f).toFloat()
             cardElevation = 0f
@@ -1273,7 +1336,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         cardGoal1.addView(row1)
         questLayout.addView(cardGoal1)
 
-        // Goal 2: Complete 5 English Calls Card
         val cardGoal2 = CardView(this).apply {
             radius = dpToPx(14f).toFloat()
             cardElevation = 0f
@@ -1326,7 +1388,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         cardGoal2.addView(row2)
         questLayout.addView(cardGoal2)
 
-        // Footnote
         val tvFootnote = TextView(this).apply {
             text = "Proves serious practice intent and protects community learners."
             setTextColor(Color.parseColor("#94A3B8"))
@@ -1350,7 +1411,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         )
     }
 
-    // 4. 10-Minute Milestone Celebration (Image 14151_2)
+    // Rule 37: 10-Minute Milestone Celebration (Free Tier: Challenge Offer)
     private fun showMilestoneQuestOfferDialog() {
         showSquircleModalDialog(
             badgeIconRes = R.drawable.ic_dialog_trophy,
@@ -1370,7 +1431,19 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         )
     }
 
-    // 5. Call Limit Warning with Rewarded Ad Extension (Image 14153_3)
+    // Rule 37: VIP 10-Minute Milestone Celebration (Honor-only, bypasses quest offer)
+    private fun showVipMilestoneCelebrationDialog() {
+        showSquircleModalDialog(
+            badgeIconRes = R.drawable.ic_dialog_trophy,
+            badgeBgColor = "#FAC775",
+            title = "10-minute milestone!",
+            bodyText = "Fantastic dedication! You completed a 10+ minute English conversation.\n\nKeep up the great progress!",
+            primaryBtnText = "Awesome",
+            primaryBtnColor = "#FAC775",
+            primaryTextColor = "#412402"
+        )
+    }
+
     private fun showCallExtensionDialog() {
         showSquircleModalDialog(
             badgeIconRes = R.drawable.ic_dialog_clock,
@@ -1400,7 +1473,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         )
     }
 
-    // 6. 0 Talk Coins Dialog (Image 14152_2)
     private fun showZeroCoinsDialog() {
         showSquircleModalDialog(
             badgeIconRes = R.drawable.ic_dialog_coin,
@@ -1415,7 +1487,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         )
     }
 
-    // 7. Report Caller Dialog with Styled Radio Rows (Image 14157)
     private fun showReportUserDialog(isInCall: Boolean) {
         val targetPeerId = lastCallerPeerId
         if (targetPeerId.isEmpty()) {
@@ -1564,6 +1635,9 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     }
 
     private fun checkAndRewardFemalePass() {
+        val isVip = prefs.getBoolean("is_vip", false)
+        if (isVip) return
+
         val hasPass = prefs.getBoolean("has_female_pass", false)
         val isQuestActive = prefs.getBoolean("is_quest_active", false)
         if (hasPass || !isQuestActive) return
@@ -1738,7 +1812,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         val hasFemalePass = prefs.getBoolean("has_female_pass", false)
         val userGender = prefs.getString("user_gender", "MALE") ?: "MALE"
 
-        wasSearchingWithFemalePass = isFemaleOnly && hasFemalePass
+        wasSearchingWithFemalePass = isFemaleOnly && hasFemalePass && !isVip
         isCurrentCallFemaleFiltered = isFemaleOnly
 
         SignalingClient.joinQueue(
@@ -1749,7 +1823,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             isVip = isVip,
             hasFemalePass = hasFemalePass
         )
-        logEvent("Queue", "Joined $currentLevel queue [$currentLanguage] (Gender: $userGender, FemaleFilter: $isFemaleOnly, Pass: $hasFemalePass)")
+        logEvent("Queue", "Joined $currentLevel queue [$currentLanguage] (Gender: $userGender, FemaleFilter: $isFemaleOnly, VIP: $isVip, Pass: $hasFemalePass)")
     }
 
     private fun startRegionalSearchFlow(lang: String) {
@@ -1847,7 +1921,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
                 reconnectConsumed = false
             }
 
-            if (switchFemaleFilter?.isChecked == true && wasSearchingWithFemalePass) {
+            val isVip = prefs.getBoolean("is_vip", false)
+            if (switchFemaleFilter?.isChecked == true && wasSearchingWithFemalePass && !isVip) {
                 prefs.edit().putBoolean("has_female_pass", false).apply()
                 isUpdatingToggleProgrammatically = true
                 switchFemaleFilter?.isChecked = false
@@ -1888,8 +1963,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
             mainHandler.removeCallbacks(callTimerRunnable)
             mainHandler.post(callTimerRunnable)
-            
-            // RULE 44: Pass 'this' as 4th parameter so ICE Disconnect Watchdog triggers onCallEnded
             WebRtcAudioClient.startPeerConnection(roomId, isInitiator, this, this)
             logEvent("CallView", "Live call connected at 00:00 (Pool: $currentLanguage, Reconnect: $isCurrentSessionReconnect, FemaleFilter: $isCurrentCallFemaleFiltered)")
         }
@@ -2007,6 +2080,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         )
 
         val wasFemaleSession = isCurrentCallFemaleFiltered
+        val isVip = prefs.getBoolean("is_vip", false)
 
         updateSessionStats(callDurationSec)
         WebRtcAudioClient.close()
@@ -2033,7 +2107,8 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             cardDashboardReportLast?.visibility = View.GONE
         }
 
-        if (wasFemaleSession) {
+        // Post-call female filter cooldown: Only applied to free pass sessions, VIP users are unrestricted
+        if (wasFemaleSession && !isVip) {
             val teardownTime = System.currentTimeMillis()
             prefs.edit().putLong("last_female_call_end_time_ms", teardownTime).apply()
             logEvent("QuestCooldown", "Female pass session ended. 30-minute post-pass cooldown started.")
@@ -2048,7 +2123,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             refreshDashboardUI()
         }
 
-        if (callDurationSec >= 15) {
+        if (callDurationSec >= 15 && !isVip) {
             showPostCallInterstitial {
                 runOnUiThread {
                     navigateToTarget()
@@ -2060,14 +2135,20 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
 
         logEvent("WebRTC", "Session ended. Talk time: ${callDurationSec}s")
 
+        // Rule 37: 10-minute celebration vs quest offer routing
         if (currentLanguage == "ENGLISH" && callDurationSec >= 600) {
-            val hasPass = prefs.getBoolean("has_female_pass", false)
-            val isQuestActive = prefs.getBoolean("is_quest_active", false)
-
-            if (!hasPass && !isQuestActive && callStartedAfterCooldownExpired) {
-                showMilestoneQuestOfferDialog()
+            if (isVip) {
+                showVipMilestoneCelebrationDialog()
+                logEvent("VIP", "10m milestone celebration shown (Quest bypassed for VIP)")
             } else {
-                logEvent("QuestMilestone", "10m milestone reached but disqualified (In cooldown, pass active, or already in quest)")
+                val hasPass = prefs.getBoolean("has_female_pass", false)
+                val isQuestActive = prefs.getBoolean("is_quest_active", false)
+
+                if (!hasPass && !isQuestActive && callStartedAfterCooldownExpired) {
+                    showMilestoneQuestOfferDialog()
+                } else {
+                    logEvent("QuestMilestone", "10m milestone reached but disqualified (In cooldown, pass active, or already in quest)")
+                }
             }
         }
 
@@ -2113,8 +2194,9 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
             logEvent("Progression", "Advanced unlock: $qualified / 20")
         }
 
+        val isVip = prefs.getBoolean("is_vip", false)
         val isQuestActive = prefs.getBoolean("is_quest_active", false)
-        if (isQuestActive && currentLanguage == "ENGLISH" && durationSec >= 120) {
+        if (!isVip && isQuestActive && currentLanguage == "ENGLISH" && durationSec >= 120) {
             val passCalls = prefs.getInt("female_pass_qualified_calls", 0)
             if (passCalls < 5) {
                 editor.putInt("female_pass_qualified_calls", passCalls + 1)
@@ -2145,6 +2227,7 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     }
 
     private fun refreshDashboardUI() {
+        val isVip = prefs.getBoolean("is_vip", false)
         val coins = prefs.getInt("talk_coins", 0)
         val streak = prefs.getInt("daily_streak", 0)
         val practiceMins = prefs.getLong("total_practice_seconds", 0L) / 60
@@ -2159,7 +2242,10 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         tvTotalMinutesVal?.text = "${practiceMins}m"
         tvTotalCallsVal?.text = "$totalCalls"
 
-        if (hasPass) {
+        // Permanent VIP state representation on dashboard badge
+        if (isVip) {
+            btnVip?.text = "👑 VIP"
+        } else if (hasPass) {
             btnVip?.text = "👑 PASS"
         } else if (isQuestActive) {
             btnVip?.text = "👑 $questCalls/5"
@@ -2187,12 +2273,21 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
     }
 
     private fun showLayout(activeLayout: View?) {
+        val isVip = prefs.getBoolean("is_vip", false)
+
         scrollDashboard?.visibility = if (activeLayout == layoutDashboard) View.VISIBLE else View.GONE
         layoutLanguages?.visibility = if (activeLayout == layoutLanguages) View.VISIBLE else View.GONE
         layoutSearching?.visibility = if (activeLayout == layoutSearching) View.VISIBLE else View.GONE
         layoutCall?.visibility = if (activeLayout == layoutCall) View.VISIBLE else View.GONE
 
-        layoutBannerAd?.visibility = if (activeLayout == layoutDashboard || activeLayout == layoutLanguages) View.VISIBLE else View.GONE
+        // Hide banner entirely for VIP users on all screens
+        layoutBannerAd?.visibility = if (!isVip && (activeLayout == layoutDashboard || activeLayout == layoutLanguages)) View.VISIBLE else View.GONE
+
+        // Hide MREC containers for VIP users
+        if (isVip) {
+            layoutSearchAdContainer?.visibility = View.GONE
+            layoutInCallAdContainer?.visibility = View.GONE
+        }
 
         updateWindowAppearanceForCurrentScreen()
     }
@@ -2226,7 +2321,6 @@ class MainActivity : Activity(), SignalingClient.SignalingListener, SensorEventL
         SignalingClient.ensureActiveConnection()
         logEvent("SYS", "onResume: Active connection probe completed")
 
-        // Rule 43: If returning from App Settings with permissions granted, auto-refresh
         if (layoutGenderOnboarding?.visibility == View.VISIBLE && hasAllMandatoryPermissions() && tempSelectedGender != null) {
             cardConfirmGender?.setCardBackgroundColor(Color.parseColor("#00B894"))
             btnConfirmGender?.isEnabled = true

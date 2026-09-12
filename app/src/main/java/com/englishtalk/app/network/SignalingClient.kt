@@ -1,6 +1,10 @@
 package com.englishtalk.app.network
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.os.Handler
 import android.os.Looper
 import okhttp3.*
@@ -19,15 +23,16 @@ object SignalingClient {
     private var webSocket: WebSocket? = null
     
     private val client = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
+        .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.MILLISECONDS)
-        .writeTimeout(10, TimeUnit.SECONDS)
-        .pingInterval(5, TimeUnit.SECONDS)
+        .writeTimeout(5, TimeUnit.SECONDS)
+        .pingInterval(3, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
         .build()
 
     private var listener: SignalingListener? = null
-    private var isConnected = false
+    var isConnected = false
+        private set
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private var isReconnecting = false
@@ -70,6 +75,21 @@ object SignalingClient {
             prefs.edit().putString("unique_device_id", devId).apply()
         }
         cachedDeviceId = devId
+
+        // Network Callback: Detect immediate cellular/wifi restore with zero latency
+        try {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            val request = NetworkRequest.Builder()
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .build()
+            cm.registerNetworkCallback(request, object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    mainHandler.post {
+                        forceReconnect()
+                    }
+                }
+            })
+        } catch (e: Throwable) {}
     }
 
     private fun startBackgroundPing() {
@@ -88,7 +108,7 @@ object SignalingClient {
                     forceReconnect()
                 }
             }
-        }, 3, 5, TimeUnit.SECONDS)
+        }, 2, 3, TimeUnit.SECONDS)
     }
 
     private fun stopBackgroundPing() {
@@ -138,7 +158,7 @@ object SignalingClient {
                     isReconnecting = false
                     startBackgroundPing()
 
-                    // Rule 44: Sync active call session on reconnect
+                    // Rule 44: Sync active call session immediately on reconnect
                     if (activeCallRoomId.isNotEmpty()) {
                         try {
                             val syncPayload = JSONObject().apply {
@@ -194,7 +214,7 @@ object SignalingClient {
         backgroundExecutor.schedule({
             isReconnecting = false
             connect()
-        }, 1000L, TimeUnit.MILLISECONDS)
+        }, 800L, TimeUnit.MILLISECONDS)
     }
 
     private fun ensureConnected(onReady: () -> Unit) {
@@ -368,14 +388,23 @@ object SignalingClient {
         val targetRoom = activeCallRoomId
         activeQueuePayload = null
         activeCallRoomId = ""
-        try {
-            val json = JSONObject().apply {
-                put("action", "end_call")
-                put("roomId", targetRoom)
-                put("deviceId", cachedDeviceId)
-            }
-            webSocket?.send(json.toString())
-        } catch (e: Throwable) {}
+
+        val json = JSONObject().apply {
+            put("action", "end_call")
+            put("roomId", targetRoom)
+            put("deviceId", cachedDeviceId)
+        }
+
+        val sent = webSocket?.send(json.toString()) ?: false
+        if (!sent) {
+            // Force quick reconnect and blast end_call if socket was broken
+            forceReconnect()
+            backgroundExecutor.schedule({
+                try {
+                    webSocket?.send(json.toString())
+                } catch (e: Throwable) {}
+            }, 500L, TimeUnit.MILLISECONDS)
+        }
     }
 
     fun reportUser(reportedPeerId: String) {
